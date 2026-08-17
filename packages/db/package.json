@@ -1,0 +1,37 @@
+{
+  "name": "@dye/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:seed": "prisma db seed",
+    "db:verify": "tsx prisma/seed/verify.ts",
+    "db:reset": "prisma migrate reset --force",
+    "db:studio": "prisma studio",
+    "build": "prisma generate",
+    "typecheck": "prisma generate && tsc --noEmit",
+    "lint": "eslint src prisma --max-warnings 0",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.2.1",
+    "@node-rs/argon2": "^2.0.2"
+  },
+  "devDependencies": {
+    "prisma": "^6.2.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,940 @@
+// DYE LMS — database schema
+//
+// Design rules encoded here (see docs/02-DATABASE.md):
+//   1. Teacher notes from the lesson plans are DATA, not prose. LessonStatus and
+//      Tier carry the differentiation rules the curriculum requires.
+//   2. There is deliberately NO enum value, column or label expressing student
+//      deficiency. Tier describes the WORK, never the child.
+//   3. Authorisation is relationship-based: teacher -> Class -> Enrollment -> student.
+//      No query may authorise on role alone.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ENUMS — the curriculum rules, expressed as types
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+}
+
+/// Resolution order at read time: student override > class override > this seed default.
+/// Python Cơ Bản lessons 7-11 (sessions 20-30) seed as OPTIONAL because the lesson
+/// plan states some students will max out at Lesson 5.
+enum LessonStatus {
+  REQUIRED
+  RECOMMENDED
+  OPTIONAL
+  ADVANCED
+}
+
+/// Positive semantic scale ONLY. Cơ bản -> Thử thách -> Nâng cao -> Mở rộng.
+/// Attaches to assigned work, never to a student record.
+enum Tier {
+  CO_BAN
+  THU_THACH
+  NANG_CAO
+  MO_RONG
+}
+
+/// Lesson flow must be THEORY -> INTERACTIVE_EXAMPLE -> PLAYGROUND -> MINI_CHALLENGE.
+/// Enforced by assertPedagogicalFlow() in @dye/core on every write.
+enum BlockType {
+  THEORY
+  INTERACTIVE_EXAMPLE
+  PLAYGROUND
+  MINI_CHALLENGE
+  VIDEO
+  QUIZ
+  CODING
+  PROJECT
+  REFLECTION
+  RESOURCE
+}
+
+enum JudgeMode {
+  IO_MATCH
+  UNIT_TEST
+  PERFORMANCE
+  PROJECT_UPLOAD
+}
+
+/// SECURITY POLICY: default NONE. Socket exercises work over loopback inside a
+/// --network=none container. EGRESS_ALLOWLIST requires explicit teacher
+/// authorisation plus an AuditLog entry; the worker refuses it otherwise.
+enum NetworkPolicy {
+  NONE
+  LOOPBACK_ONLY
+  EGRESS_ALLOWLIST
+}
+
+enum RuntimeImage {
+  PY_BASE
+  PY_TEST
+  PY_WEB
+}
+
+enum Verdict {
+  PENDING
+  RUNNING
+  ACCEPTED
+  WRONG_ANSWER
+  TIME_LIMIT_EXCEEDED
+  MEMORY_LIMIT_EXCEEDED
+  OUTPUT_LIMIT_EXCEEDED
+  RUNTIME_ERROR
+  COMPILE_ERROR
+  INTERNAL_ERROR
+  SKIPPED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  FILL_BLANK
+  SHORT_ANSWER
+}
+
+enum ProgressState {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum ProjectTemplate {
+  SPACE_INVADERS
+  PLATFORMER
+  PONG
+  MAZE
+  QUIZ_GUI
+  CUSTOM
+}
+
+enum ProjectStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  CHANGES_REQUESTED
+  APPROVED
+}
+
+/// pygbag/WASM preview is best-effort. UNAVAILABLE is a first-class, honest state
+/// that never blocks a submission — Project Upload remains the primary path.
+enum PreviewStatus {
+  NOT_BUILT
+  BUILDING
+  READY
+  UNAVAILABLE
+}
+
+enum MilestoneState {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+enum NotificationType {
+  SUBMISSION_JUDGED
+  FEEDBACK_RECEIVED
+  LESSON_UNLOCKED
+  BADGE_EARNED
+  ANNOUNCEMENT
+  PROJECT_REVIEWED
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// IDENTITY & COHORTS
+// ═══════════════════════════════════════════════════════════════════════════
+
+model User {
+  id                 String    @id @default(cuid())
+  /// Students log in with a username. Middle schoolers may not have an email.
+  username           String    @unique
+  email              String?   @unique
+  passwordHash       String
+  role               Role      @default(STUDENT)
+  displayName        String
+  avatarUrl          String?
+  locale             String    @default("vi")
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  accounts          Account[]
+  sessions          Session[]
+  taughtClasses     Class[]           @relation("ClassTeacher")
+  enrollments       Enrollment[]
+  lessonProgress    LessonProgress[]
+  blockProgress     BlockProgress[]
+  submissions       Submission[]
+  quizAttempts      QuizAttempt[]
+  trackAssignments  TrackAssignment[] @relation("TrackStudent")
+  tracksAssigned    TrackAssignment[] @relation("TrackAssigner")
+  overridesCreated  LessonOverride[]  @relation("OverrideAuthor")
+  overridesReceived LessonOverride[]  @relation("OverrideStudent")
+  xpEvents          XpEvent[]
+  earnedBadges      StudentBadge[]
+  streak            Streak?
+  gameProjects      GameProject[]
+  feedbackAuthored  Feedback[]        @relation("FeedbackAuthor")
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  announcements     Announcement[]    @relation("AnnouncementAuthor")
+  problemsAuthored  Problem[]         @relation("ProblemAuthor")
+
+  @@index([role, isActive])
+}
+
+/// Auth.js adapter table. Kept for optional teacher OAuth; students use credentials.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+/// Database-backed sessions. Chosen over pure JWT so a teacher deactivating an
+/// account revokes it immediately rather than at token expiry.
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  ipAddress    String?
+  userAgent    String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expires])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Class {
+  id         String   @id @default(cuid())
+  /// e.g. "DYE-PY-K7-2026A"
+  code       String   @unique
+  name       String
+  term       String?
+  teacherId  String
+  isArchived Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  teacher       User             @relation("ClassTeacher", fields: [teacherId], references: [id])
+  classCourses  ClassCourse[]
+  enrollments   Enrollment[]
+  overrides     LessonOverride[]
+  announcements Announcement[]
+
+  @@index([teacherId, isArchived])
+}
+
+model ClassCourse {
+  id       String    @id @default(cuid())
+  classId  String
+  courseId String
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  class  Class  @relation(fields: [classId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, courseId])
+  @@index([courseId])
+}
+
+model Enrollment {
+  id         String   @id @default(cuid())
+  classId    String
+  studentId  String
+  enrolledAt DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+  @@index([studentId, isActive])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CURRICULUM
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Course {
+  id            String   @id @default(cuid())
+  slug          String   @unique
+  title         String
+  subtitle      String?
+  description   String
+  /// 30 for all three courses in the DYE curriculum.
+  totalSessions Int
+  order         Int
+  colorToken    String   @default("indigo")
+  iconEmoji     String   @default("🐍")
+  isPublished   Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  modules      Module[]
+  lessons      Lesson[]
+  classCourses ClassCourse[]
+  tracks       TrackAssignment[]
+  gameProjects GameProject[]
+
+  @@index([order])
+}
+
+model Module {
+  id          String  @id @default(cuid())
+  courseId    String
+  order       Int
+  slug        String
+  title       String
+  description String
+  /// Inclusive session range this module covers, for display: "Buổi 9–16".
+  sessionFrom Int
+  sessionTo   Int
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@unique([courseId, order])
+  @@unique([courseId, slug])
+}
+
+model Lesson {
+  id       String @id @default(cuid())
+  /// Denormalised from Module so (course, session number) can be uniquely
+  /// constrained and so course-wide progress queries avoid a join.
+  courseId String
+  moduleId String
+  /// Global session number within the course: 1..30.
+  order    Int
+  slug     String
+  title    String
+  summary  String
+  /// Rendered as the "What did I learn?" checklist.
+  objectives       String[]
+  /// 1..5. Teacher planning aid. NEVER surfaced to students as a label.
+  difficulty       Int          @default(2)
+  estimatedMinutes Int          @default(90)
+  status           LessonStatus @default(REQUIRED)
+  /// Verbatim note from the source lesson plan. Teacher-only.
+  teacherNotes     String?
+  /// True when this session was reconstructed to fill the 30-session count
+  /// rather than being enumerated in the source plan. Lets the real breakdown
+  /// be swapped in later without a schema change.
+  isDerived        Boolean      @default(false)
+  isPublished      Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  course        Course               @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  module        Module               @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  blocks        LessonBlock[]
+  prerequisites LessonPrerequisite[] @relation("Dependent")
+  dependents    LessonPrerequisite[] @relation("Required")
+  overrides     LessonOverride[]
+  progress      LessonProgress[]
+  submissions   Submission[]
+
+  @@unique([courseId, order])
+  @@unique([courseId, slug])
+  @@index([moduleId, order])
+  @@index([courseId, status])
+}
+
+/// Prerequisite DAG. Teachers may waive edges per class or per student via
+/// LessonOverride.waivePrerequisites.
+model LessonPrerequisite {
+  lessonId   String
+  requiredId String
+
+  lesson   Lesson @relation("Dependent", fields: [lessonId], references: [id], onDelete: Cascade)
+  required Lesson @relation("Required", fields: [requiredId], references: [id], onDelete: Cascade)
+
+  @@id([lessonId, requiredId])
+  @@index([requiredId])
+}
+
+/// The mandated pedagogical flow lives here. A lesson is a SEQUENCE of blocks,
+/// not a PDF followed by a quiz.
+model LessonBlock {
+  id         String    @id @default(cuid())
+  lessonId   String
+  order      Int
+  type       BlockType
+  /// One lesson serves four audiences from one URL. A CO_BAN student never sees
+  /// the NANG_CAO blocks; there is no separate "remedial" page to be seen entering.
+  tier       Tier      @default(CO_BAN)
+  title      String
+  /// JSONB, validated by a discriminated-union zod schema per `type` in @dye/core.
+  content    Json
+  isOptional Boolean   @default(false)
+  estimatedMinutes Int @default(10)
+  problemId  String?
+  quizId     String?
+
+  lesson   Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  problem  Problem?        @relation(fields: [problemId], references: [id])
+  quiz     Quiz?           @relation(fields: [quizId], references: [id])
+  progress BlockProgress[]
+
+  @@unique([lessonId, order])
+  @@index([lessonId, tier])
+  @@index([problemId])
+  @@index([quizId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DIFFERENTIATION & TEACHER CONTROL
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// "Student A is currently working in Cơ bản on Python Cơ Bản."
+/// Reversible, teacher-owned, invisible to peers.
+model TrackAssignment {
+  id         String   @id @default(cuid())
+  studentId  String
+  courseId   String
+  tier       Tier     @default(CO_BAN)
+  assignedBy String
+  /// Teacher-only planning note, e.g. "đang tăng tốc, thử NÂNG CAO tuần sau".
+  note       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  student  User   @relation("TrackStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  assigner User   @relation("TrackAssigner", fields: [assignedBy], references: [id])
+
+  @@unique([studentId, courseId])
+  @@index([courseId, tier])
+}
+
+/// Teacher escape hatch: force-unlock, force-lock, restatus, or waive
+/// prerequisites — for a whole class or one student. Student-scoped overrides
+/// win over class-scoped ones, which win over Lesson.status.
+model LessonOverride {
+  id                 String        @id @default(cuid())
+  lessonId           String
+  classId            String?
+  studentId          String?
+  forceStatus        LessonStatus?
+  /// null = inherit from prerequisite resolution.
+  isUnlocked         Boolean?
+  waivePrerequisites Boolean       @default(false)
+  reason             String?
+  createdBy          String
+  createdAt          DateTime      @default(now())
+
+  lesson  Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  class   Class? @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User?  @relation("OverrideStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  author  User   @relation("OverrideAuthor", fields: [createdBy], references: [id])
+
+  @@index([lessonId, studentId])
+  @@index([lessonId, classId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROBLEMS, TESTS, SANDBOX POLICY
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Problem {
+  id            String        @id @default(cuid())
+  slug          String        @unique
+  title         String
+  /// Markdown, Vietnamese.
+  statement     String
+  /// Progressive. Revealing one costs XP, never score.
+  hints         String[]
+  starterCode   String        @default("")
+  /// Teacher-only. Phase 10 executes every reference solution through the real
+  /// judge to prove each seeded problem is actually solvable.
+  solutionCode  String        @default("")
+  tier          Tier          @default(CO_BAN)
+  judgeMode     JudgeMode     @default(IO_MATCH)
+  runtimeImage  RuntimeImage  @default(PY_BASE)
+  networkPolicy NetworkPolicy @default(NONE)
+  timeLimitMs   Int           @default(2000)
+  memoryLimitMb Int           @default(256)
+  totalPoints   Int           @default(100)
+  /// UNIT_TEST mode: hidden pytest suite run against the student's module.
+  unitTestCode  String?
+  /// PY_WEB runtime: routes served on 127.0.0.1:8000 so `requests` works with
+  /// zero egress and deterministic grading.
+  mockFixtures  Json?
+  /// Required when networkPolicy != NONE. The worker refuses the job otherwise.
+  authorizedBy  String?
+  authorId      String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  author        User?                 @relation("ProblemAuthor", fields: [authorId], references: [id])
+  testCases     TestCase[]
+  perfScenarios PerformanceScenario[]
+  blocks        LessonBlock[]
+  submissions   Submission[]
+
+  @@index([judgeMode, tier])
+}
+
+model TestCase {
+  id             String  @id @default(cuid())
+  problemId      String
+  order          Int
+  input          String  @default("")
+  expectedOutput String
+  /// Hidden tests assess; sample tests teach.
+  isHidden       Boolean @default(false)
+  isSample       Boolean @default(false)
+  points         Int     @default(10)
+  timeLimitMs    Int?
+  /// { trimTrailing: boolean, ignoreCase: boolean, floatTolerance: number|null }
+  /// Beginners must not fail on a stray trailing space.
+  comparison     Json    @default("{\"trimTrailing\": true, \"ignoreCase\": false, \"floatTolerance\": null}")
+  /// Shown on failure for SAMPLE tests only.
+  explanation    String?
+
+  problem Problem                @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  results SubmissionTestResult[]
+
+  @@unique([problemId, order])
+  @@index([problemId, isHidden])
+}
+
+/// The Big-O Performance Challenge. Runs the student's algorithm at increasing N
+/// and charts wall time against reference complexity curves, so the difference
+/// between linear and binary search becomes a shape on a graph.
+model PerformanceScenario {
+  id                 String @id @default(cuid())
+  problemId          String
+  order              Int
+  /// "N = 100 000"
+  label              String
+  n                  Int
+  /// Named, seeded generator implemented in the sandbox runner.
+  generator          String
+  seed               Int    @default(42)
+  maxTimeMs          Int
+  /// Revealed after the run, for teaching: "O(n log n)".
+  expectedComplexity String
+
+  problem Problem @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([problemId, order])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SUBMISSIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Submission {
+  id           String    @id @default(cuid())
+  studentId    String
+  problemId    String
+  lessonId     String?
+  code         String
+  verdict      Verdict   @default(PENDING)
+  score        Int       @default(0)
+  passedTests  Int       @default(0)
+  totalTests   Int       @default(0)
+  maxTimeMs    Int?
+  maxMemoryKb  Int?
+  compileError String?
+  /// Internal diagnostics. Never rendered raw to a student.
+  runnerError  String?
+  attemptNo    Int       @default(1)
+  queuedAt     DateTime?
+  judgedAt     DateTime?
+  createdAt    DateTime  @default(now())
+
+  student User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  problem Problem    @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  lesson  Lesson?    @relation(fields: [lessonId], references: [id])
+  results SubmissionTestResult[]
+  feedback Feedback[]
+
+  @@index([studentId, problemId, createdAt])
+  /// Powers teacher analytics: most-failed coding challenges.
+  @@index([problemId, verdict])
+  @@index([verdict, createdAt])
+}
+
+model SubmissionTestResult {
+  submissionId String
+  testCaseId   String
+  verdict      Verdict
+  timeMs       Int     @default(0)
+  memoryKb     Int     @default(0)
+  /// Truncated to 4 KB, and only retained for non-hidden tests.
+  stdout       String?
+  /// Sanitised: container paths and runner internals stripped before storage.
+  stderr       String?
+  /// Friendly Vietnamese explanation mapped from the raw exception.
+  friendlyError String?
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  testCase   TestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@id([submissionId, testCaseId])
+  /// Powers teacher analytics: most-failed individual test cases.
+  @@index([testCaseId, verdict])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// QUIZZES
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Quiz {
+  id            String  @id @default(cuid())
+  slug          String  @unique
+  title         String
+  description   String?
+  tier          Tier    @default(CO_BAN)
+  passingScore  Int     @default(60)
+  maxAttempts   Int?
+  shuffleQuestions Boolean @default(false)
+
+  questions Question[]
+  attempts  QuizAttempt[]
+  blocks    LessonBlock[]
+}
+
+model Question {
+  id          String       @id @default(cuid())
+  quizId      String
+  order       Int
+  type        QuestionType
+  prompt      String
+  /// Shown after answering, right or wrong. Teaching, not gatekeeping.
+  explanation String?
+  points      Int          @default(10)
+  tier        Tier         @default(CO_BAN)
+  /// FILL_BLANK / SHORT_ANSWER.
+  acceptedAnswers String[]
+  /// "exact" | "insensitive" | "normalised"
+  matchMode   String       @default("insensitive")
+
+  quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  choices Choice[]
+  answers Answer[]
+
+  @@unique([quizId, order])
+}
+
+model Choice {
+  id         String  @id @default(cuid())
+  questionId String
+  order      Int
+  text       String
+  isCorrect  Boolean @default(false)
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([questionId, order])
+}
+
+model QuizAttempt {
+  id          String    @id @default(cuid())
+  quizId      String
+  studentId   String
+  attemptNo   Int       @default(1)
+  score       Int       @default(0)
+  maxScore    Int       @default(0)
+  isPassed    Boolean   @default(false)
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+
+  quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  student User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@unique([quizId, studentId, attemptNo])
+  @@index([studentId, submittedAt])
+}
+
+model Answer {
+  id            String  @id @default(cuid())
+  attemptId     String
+  questionId    String
+  /// Shape depends on Question.type: string | string[] | boolean.
+  response      Json
+  isCorrect     Boolean @default(false)
+  pointsAwarded Int     @default(0)
+  /// SHORT_ANSWER is teacher-graded; null until reviewed.
+  gradedAt      DateTime?
+
+  attempt  QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  /// Powers teacher analytics: most-failed quiz questions.
+  @@index([questionId, isCorrect])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROGRESS & GAMIFICATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+model LessonProgress {
+  id           String        @id @default(cuid())
+  studentId    String
+  lessonId     String
+  state        ProgressState @default(NOT_STARTED)
+  score        Int           @default(0)
+  maxScore     Int           @default(0)
+  timeSpentSec Int           @default(0)
+  startedAt    DateTime?
+  completedAt  DateTime?
+  updatedAt    DateTime      @updatedAt
+
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson  Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, lessonId])
+  @@index([lessonId, state])
+  @@index([studentId, completedAt])
+}
+
+model BlockProgress {
+  id          String        @id @default(cuid())
+  studentId   String
+  blockId     String
+  state       ProgressState @default(NOT_STARTED)
+  completedAt DateTime?
+  updatedAt   DateTime      @updatedAt
+
+  student User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  block   LessonBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, blockId])
+  @@index([blockId, state])
+}
+
+model XpEvent {
+  id        String   @id @default(cuid())
+  studentId String
+  amount    Int
+  reason    String
+  refType   String?
+  refId     String?
+  createdAt DateTime @default(now())
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, createdAt])
+}
+
+model Badge {
+  id          String @id @default(cuid())
+  slug        String @unique
+  name        String
+  description String
+  iconEmoji   String @default("🏅")
+  /// { type: "lessons_completed", count: 5 } etc.
+  criteria    Json
+
+  earnedBy StudentBadge[]
+}
+
+model StudentBadge {
+  studentId String
+  badgeId   String
+  earnedAt  DateTime @default(now())
+
+  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  badge   Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@id([studentId, badgeId])
+}
+
+model Streak {
+  studentId      String   @id
+  current        Int      @default(0)
+  longest        Int      @default(0)
+  lastActiveDate DateTime?
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PYGAME PROJECT WORKSPACE
+// ═══════════════════════════════════════════════════════════════════════════
+
+model GameProject {
+  id            String          @id @default(cuid())
+  studentId     String
+  courseId      String
+  template      ProjectTemplate @default(CUSTOM)
+  title         String
+  description   String          @default("")
+  status        ProjectStatus   @default(DRAFT)
+  previewStatus PreviewStatus   @default(NOT_BUILT)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  student    User               @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course     Course             @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  milestones ProjectMilestone[]
+  versions   ProjectVersion[]
+
+  @@index([studentId, status])
+  @@index([courseId, status])
+}
+
+model ProjectMilestone {
+  id        String         @id @default(cuid())
+  projectId String
+  order     Int
+  title     String
+  dueAt     DateTime?
+  state     MilestoneState @default(PENDING)
+
+  project GameProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, order])
+}
+
+/// Immutable once submitted, so teacher feedback always refers to a fixed snapshot.
+model ProjectVersion {
+  id                 String    @id @default(cuid())
+  projectId          String
+  version            Int
+  note               String    @default("")
+  submittedAt        DateTime?
+  createdAt          DateTime  @default(now())
+  /// pygbag WASM build artifact, when the best-effort preview succeeded.
+  previewArtifactKey String?
+  buildLog           String?
+
+  project  GameProject   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  files    ProjectFile[]
+  feedback Feedback[]
+
+  @@unique([projectId, version])
+}
+
+model ProjectFile {
+  id          String   @id @default(cuid())
+  versionId   String
+  /// Sanitised display path. Never used as a filesystem path.
+  path        String
+  sizeBytes   Int
+  /// Determined by magic-byte sniffing. The client-declared MIME is ignored.
+  sniffedMime String
+  sha256      String
+  /// Content-addressed object key. The student's filename never becomes a path.
+  storageKey  String
+  createdAt   DateTime @default(now())
+
+  version ProjectVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, path])
+  @@index([sha256])
+}
+
+model Feedback {
+  id               String   @id @default(cuid())
+  authorId         String
+  submissionId     String?
+  projectVersionId String?
+  /// { "gameplay": 8, "code_quality": 7, ... }
+  rubricScores     Json?
+  comment          String
+  createdAt        DateTime @default(now())
+
+  author         User            @relation("FeedbackAuthor", fields: [authorId], references: [id])
+  submission     Submission?     @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  projectVersion ProjectVersion? @relation(fields: [projectVersionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@index([projectVersionId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OPERATIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  /// Null for failed logins against an unknown username.
+  actorId    String?
+  action     String
+  entityType String?
+  entityId   String?
+  meta       Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([entityType, entityId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  linkUrl   String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model Announcement {
+  id          String    @id @default(cuid())
+  classId     String
+  authorId    String
+  title       String
+  body        String
+  pinnedUntil DateTime?
+  createdAt   DateTime  @default(now())
+
+  class  Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  author User  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+
+  @@index([classId, createdAt])
+}
