@@ -621,17 +621,127 @@ writes to `Submission`/`SubmissionTestResult` and touches no aggregate the dashb
 
 ---
 
-## Phase 9 — Pygame project workspace
+## Phase 9 — Pygame project workspace ✅ COMPLETE
 
-Project creation from the 5 templates, upload pipeline with magic-byte sniffing + path
-normalisation + size/count caps, content-addressed storage, file-tree viewer, read-only code
-viewer, immutable versioned submissions, milestone tracker, teacher rubric feedback threads.
-Then, additively: pygbag build job → MinIO artifact → sandboxed cross-origin iframe preview with
-COOP/COEP, behind a feature flag, with `PREVIEW_UNAVAILABLE` + build log as the honest fallback.
+**Gates: typecheck 5/5 ✅ · lint 4/4 ✅ · test 582/582 ✅ (31 seed + 265 core + 198 web + 88 judge) · `next build` ✅**
 
-**Gate additions:** upload fuzzing — `..%2f` traversal, zip-slip, polyglot GIF/JS, `.py.png`
-double extension, 0-byte and oversized files, 500-file archive, NTFS ADS names. Nothing uploaded
-is ever executed on the host.
+### Delivered
+
+| Area | Module |
+|---|---|
+| Upload validation (magic bytes, paths, quotas) | `packages/core/src/upload-guard.ts` |
+| Project/version/file engine | `packages/core/src/projects.ts` |
+| Content-addressed blob storage | `apps/web/src/lib/project-storage.ts` |
+| Zip packaging | `apps/web/src/lib/project-zip.ts` |
+| File tree, uploader, editor | `components/du-an/` |
+| Student workspace | `/du-an`, `/du-an/[id]` |
+| Teacher review queue + feedback | `/giao-vien/du-an`, `/giao-vien/du-an/[versionId]` |
+| Authorized asset serving | `/api/du-an/[id]/tep/[fileId]` |
+| Zip download | `/api/du-an/[id]/tai-ve` |
+
+No schema migration was needed. Phase 2 had already designed `GameProject` → `ProjectVersion` →
+`ProjectFile` with `storageKey`, `sniffedMime` and *"the student's filename never becomes a path"*
+written into the column comments. Phase 9 implemented that design rather than revising it.
+
+### Uploaded bytes are data, and the design makes that structural
+
+The rule is not enforced by remembering to be careful; it is enforced by the dangerous operation not
+existing:
+
+**A filename is never a path.** Blobs live at `<root>/<xx>/<sha256>`, derived entirely from content.
+No student-supplied string reaches the storage layer, so there is no traversal to defend against.
+`ProjectFile.path` is a label in a column.
+
+**Storage is outside `public/`.** Anything under `public/` is served by the framework with no
+authorization at a guessable URL. Every read goes through a route handler that resolves the viewer
+first.
+
+**Text is served as `text/plain`, always**, with `nosniff`, `Content-Disposition: attachment`, and a
+`default-src 'none'; sandbox` CSP. A `.py` served as anything else is a script waiting for a browser
+to run it.
+
+**Content decides the type, never the name.** A browser's `Content-Type` comes from the extension;
+both are attacker-controlled. Executable signatures are checked *before* the extension allowlist, so
+a PE binary called `player.png` is refused as an executable — the message an administrator needs is
+"someone uploaded a binary", not "bad PNG".
+
+Archives are refused outright: a zip is how everything else gets smuggled past a naive check, and
+nothing in a Pygame workspace has a legitimate reason to be one.
+
+### Versions make feedback mean something
+
+One draft exists at a time. Submitting freezes it and opens a fresh draft carrying the files forward
+— blobs are shared, nothing is duplicated. A test asserts that editing the new draft leaves the
+submitted bytes untouched, because teacher feedback must point at something that cannot change
+underneath it.
+
+Deleting a file deliberately does **not** delete its blob. Content is addressed by hash, so a frozen
+submission may reference the identical bytes; deleting here would silently corrupt a snapshot
+someone already reviewed.
+
+A teacher can read and comment but **cannot edit**. Editing a child's submitted work under a
+teacher's name would destroy what the submission means.
+
+### Three bugs found while building
+
+**`no-control-regex` on a deliberate check.** The filename validator screens control characters on
+purpose — a newline in a name is how a name gets split by something downstream. Kept the check,
+added a targeted disable with the reason, and replaced raw control bytes with `\u` escapes so the
+regex is readable.
+
+**Client bundle pulled in `node:crypto` again.** Same shape as Phase 7: a `'use client'` component
+imported from the `@dye/core` root barrel, which now re-exports `projects.ts`. Fixed with an
+`/upload-guard` subpath — that module is pure byte inspection with no Node dependency. Second
+occurrence of this pattern; the subpath split is now the established fix.
+
+**Per-file CSP was silently overridden.** The route handler set `default-src 'none'; sandbox`, but
+the global `/:path*` header rule in `next.config.mjs` won. Caught by reading the actual response
+headers over HTTP rather than trusting the handler code. Fixed with a more specific rule listed
+after the catch-all; re-verified by curl.
+
+Also worth recording: `userEvent.upload` honours the `accept` attribute and silently discards a
+non-matching file, so a UI test uploading a `.exe` never reaches the code under test. The test was
+retargeted at the case that actually matters — a binary renamed `.png`, which passes `accept` and is
+caught server-side. `accept` is a convenience; it is not a control.
+
+### Verified over HTTP, with real bytes
+
+Upload defence: `virus.exe` → refused (executable) · `assets/tra-hinh.png` containing ELF → refused
+(executable, not "bad image") · `chay.sh` → refused (extension) · `../../../etc/passwd` → refused
+(path) · 6 MB PNG → refused (size). Valid `main.py`, `assets/player.png`, `am-thanh/ban.wav` stored
+with the right structure.
+
+Zip integrity checked by unpacking the download in Python: entries correct, `testzip()` clean, PNG
+and WAV magic intact, and a payload containing **every byte value 0–255** round-tripped
+byte-for-byte — the check that would fail if anything on the path did an implicit `toString()`.
+
+Access: another student → `403` on both the file and the zip, `307 → /khong-co-quyen` on the
+workspace. Anonymous → redirected to login.
+
+### Browser preview: not built, and why
+
+The brief authorises a documented fallback, and Phase 2 had already designed for it — `PreviewStatus`
+carries `UNAVAILABLE` as a first-class state and `FEATURE_PYGBAG_PREVIEW` defaults to `false`.
+
+Running Pygame in a browser needs pygbag to compile the project to WASM. That is a **build pipeline
+per project version**, not a feature flag: a toolchain container, an artifact store, a build queue,
+and cross-origin isolation (COOP/COEP) for the preview frame. Pyodide is not an alternative — it
+runs Python, but Pygame needs SDL.
+
+So the workspace ships the honest path: **"Tải về để chơi"**, with the exact command to run. A
+preview that half-works would leave a child unable to tell whether their game is broken or the
+preview is, which is worse than not having one.
+
+**Not built:** pygbag build job, WASM artifact storage, iframe preview. The states they would use
+already exist in the schema.
+
+### Still owed
+
+The p95 < 300 ms analytics target from Phase 6 remains **unmeasured**. Project uploads add no load to
+it — they write `ProjectFile` rows and touch no aggregate the teacher dashboard reads.
+
+Content debt from Phase 8 is unchanged: 10 seeded problems still fail their own reference solutions,
+tracked in [`05-NOI-DUNG-CAN-RA-SOAT.md`](05-NOI-DUNG-CAN-RA-SOAT.md).
 
 ---
 

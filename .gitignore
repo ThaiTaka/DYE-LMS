@@ -26,3 +26,4 @@ docker/volumes/
 
 # Judge sandbox scratch
 sandbox/.work/
+uploads/

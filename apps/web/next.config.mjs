@@ -85,6 +85,29 @@ const nextConfig = {
           },
         ],
       },
+
+      {
+        /*
+         * Uploaded project files get a far tighter policy than the app.
+         *
+         * These bytes were written by a student. Serving them under the app's
+         * own CSP would let anything the browser decided to treat as a document
+         * run with `script-src 'self'` — which is the app's own origin. The
+         * `sandbox` directive strips the origin, scripts, forms and plugins, so
+         * even a content type mis-honoured somewhere downstream has nothing to
+         * act with.
+         *
+         * Listed AFTER the catch-all: for a matching path, the later rule wins.
+         */
+        source: '/api/du-an/:id/tep/:fileId',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: "default-src 'none'; sandbox; style-src 'unsafe-inline'",
+          },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+        ],
+      },
     ];
   },
 };

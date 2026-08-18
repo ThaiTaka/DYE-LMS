@@ -7,7 +7,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./text": "./src/text.ts"
+    "./text": "./src/text.ts",
+    "./upload-guard": "./src/upload-guard.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

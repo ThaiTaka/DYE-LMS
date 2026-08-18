@@ -68,6 +68,12 @@ export function VoHocSinh({
             >
               Trang chính
             </Link>
+            <Link
+              href="/du-an"
+              className="flex min-h-cham items-center rounded-nut px-3 py-2 text-sm font-medium text-chu-phu hover:bg-the-mo hover:text-chu"
+            >
+              Dự án game
+            </Link>
           </nav>
 
           <div className="ms-auto flex items-center gap-3">

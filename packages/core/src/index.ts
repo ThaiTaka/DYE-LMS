@@ -79,6 +79,48 @@ export {
 
 export { bocMarkdown, rutGon, tenBuoi } from './text';
 
+// ── Phase 9: Pygame project workspace ────────────────────────────────────────
+export {
+  bamNoiDung,
+  banLamViec,
+  danhSachTep,
+  doiTenTep,
+  ghiNhanXet,
+  ghiTep,
+  khoaLuuTru,
+  MAU_DU_AN,
+  moDuAn,
+  moDuAnDeSua,
+  nopMoc,
+  taoDuAn,
+  xoaTep,
+  type BanLamViec,
+  type KetQuaGhiTep,
+  type KetQuaNopMoc,
+  type KhoLuuTru,
+  type TepDuAn,
+} from './projects';
+
+export {
+  coShebang,
+  conDuDungLuong,
+  DINH_DANG_CHO_PHEP,
+  DAI_DUONG_DAN_TOI_DA,
+  GIOI_HAN_DU_AN_BYTE,
+  GIOI_HAN_TEP_BYTE,
+  kiemTraDuongDan,
+  kiemTraTepTai,
+  laVanBanUtf8,
+  layDuoi,
+  nguiMime,
+  nhanDangThucThi,
+  SO_TEP_TOI_DA,
+  timDinhDang,
+  type DinhDang,
+  type KetQuaKiemTra,
+  type LoaiTep,
+} from './upload-guard';
+
 // ── Phase 8: judge queue contract (no queue library — see the module) ────────
 export {
   CHINH_SACH_THU_LAI,

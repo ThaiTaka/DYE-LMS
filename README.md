@@ -253,8 +253,8 @@ Repo có một quy tắc lint tự viết chặn từ vựng mang nghĩa thiếu
 | 6 | Giao diện giáo viên & phân tích | ✅ Xong |
 | 7 | Trình soạn code (CodeMirror) | ✅ Xong |
 | 8 | Judge engine (Docker sandbox) | ✅ Xong |
-| 9 | Workspace dự án Pygame | ⬜ Kế tiếp |
-| 10–12 | Kiểm thử · rà soát bảo mật · triển khai | ⬜ |
+| 9 | Workspace dự án Pygame | ✅ Xong |
+| 10–12 | Kiểm thử · rà soát bảo mật · triển khai | ⬜ Kế tiếp |
 
 Chi tiết từng phase kèm kết quả kiểm chứng thật: [`docs/04-ROADMAP.md`](docs/04-ROADMAP.md)
 
