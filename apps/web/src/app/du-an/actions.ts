@@ -27,17 +27,12 @@ import { revalidatePath } from 'next/cache';
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
 import { khoaPygame } from '@/lib/project-data';
+
+import type { KetQuaDuAn, KetQuaTaiLen } from './ket-qua';
 import { khoDuAn } from '@/lib/project-storage';
 
 import type { Actor } from '@dye/core';
 import type { ProjectStatus, ProjectTemplate } from '@prisma/client';
-
-export interface KetQuaDuAn {
-  trangThai: 'chua-lam' | 'thanh-cong' | 'tu-choi' | 'loi';
-  thongDiep: string;
-}
-
-export const CHUA_LAM: KetQuaDuAn = { trangThai: 'chua-lam', thongDiep: '' };
 
 const MAU_HOP_LE: ProjectTemplate[] = [
   'SPACE_INVADERS',
@@ -98,11 +93,6 @@ export async function taoDuAnMoi(_truoc: KetQuaDuAn, form: FormData): Promise<Ke
 // ═══════════════════════════════════════════════════════════════════════════
 // Files
 // ═══════════════════════════════════════════════════════════════════════════
-
-export interface KetQuaTaiLen extends KetQuaDuAn {
-  /** Per-file outcome, so partial success is reported honestly. */
-  chiTiet: Array<{ ten: string; ok: boolean; lyDo: string }>;
-}
 
 /**
  * Upload one or more files.

@@ -1,0 +1,193 @@
+# DYE LMS — production stack
+#
+#   docker compose -f docker-compose.prod.yml --env-file .env.production up -d
+#
+# Differences from the development file, and why each one matters:
+#
+#   • No host port on Postgres, Redis or MinIO. Only the reverse proxy is
+#     reachable from outside. A database listening on a public interface with a
+#     password is one leaked password away from being a public database.
+#   • Every image is pinned by digest-bearing tag, not `latest`. A rebuild that
+#     silently changes the Postgres major version corrupts a data directory.
+#   • Healthchecks gate dependants, so the app never starts against a database
+#     that is still recovering.
+#   • Resource limits everywhere. One runaway container must not take the host
+#     down with it — this box is also running the judge sandbox.
+#   • Logs are capped. An unbounded json-file driver fills the disk, and a full
+#     disk stops Postgres.
+#   • No MinIO. The development file still runs it, but nothing in the codebase
+#     speaks S3 — uploaded project files are content-addressed on disk under
+#     PROJECT_STORAGE_DIR (apps/web/src/lib/project-storage.ts). Shipping an
+#     object store nothing connects to would just be one more thing to patch.
+#
+# See docs/DEPLOYMENT_GUIDE.md for VPS setup, Nginx and TLS.
+
+name: dye-lms-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+services:
+  # ───────────────────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16.6-alpine
+    restart: always
+    logging: *logging
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-dye_lms}
+      LANG: C.UTF-8
+      # Checksums catch silent disk corruption. Cannot be enabled later without
+      # recreating the cluster, so it has to be set at first init.
+      POSTGRES_INITDB_ARGS: '--data-checksums'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # Deliberately NO `ports:`. Reachable only on the internal network.
+    networks: [noi-bo]
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB:-dye_lms}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    deploy:
+      resources:
+        limits: { cpus: '2.0', memory: 2G }
+
+  # ───────────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7.4-alpine
+    restart: always
+    logging: *logging
+    command:
+      - redis-server
+      - --appendonly
+      - 'yes'
+      # noeviction: a judge job silently evicted under memory pressure is a
+      # student's submission that never gets marked.
+      - --maxmemory-policy
+      - noeviction
+      - --requirepass
+      - ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+    volumes:
+      - redis-data:/data
+    networks: [noi-bo]
+    healthcheck:
+      test: ['CMD', 'redis-cli', '-a', '${REDIS_PASSWORD}', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { cpus: '1.0', memory: 512M }
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # One-shot: migrate, then seed. Seed is idempotent, so a restart is safe.
+  db-migrate:
+    build:
+      context: .
+      dockerfile: packages/db/Dockerfile
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [noi-bo]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      # Under NODE_ENV=production the seed loads the curriculum and badges but
+      # creates NO accounts, so a live server never gets the demo logins whose
+      # shared password is documented in this repo. Create the first real admin
+      # with `npm run db:admin` — see docs/DEPLOYMENT_GUIDE.md.
+      #
+      # Set this to "yes" only on a staging box that genuinely wants the demo
+      # spread to look at.
+      SEED_ALLOW_PRODUCTION: ${SEED_ALLOW_PRODUCTION:-no}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
+    restart: 'no'
+
+  # ───────────────────────────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: always
+    logging: *logging
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      AUTH_URL: ${AUTH_URL:?AUTH_URL is required}
+      AUTH_TRUST_HOST: 'true'
+      PROJECT_STORAGE_DIR: /data/uploads/projects
+    volumes:
+      # Uploaded project files. A named volume, NOT a bind mount into the image:
+      # the container filesystem is replaced on every deploy.
+      - uploads:/data/uploads
+    # Bound to loopback only. Nginx terminates TLS and proxies to it; nothing
+    # else on the network can reach the app directly.
+    ports:
+      - '127.0.0.1:${WEB_PORT:-3000}:3000'
+    networks: [noi-bo]
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:3000/dang-nhap >/dev/null || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits: { cpus: '2.0', memory: 1G }
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # The judge worker.
+  #
+  # Mounts the Docker socket, which grants effective root on the host to
+  # whatever holds it. That is why it is a separate service with its own limits
+  # and why the sandbox containers it starts never see the socket themselves
+  # (asserted by a test in apps/judge-worker/src/sandbox.test.ts).
+  #
+  # On a box with untrusted tenants, run this on a DEDICATED host instead, or
+  # put a socket proxy in front that allowlists only the container endpoints it
+  # needs. Mounting the socket :ro does NOT help — the Docker API is HTTP over
+  # that socket, and read-only on the file does not make the API read-only.
+  judge-worker:
+    build:
+      context: .
+      dockerfile: apps/judge-worker/Dockerfile
+    restart: always
+    logging: *logging
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JUDGE_CONCURRENCY: ${JUDGE_CONCURRENCY:-4}
+      JUDGE_MAX_MEMORY_MB: ${JUDGE_MAX_MEMORY_MB:-256}
+      JUDGE_MAX_TIME_MS: ${JUDGE_MAX_TIME_MS:-10000}
+      JUDGE_OUTPUT_LIMIT_BYTES: ${JUDGE_OUTPUT_LIMIT_BYTES:-262144}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks: [noi-bo]
+    deploy:
+      resources:
+        # Sized for the worker itself. Each sandbox container carries its own
+        # --memory and --cpus, set per submission by the worker.
+        limits: { cpus: '2.0', memory: 1G }
+
+networks:
+  noi-bo:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+  uploads:

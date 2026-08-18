@@ -21,7 +21,7 @@ import { PrismaClient } from '@prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';
 
 import { CAU_HINH } from './config';
-import { chamBai } from './judge';
+import { BaiNopKhongTonTai, chamBai } from './judge';
 import { coDocker } from './sandbox';
 
 const db = new PrismaClient({ log: ['error', 'warn'] });
@@ -58,7 +58,18 @@ async function main(): Promise<void> {
       const { submissionId } = job.data;
       const batDau = Date.now();
 
-      const kq = await chamBai(db, submissionId);
+      let kq;
+      try {
+        kq = await chamBai(db, submissionId);
+      } catch (err) {
+        if (err instanceof BaiNopKhongTonTai) {
+          // Complete the job rather than rethrowing. The row is gone, so there
+          // is nothing a retry could accomplish.
+          console.log(`[judge] ${submissionId} khong con ton tai, bo qua viec nay`);
+          return null;
+        }
+        throw err;
+      }
 
       console.log(
         `[judge] ${submissionId} → ${kq.verdict} ` +

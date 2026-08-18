@@ -3,7 +3,8 @@
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { CHUA_LAM, chuyenGiao, voHieuHoa, xoaNhanVien } from '@/app/giao-vien/actions';
+import { chuyenGiao, voHieuHoa, xoaNhanVien } from '@/app/giao-vien/actions';
+import { CHUA_LAM } from '@/app/giao-vien/ket-qua';
 
 import { PhanHoi } from './dieu-khien-nhanh';
 

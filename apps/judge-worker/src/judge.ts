@@ -40,6 +40,24 @@ export interface KetQuaCham {
   compileError: string | null;
 }
 
+/**
+ * A queued job whose submission row no longer exists.
+ *
+ * Deliberately its own type rather than a generic Error. There is nothing to
+ * retry: the row is gone, so every retry re-reads a missing row, fails again,
+ * and backs off. Left as a plain failure it also pollutes the failed-job count,
+ * which is the signal that would otherwise mean the judge is actually broken.
+ *
+ * Happens routinely when a submission is deleted while its job is still queued —
+ * the end-to-end suite does exactly that in its cleanup.
+ */
+export class BaiNopKhongTonTai extends Error {
+  constructor(readonly submissionId: string) {
+    super(`khong tim thay bai nop ${submissionId}`);
+    this.name = 'BaiNopKhongTonTai';
+  }
+}
+
 /** Clamp whatever the problem row asks for to what the worker will actually allow. */
 function gioiHanThoiGian(ms: number): number {
   return Math.max(500, Math.min(ms || 2000, GIOI_HAN.THOI_GIAN_TOI_DA_MS));
@@ -102,7 +120,7 @@ export async function chamBai(db: PrismaClient, submissionId: string): Promise<K
     },
   });
 
-  if (!sub) throw new Error(`khong tim thay bai nop ${submissionId}`);
+  if (!sub) throw new BaiNopKhongTonTai(submissionId);
 
   const { problem } = sub;
 

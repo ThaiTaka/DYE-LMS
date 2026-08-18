@@ -40,6 +40,21 @@ const nextConfig = {
   // Workspace packages ship TypeScript source, not a build artefact.
   transpilePackages: ['@dye/core', '@dye/db'],
 
+  /*
+   * Standalone output — for the Docker image ONLY.
+   *
+   * Tracing the modules actually reached lets the runtime image ship a
+   * self-contained server with no build toolchain and no dev dependencies. In a
+   * monorepo that matters more than usual: without it the image would have to
+   * carry the whole workspace's node_modules.
+   *
+   * Gated behind a flag because enabling it unconditionally BREAKS `next start`
+   * ("next start does not work with output: standalone"), and `next start` is
+   * how the Playwright suite serves the app. A deployment concern must not take
+   * away a normal local workflow. apps/web/Dockerfile sets the flag.
+   */
+  ...(process.env['BUILD_STANDALONE'] === '1' ? { output: 'standalone' } : {}),
+
   // Prisma's query engine is a native binary; bundling it breaks the client.
   // Native or Node-only packages that must run from node_modules rather than
   // being traced into the bundle. `bullmq` is here because it is server-only by

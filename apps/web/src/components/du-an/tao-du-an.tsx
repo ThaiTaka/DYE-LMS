@@ -3,7 +3,8 @@
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { CHUA_LAM, taoDuAnMoi } from '@/app/du-an/actions';
+import { taoDuAnMoi } from '@/app/du-an/actions';
+import { CHUA_LAM } from '@/app/du-an/ket-qua';
 
 import type { ProjectTemplate } from '@prisma/client';
 

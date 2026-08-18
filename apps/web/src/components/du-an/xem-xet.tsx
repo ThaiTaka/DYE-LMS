@@ -2,7 +2,8 @@
 
 import { useCallback, useId, useState, useTransition } from 'react';
 
-import { CHUA_LAM, docTepDeSua, nhanXetDuAn } from '@/app/du-an/actions';
+import { docTepDeSua, nhanXetDuAn } from '@/app/du-an/actions';
+import { CHUA_LAM } from '@/app/du-an/ket-qua';
 import { SoanThao } from '@/components/hoc-sinh/soan-thao';
 
 import { CayTep, coChu } from './cay-tep';

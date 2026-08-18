@@ -6,10 +6,14 @@ build/
 .turbo/
 *.tsbuildinfo
 
+# Secrets. `.env.*` rather than a list of known names: docs/DEPLOYMENT_GUIDE.md
+# tells the operator to create `.env.production` inside this directory, and the
+# old rules matched only `.env`, `.env.local` and `.env.*.local` — a real
+# production secrets file would have been committable.
 .env
-.env.local
-.env.*.local
+.env.*
 !.env.example
+!.env.production.example
 
 coverage/
 playwright-report/

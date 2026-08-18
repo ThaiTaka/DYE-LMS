@@ -888,14 +888,70 @@ Desktop for Windows**.
 
 ---
 
-## Phase 12 — Deployment prep & GitHub push
+## Phase 12 — Security audit, E2E & deployment prep ✅
 
-Multi-stage production Dockerfiles, `docker-compose.prod.yml`, `.env.example` with every variable
-documented, healthchecks, backup/restore scripts, GitHub Actions CI running the full QA gate,
-`README.md` (Vietnamese + English quickstart), `CONTRIBUTING.md`, `LICENSE`, `SECURITY.md`.
+### Security audit
 
-Then `git init` → branch → commit → push to `https://github.com/ThaiTaka/DYE-LMS.git`
-(remote confirmed reachable and empty). **I will not push until you explicitly approve it.**
+Turned into a standing gate rather than a one-off document: `apps/web/src/lib/bao-mat.test.ts`
+(17 tests) re-checks every rule on each run, so a regression fails CI instead of ageing quietly
+inside a markdown file. It covers server-action actor + guard coverage (with an explicit
+delegation list for actions whose authorization happens one call deep in `@dye/core`), route
+handler guards, data-shape rules (`isCorrect` never leaving the server, no
+`dangerouslySetInnerHTML`, no `$queryRawUnsafe`, no hardcoded secrets), client bundle isolation,
+and `'use server'` export rules.
+
+Two real defects were found and fixed:
+
+1. **Gating bypass in `danhDauKhoiXong`.** The action had an actor but no authorization, so a
+   crafted request could write `BlockProgress` into a locked lesson. Reproduced against lesson 28,
+   then fixed by routing through `moKhoiCode`.
+2. **Every action in two files was broken in production.** `CHUA_LAM` was exported from
+   `giao-vien/actions.ts` and `du-an/actions.ts`, and a `'use server'` file may only export async
+   functions — so Next.js rejected the whole module. The teacher override feature had been broken
+   since Phase 6. Page-level smoke tests missed it because the page renders fine; only *clicking*
+   reaches the action. Fixed by extracting `ket-qua.ts` modules, and the rule is now asserted.
+
+Three findings turned out to be false positives in the detector itself. The detector was tightened
+rather than the rules weakened — a noisy gate gets switched off.
+
+### Performance
+
+`apps/web/src/lib/hieu-nang.test.ts` measures against a real seeded database rather than asserting
+a shape. Result: **p95 44 ms** for the teacher dashboard and **76 ms** for the roster, against the
+300 ms budget, at ~8.5 queries per student. The performance debt carried since Phase 6 was closed
+by measurement, not optimisation — it was never slow. The test now fails if that changes.
+
+### End-to-end
+
+Playwright against a real production build (`next start`, not `next dev` — two of the bugs above
+only appear in a production build). Golden path and teacher-override flows both pass.
+
+### Deployment
+
+- `apps/web/Dockerfile` — multi-stage, `output: 'standalone'`, runs as non-root `nextjs`, 350 MB.
+  Verified by actually building it, not by inspection.
+- `.dockerignore` — two entries are correctness, not speed: without `node_modules` the `COPY . .`
+  would overwrite the Alpine modules with the host's, shipping Windows-native Prisma and argon2
+  binaries into a Linux image; without `.env`, secrets would be baked into a layer.
+- `docker-compose.prod.yml` — no host ports on Postgres or Redis, pinned tags, healthchecks gating
+  dependants, resource limits, capped logging, `web` bound to `127.0.0.1` behind Nginx.
+- `docs/DEPLOYMENT_GUIDE.md` + `.env.production.example` — VPS, Nginx, SSL, backup/restore.
+
+Two production blockers surfaced while writing this and were fixed:
+
+1. **MinIO was in the stack but nothing speaks S3.** No `S3_*` variable is read anywhere in the
+   codebase; uploaded files are content-addressed on disk under `PROJECT_STORAGE_DIR`. Shipping an
+   object store nothing connects to is one more thing to patch and one more credential to leak, so
+   it is gone from the production file.
+2. **The seed was all-or-nothing.** It refused to run under `NODE_ENV=production`, which left an
+   operator choosing between *no curriculum* and *six accounts sharing a password documented in
+   this repo* — one of them an admin. Split: curriculum and badges always seed, demo accounts are
+   skipped in production, and `npm run db:admin` creates the first real administrator.
+
+### Not done
+
+GitHub Actions CI, `CONTRIBUTING.md` and `SECURITY.md` are still outstanding from the original
+Phase 12 scope.
 
 ---
 

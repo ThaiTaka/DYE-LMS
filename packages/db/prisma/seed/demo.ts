@@ -14,7 +14,7 @@ import type { PrismaClient, Tier, Verdict } from '@prisma/client';
 
 const DEMO_PASSWORD = process.env['SEED_DEMO_PASSWORD'] ?? 'DyeLms#2026';
 
-/** Argon2id parameters. Kept modest so seeding stays fast; production auth uses stronger settings. */
+/** Argon2id parameters. Must match PASSWORD_PARAMS in @dye/core/password, or seeded logins fail. */
 const ARGON_OPTS = { memoryCost: 19_456, timeCost: 2, parallelism: 1 } as const;
 
 interface StudentSpec {

@@ -8,7 +8,8 @@ import { bocMarkdown } from '@dye/core/text';
 import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { CHUA_LAM, datCanThiepBaiHoc } from '@/app/giao-vien/actions';
+import { datCanThiepBaiHoc } from '@/app/giao-vien/actions';
+import { CHUA_LAM } from '@/app/giao-vien/ket-qua';
 
 import { PhanHoi } from './dieu-khien-nhanh';
 

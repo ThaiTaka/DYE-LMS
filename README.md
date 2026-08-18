@@ -270,7 +270,8 @@ Repo có một quy tắc lint tự viết chặn từ vựng mang nghĩa thiếu
 | 8 | Judge engine (Docker sandbox) | ✅ Xong |
 | 9 | Workspace dự án Pygame | ✅ Xong |
 | 11 | Tích hợp Micro:bit (MakeCode) | ✅ Xong |
-| 10 · 12 | Kiểm thử · rà soát bảo mật · triển khai | ⬜ Kế tiếp |
+| 12 | Rà soát bảo mật · E2E Playwright · triển khai | ✅ Xong |
+| 10 | Phủ kín test theo tiêu chí nghiệm thu | ⬜ Kế tiếp |
 
 Chi tiết từng phase kèm kết quả kiểm chứng thật: [`docs/04-ROADMAP.md`](docs/04-ROADMAP.md)
 
@@ -287,6 +288,7 @@ Chi tiết từng phase kèm kết quả kiểm chứng thật: [`docs/04-ROADMA
 | [`docs/03-CURRICULUM-MAP.md`](docs/03-CURRICULUM-MAP.md) | Bản đồ 90 buổi học |
 | [`docs/04-ROADMAP.md`](docs/04-ROADMAP.md) | Nhật ký phát triển từng phase |
 | [`docs/05-NOI-DUNG-CAN-RA-SOAT.md`](docs/05-NOI-DUNG-CAN-RA-SOAT.md) | Bài tập có lời giải mẫu chưa qua được chính nó |
+| [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) | Triển khai lên VPS: Docker, Nginx, SSL, sao lưu |
 
 ---
 
@@ -295,7 +297,9 @@ Chi tiết từng phase kèm kết quả kiểm chứng thật: [`docs/04-ROADMA
 - **Judge engine mặc định tắt mạng.** Chỉ bật khi có chính sách sandbox do giáo viên uỷ quyền tường minh.
 - **Đáp án không bao giờ rời khỏi server.** `Choice.isCorrect`, `Problem.solutionCode` và test case ẩn không nằm trong bất kỳ payload nào gửi về trình duyệt.
 - **Markdown render thẳng thành React node**, không đi qua chuỗi HTML. Không có `dangerouslySetInnerHTML` trên bất kỳ đường đi nào của nội dung do người dùng soạn.
-- **Bucket MinIO là private.** Tài nguyên tải lên được phục vụ qua URL ký sẵn có thời hạn ngắn.
+- **Tệp học sinh tải lên không bao giờ được thực thi.** Nội dung lưu theo địa chỉ băm SHA-256, tên tệp do học sinh đặt không bao giờ trở thành đường dẫn trên đĩa, và tệp thực thi bị chặn bằng cách đọc magic byte chứ không tin phần mở rộng.
+- **Tệp tải lên được phục vụ qua route đã kiểm tra quyền**, kèm CSP riêng `default-src 'none'; sandbox` — chặt hơn hẳn CSP của ứng dụng, để một tệp bị trình duyệt hiểu nhầm thành tài liệu cũng không có gì để chạy.
+- **Máy chủ thật không tạo tài khoản demo.** Với `NODE_ENV=production`, seed chỉ nạp chương trình học; tài khoản quản trị đầu tiên phải tạo thủ công bằng `npm run db:admin`.
 
 Phát hiện lỗ hổng? Vui lòng báo riêng cho người bảo trì thay vì mở issue công khai.
 

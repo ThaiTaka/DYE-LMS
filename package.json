@@ -24,6 +24,7 @@
     "db:migrate": "npm run db:migrate --workspace @dye/db",
     "db:migrate:dev": "npm run db:migrate:dev --workspace @dye/db",
     "db:seed": "npm run db:seed --workspace @dye/db",
+    "db:admin": "npm run db:admin --workspace @dye/db",
     "db:reset": "npm run db:reset --workspace @dye/db",
     "db:studio": "npm run db:studio --workspace @dye/db",
     "judge:dev": "npm run dev --workspace @dye/judge-worker",
@@ -31,7 +32,8 @@
     "judge:verify": "npm run verify-seed --workspace @dye/judge-worker",
     "infra:up": "docker compose up -d postgres redis minio minio-init",
     "infra:down": "docker compose down",
-    "infra:nuke": "docker compose down -v"
+    "infra:nuke": "docker compose down -v",
+    "e2e": "npm run e2e --workspace @dye/web"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

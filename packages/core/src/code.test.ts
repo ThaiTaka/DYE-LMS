@@ -73,6 +73,13 @@ beforeAll(async () => {
 afterAll(async () => {
   await fx.db.codeSnapshot.deleteMany({ where: { studentId: { in: [fx.studentA1, fx.studentA2] } } });
   await fx.db.codeDraft.deleteMany({ where: { studentId: { in: [fx.studentA1, fx.studentA2] } } });
+
+  // Detach the problem this suite attached to a SEEDED block. Without this the
+  // shared dev database drifts from what `db:seed` produces — a THEORY block
+  // ends up carrying a coding problem, and the next thing that queries "blocks
+  // with a problem" picks up something that renders no editor at all.
+  await fx.db.lessonBlock.update({ where: { id: khoiMo }, data: { problemId: null } });
+
   await fx.cleanup();
 });
 

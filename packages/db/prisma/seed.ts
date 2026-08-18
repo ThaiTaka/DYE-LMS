@@ -25,20 +25,29 @@ import { seedCourse } from './seed/upsert.ts';
 
 const db = new PrismaClient();
 
-function assertNotProduction(): void {
-  const isProd = process.env['NODE_ENV'] === 'production';
-  const allowed = process.env['SEED_ALLOW_PRODUCTION'] === 'yes';
+/**
+ * Should the demo accounts be created?
+ *
+ * The curriculum and badges ARE the product: a production database is useless
+ * without them, so they always seed. The demo accounts are a different thing —
+ * they all share one password that is documented in this repository, so creating
+ * them on a live server hands six working logins to anyone who has read the
+ * README, one of them an admin.
+ *
+ * Hence the split rather than a single all-or-nothing refusal. In production the
+ * demo data is skipped and the seed still succeeds, leaving a server with the
+ * full 90-lesson curriculum and no accounts except the ones a real admin makes.
+ * SEED_ALLOW_PRODUCTION=yes opts back in, for a staging box that genuinely wants
+ * the demo spread to look at.
+ */
+function nenTaoDuLieuDemo(): boolean {
+  if (process.env['NODE_ENV'] !== 'production') return true;
 
-  if (isProd && !allowed) {
-    throw new Error(
-      'Refusing to seed with NODE_ENV=production.\n' +
-        'The seed creates demo accounts with a shared, publicly documented password.\n' +
-        'Set SEED_ALLOW_PRODUCTION=yes only if you genuinely intend this.',
-    );
+  if (process.env['SEED_ALLOW_PRODUCTION'] === 'yes') {
+    console.warn('  ⚠ Tạo tài khoản demo trên database PRODUCTION vì SEED_ALLOW_PRODUCTION=yes.');
+    return true;
   }
-  if (isProd && allowed) {
-    console.warn('  ⚠ Seeding a PRODUCTION database because SEED_ALLOW_PRODUCTION=yes.');
-  }
+  return false;
 }
 
 async function main(): Promise<void> {
@@ -47,8 +56,6 @@ async function main(): Promise<void> {
   console.log('');
   console.log('  DYE LMS — seed');
   console.log('  ' + '─'.repeat(56));
-
-  assertNotProduction();
 
   // ── 1. Compliance ────────────────────────────────────────────────────────
   process.stdout.write('  1/4  Kiểm tra tuân thủ chương trình học ... ');
@@ -81,10 +88,14 @@ async function main(): Promise<void> {
 
   // ── 4. Demo data ─────────────────────────────────────────────────────────
   process.stdout.write('  4/4  Dữ liệu demo ... ');
-  const demo = await seedDemoData(db);
-  console.log(
-    `${demo.users} tài khoản · ${demo.classes} lớp · ${demo.enrollments} lượt ghi danh`,
-  );
+  const demo = nenTaoDuLieuDemo() ? await seedDemoData(db) : null;
+  if (demo) {
+    console.log(
+      `${demo.users} tài khoản · ${demo.classes} lớp · ${demo.enrollments} lượt ghi danh`,
+    );
+  } else {
+    console.log('bỏ qua (NODE_ENV=production)');
+  }
 
   // ── Summary ──────────────────────────────────────────────────────────────
   const seconds = ((Date.now() - startedAt) / 1000).toFixed(1);
@@ -93,6 +104,16 @@ async function main(): Promise<void> {
     `  ✓ Hoàn tất trong ${seconds}s — ${lessons} bài học, ${blocks} khối nội dung, ` +
       `${problems} bài lập trình, ${quizzes} bài trắc nghiệm`,
   );
+
+  if (!demo) {
+    console.log('');
+    console.log('  Bỏ qua dữ liệu demo vì NODE_ENV=production.');
+    console.log('    Database đã có đủ chương trình học, chưa có tài khoản nào.');
+    console.log('    Tạo tài khoản quản trị thật trước khi mở cho học sinh dùng.');
+    console.log('');
+    return;
+  }
+
   console.log(
     `    ${demo.lessonProgress} bản ghi tiến độ, ${demo.submissions} bài nộp mẫu ` +
       '(để bảng phân tích của giáo viên có dữ liệu thật)',

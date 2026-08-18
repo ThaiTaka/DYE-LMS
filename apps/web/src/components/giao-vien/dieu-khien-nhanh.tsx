@@ -3,7 +3,8 @@
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { CHUA_LAM, datNhanh } from '@/app/giao-vien/actions';
+import { datNhanh } from '@/app/giao-vien/actions';
+import { CHUA_LAM } from '@/app/giao-vien/ket-qua';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
 
 import type { Tier } from '@prisma/client';

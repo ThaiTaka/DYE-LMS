@@ -1,6 +1,6 @@
 'use server';
 
-import { authorize } from '@dye/core';
+import { authorize, moKhoiCode, syncLessonCompletion } from '@dye/core';
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
@@ -100,16 +100,29 @@ export async function kiemTraCauTraLoi(
  * Completion is recomputed by the Phase 4 engine rather than set directly, so a
  * lesson is only ever marked done when every block REQUIRED for that particular
  * student is done — a Cơ bản student never has to touch the Nâng cao blocks.
+ *
+ * ── Why `moKhoiCode` and not a bare lookup ───────────────────────────────────
+ * This action takes a block id from the client. Without resolving lesson access
+ * first, a student could POST any block id and mark work complete inside a
+ * LOCKED lesson — walking straight past the gating engine and unlocking the rest
+ * of the course. The `studentId` always comes from the session, so no other
+ * child was ever reachable, but the student's own gating was bypassable.
+ *
+ * `moKhoiCode` is the same guard every other code action uses: it re-resolves
+ * access through Phase 4 and throws for a locked lesson.
  */
 export async function danhDauKhoiXong(blockId: string): Promise<{ baiXong: boolean }> {
   const actor = await currentActor();
   if (!actor || actor.role !== 'STUDENT') return { baiXong: false };
 
-  const block = await db.lessonBlock.findUnique({
-    where: { id: blockId },
-    select: { lessonId: true },
-  });
-  if (!block) return { baiXong: false };
+  let block: { lessonId: string };
+  try {
+    block = await moKhoiCode(db, actor.id, blockId);
+  } catch {
+    // Locked, unknown, or not theirs. Returning false rather than throwing keeps
+    // this callable from a client component without producing a crash page.
+    return { baiXong: false };
+  }
 
   await db.blockProgress.upsert({
     where: { studentId_blockId: { studentId: actor.id, blockId } },
@@ -117,7 +130,6 @@ export async function danhDauKhoiXong(blockId: string): Promise<{ baiXong: boole
     update: { state: 'COMPLETED', completedAt: new Date() },
   });
 
-  const { syncLessonCompletion } = await import('@dye/core');
   const baiXong = await syncLessonCompletion(db, actor.id, block.lessonId);
 
   return { baiXong };

@@ -5,6 +5,12 @@
  * missed the bug that actually shipped: `HANG_CHAM_BAI` contained a colon, and
  * BullMQ rejects such a name when the Queue is constructed. Nothing caught it
  * until the worker was started for real.
+ *
+ * ── Do NOT run these with a live worker attached ─────────────────────────────
+ * They assert on what is SITTING in the queue. A running `npm run judge:dev`
+ * shares this Redis and this queue name, so it consumes each job the moment it
+ * is added and the assertions see an empty queue — a failure that looks like a
+ * queueing bug and is really just a second consumer. Stop the worker first.
  */
 import { CHINH_SACH_THU_LAI, HANG_CHAM_BAI, VIEC_CHAM_BAI, type ViecChamBai } from '@dye/core';
 import { Queue } from 'bullmq';

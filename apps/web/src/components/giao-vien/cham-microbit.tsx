@@ -2,7 +2,8 @@
 
 import { useId, useState, useTransition } from 'react';
 
-import { chamBaiMicrobit, type KetQuaHanhDong } from '@/app/giao-vien/actions';
+import { chamBaiMicrobit } from '@/app/giao-vien/actions';
+import type { KetQuaHanhDong } from '@/app/giao-vien/ket-qua';
 
 import { PhanHoi } from './dieu-khien-nhanh';
 

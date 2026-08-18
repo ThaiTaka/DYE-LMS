@@ -40,6 +40,15 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],
+    /*
+     * Keep the Playwright suite out of the Vitest run.
+     *
+     * `e2e/*.spec.ts` matches Vitest's default include pattern, so without this
+     * Vitest collects the browser specs and dies on `test.beforeAll()` — a
+     * Playwright hook with no meaning here. The two runners share a directory
+     * tree and a file extension but nothing else; `npm run e2e` drives these.
+     */
+    exclude: ['**/node_modules/**', '**/dist/**', '**/.next/**', 'e2e/**'],
     testTimeout: 30_000,
     hookTimeout: 60_000,
     // Integration tests share one database; parallel files would race on cleanup.

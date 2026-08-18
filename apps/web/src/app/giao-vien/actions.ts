@@ -26,14 +26,9 @@ import { revalidatePath } from 'next/cache';
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
 
+import type { KetQuaHanhDong } from './ket-qua';
+
 import type { LessonStatus, Tier } from '@prisma/client';
-
-export interface KetQuaHanhDong {
-  trangThai: 'chua-lam' | 'thanh-cong' | 'tu-choi' | 'loi';
-  thongDiep: string;
-}
-
-export const CHUA_LAM: KetQuaHanhDong = { trangThai: 'chua-lam', thongDiep: '' };
 
 const TIERS: Tier[] = ['CO_BAN', 'THU_THACH', 'NANG_CAO', 'MO_RONG'];
 const TEN_NHANH: Record<Tier, string> = {

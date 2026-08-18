@@ -6,14 +6,13 @@
 import { DINH_DANG_CHO_PHEP } from '@dye/core/upload-guard';
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
 
-import {
-  CHUA_LAM,
-  docTepDeSua,
+import { docTepDeSua,
   luuTepVanBan,
   nopMocDuAn,
   taiTepLen,
   xoaTepDuAn,
 } from '@/app/du-an/actions';
+import { CHUA_LAM } from '@/app/du-an/ket-qua';
 import { SoanThao } from '@/components/hoc-sinh/soan-thao';
 
 import { CayTep, coChu } from './cay-tep';
