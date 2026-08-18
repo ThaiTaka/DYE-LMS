@@ -19,6 +19,7 @@
  * I/O — four queries for a whole course, never N+1.
  */
 import { ForbiddenError } from '../errors';
+import { tenBuoi } from '../text';
 import { DEFAULT_TIER, tierRank } from './tiers';
 
 import type { LessonStatus, PrismaClient, ProgressState, Tier } from '@prisma/client';
@@ -203,7 +204,10 @@ export function resolveGating(input: GatingInput): LessonAccess[] {
       unlocked = true;
     } else if (missing.length > 0) {
       unlocked = false;
-      const names = missing.map((m) => `Buổi ${m.order} · ${m.title}`).join(', ');
+      // Titles are authored as Markdown for prose rendering. Here they land in a
+      // sentence, so the syntax is stripped: a student reading "Buổi 19 ·
+      // `calendar`" sees stray backticks, and a screen reader speaks them.
+      const names = missing.map((m) => tenBuoi(m.order, m.title)).join(', ');
       lockReason = `Em cần hoàn thành trước: ${names}.`;
     } else {
       unlocked = true;

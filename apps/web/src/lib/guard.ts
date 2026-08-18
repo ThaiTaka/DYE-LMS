@@ -6,7 +6,13 @@
  * where "may this actor do this?" is decided, and it is covered by the
  * integration tests in packages/core.
  */
-import { authorize, requireActor, type Actor, type AuthzRequest } from '@dye/core';
+import {
+  authorize,
+  ForbiddenError,
+  requireActor,
+  type Actor,
+  type AuthzRequest,
+} from '@dye/core';
 import { redirect } from 'next/navigation';
 
 import { currentActor } from '../auth';
@@ -43,6 +49,33 @@ export async function guard(request: AuthzRequest): Promise<Actor> {
   const actor = requireActor(await currentActor());
   await authorize(db, actor, request);
   return actor;
+}
+
+/**
+ * Run a page's data loader, turning an expected refusal into a value.
+ *
+ * A teacher opening a URL for a class they do not own is a NORMAL event — a
+ * stale bookmark, a shared link, a typed id. It is not an exception, and it must
+ * not be handled like one.
+ *
+ * Letting `ForbiddenError` escape a server component produces an HTTP 500 with
+ * Next.js's internal error shell: a server-component throw is only picked up by
+ * `error.tsx` after client hydration, so the first paint is a crash page and the
+ * status line claims the server broke when it worked exactly as designed.
+ *
+ * The caller redirects on `{ ok: false }` — outside this try/catch, because
+ * `redirect()` signals by throwing and would otherwise be swallowed here.
+ *
+ * Only `ForbiddenError` is absorbed. Everything else still propagates, so a real
+ * fault stays loud.
+ */
+export async function xemDuoc<T>(viec: Promise<T>): Promise<{ ok: true; du: T } | { ok: false }> {
+  try {
+    return { ok: true, du: await viec };
+  } catch (error) {
+    if (error instanceof ForbiddenError) return { ok: false };
+    throw error;
+  }
 }
 
 /**

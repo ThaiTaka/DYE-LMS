@@ -171,6 +171,13 @@ export async function createFixture(): Promise<Fixture> {
       where: { OR: [{ studentId: { in: userIds } }, { createdBy: { in: userIds } }] },
     });
 
+    // Same shape of constraint, same reason: `Feedback.authorId` and
+    // `Announcement.authorId` are RESTRICT so a teacher's written record does
+    // not vanish with them. Tests that exercise the account-retirement flow
+    // create both, so clear them before the users go.
+    await db.feedback.deleteMany({ where: { authorId: { in: userIds } } });
+    await db.announcement.deleteMany({ where: { authorId: { in: userIds } } });
+
     // AuditLog uses SetNull on actor delete, so its rows would survive as
     // orphans. Remove them explicitly while the ids are still known.
     await db.auditLog.deleteMany({ where: { actorId: { in: userIds } } });

@@ -1,0 +1,792 @@
+import 'server-only';
+
+/**
+ * View models for the teacher experience.
+ *
+ * ── The rule every function here obeys ───────────────────────────────────────
+ * A teacher reaches a student ONLY through `Class.teacherId → Enrollment →
+ * student`. Nothing here queries by role. Every entry point either calls
+ * `authorize()` from @dye/core or derives its scope from `visibleStudentIds()`,
+ * which is built from the same relationship — so a list view and a detail view
+ * can never disagree about who is visible.
+ *
+ * ── What teachers see that students do not ───────────────────────────────────
+ *   • `Lesson.teacherNotes` — the verbatim instructional note from the lesson plan
+ *   • `Lesson.difficulty` — a planning aid, never a label shown to a child
+ *   • `Problem.solutionCode` and hidden test cases (surfaced in Phase 7/8)
+ *
+ * ── What NOBODY sees ─────────────────────────────────────────────────────────
+ * The words "yếu", "kém", "trung bình". Analytics here describe WORK — sessions
+ * completed, days since last activity — never the child. The alert list is
+ * called "cần hỗ trợ" (needs support) because that names an action the teacher
+ * takes, not a property the student has.
+ */
+import {
+  anhHuongXoaTaiKhoan,
+  authorize,
+  bocMarkdown,
+  courseProgress,
+  nguoiCoTheNhanBanGiao,
+  resolveCourseAccess,
+  stageOf,
+  tierRank,
+  visibleStudentIds,
+  type Actor,
+  type AnhHuongXoaTaiKhoan,
+  type CourseProgress,
+  type FlowStage,
+  type LessonAccess,
+} from '@dye/core';
+
+import { db } from './db';
+
+import type { BlockType, LessonStatus, Role, Tier } from '@prisma/client';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Dashboard
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface TomTatLop {
+  classId: string;
+  code: string;
+  name: string;
+  term: string | null;
+  siSo: number;
+  courses: Array<{ courseId: string; slug: string; title: string; iconEmoji: string }>;
+  /** Mean of each student's required-work percentage. */
+  tiLeTrungBinh: number;
+  /** Students whose required work is fully done. */
+  soHoanThanh: number;
+}
+
+/** A student the teacher may want to look at today, and why. */
+export interface HocSinhDangChuY {
+  studentId: string;
+  displayName: string;
+  username: string;
+  classId: string;
+  className: string;
+  courseId: string;
+  courseTitle: string;
+  tier: Tier;
+  phanTram: number;
+  daXong: number;
+  tongBatBuoc: number;
+  /** Days since the last completed lesson. Null when they have never finished one. */
+  soNgayVang: number | null;
+  /** Plain-language reason, phrased as a next action for the teacher. */
+  lyDo: string;
+}
+
+export interface GoiYNangNhanh extends HocSinhDangChuY {
+  /** The tier this student could move up to. Null when already at the top. */
+  nhanhDeXuat: Tier | null;
+  /** Optional/exploration work they have completed beyond what was required. */
+  soLamThem: number;
+}
+
+export interface DuLieuBangGiaoVien {
+  lop: TomTatLop[];
+  tongHocSinh: number;
+  tiLeTrungBinhChung: number;
+  canHoTro: HocSinhDangChuY[];
+  diNhanh: GoiYNangNhanh[];
+}
+
+/** Milliseconds in a day, for the "days since" arithmetic. */
+const NGAY = 24 * 60 * 60 * 1000;
+
+/**
+ * A student is flagged for support when they are both behind their class AND
+ * quiet. Either signal alone is noise: a student can be behind because they
+ * joined late, and quiet for a week because of a school holiday.
+ */
+const NGUONG_VANG_NGAY = 10;
+const NGUONG_TUT_LAI = 0.6;
+
+/** Fast-track suggestion: finished their required work and reached beyond it. */
+const NGUONG_LAM_THEM = 2;
+
+export async function duLieuBangGiaoVien(actor: Actor): Promise<DuLieuBangGiaoVien> {
+  const classes = await db.class.findMany({
+    where: actor.role === 'ADMIN' ? { isArchived: false } : { teacherId: actor.id, isArchived: false },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      term: true,
+      classCourses: {
+        select: {
+          course: { select: { id: true, slug: true, title: true, iconEmoji: true } },
+        },
+      },
+      enrollments: {
+        where: { isActive: true },
+        select: {
+          student: { select: { id: true, displayName: true, username: true } },
+        },
+      },
+    },
+    orderBy: { code: 'asc' },
+  });
+
+  const lop: TomTatLop[] = [];
+  const canHoTro: HocSinhDangChuY[] = [];
+  const diNhanh: GoiYNangNhanh[] = [];
+  const moiHocSinh = new Set<string>();
+  const tatCaPhanTram: number[] = [];
+
+  for (const klass of classes) {
+    const courses = klass.classCourses.map((cc) => cc.course);
+    const students = klass.enrollments.map((e) => e.student);
+    for (const s of students) moiHocSinh.add(s.id);
+
+    const phanTramLop: number[] = [];
+    let soHoanThanh = 0;
+
+    for (const course of courses) {
+      // Progress resolves per student because the denominator is per student —
+      // that is the whole point of Phase 4 and cannot be batched into one query.
+      const rows = await Promise.all(
+        students.map(async (student) => ({
+          student,
+          progress: await courseProgress(db, student.id, course.id),
+          lastDone: await db.lessonProgress.findFirst({
+            where: { studentId: student.id, state: 'COMPLETED' },
+            orderBy: { completedAt: 'desc' },
+            select: { completedAt: true },
+          }),
+        })),
+      );
+
+      const trungBinhKhoa =
+        rows.length === 0
+          ? 0
+          : rows.reduce((sum, r) => sum + r.progress.required.percent, 0) / rows.length;
+
+      for (const { student, progress, lastDone } of rows) {
+        phanTramLop.push(progress.required.percent);
+        if (progress.isComplete) soHoanThanh += 1;
+
+        const soNgayVang = lastDone?.completedAt
+          ? Math.floor((Date.now() - lastDone.completedAt.getTime()) / NGAY)
+          : null;
+
+        const chung = {
+          studentId: student.id,
+          displayName: student.displayName,
+          username: student.username,
+          classId: klass.id,
+          className: klass.name,
+          courseId: course.id,
+          courseTitle: course.title,
+          tier: progress.tier,
+          phanTram: progress.required.percent,
+          daXong: progress.required.completed,
+          tongBatBuoc: progress.required.total,
+          soNgayVang,
+        };
+
+        // ── Needs support ────────────────────────────────────────────────────
+        const tutLai =
+          progress.hasRequiredWork &&
+          !progress.isComplete &&
+          progress.required.percent < trungBinhKhoa * NGUONG_TUT_LAI;
+        const vangLau = soNgayVang !== null && soNgayVang >= NGUONG_VANG_NGAY;
+
+        if (tutLai || vangLau) {
+          const lyDo = [
+            tutLai ? `đang ở buổi ${progress.required.completed}/${progress.required.total}` : '',
+            vangLau ? `chưa hoàn thành bài nào trong ${soNgayVang} ngày` : '',
+          ]
+            .filter(Boolean)
+            .join(' · ');
+          canHoTro.push({ ...chung, lyDo: `Nên hỏi thăm: ${lyDo}.` });
+        }
+
+        // ── Moving fast ──────────────────────────────────────────────────────
+        const lamThem = progress.optional.completed;
+        if (progress.isComplete || lamThem >= NGUONG_LAM_THEM) {
+          const ke = nhanhKeTiep(progress.tier);
+          diNhanh.push({
+            ...chung,
+            nhanhDeXuat: ke,
+            soLamThem: lamThem,
+            lyDo: progress.isComplete
+              ? `Đã xong toàn bộ phần bắt buộc${lamThem > 0 ? ` và làm thêm ${lamThem} bài` : ''}.`
+              : `Đã làm thêm ${lamThem} bài ngoài phần bắt buộc.`,
+          });
+        }
+      }
+    }
+
+    const tiLeTrungBinh =
+      phanTramLop.length === 0
+        ? 0
+        : Math.round(phanTramLop.reduce((a, b) => a + b, 0) / phanTramLop.length);
+    tatCaPhanTram.push(...phanTramLop);
+
+    lop.push({
+      classId: klass.id,
+      code: klass.code,
+      name: klass.name,
+      term: klass.term,
+      siSo: students.length,
+      courses: courses.map((c) => ({
+        courseId: c.id,
+        slug: c.slug,
+        title: c.title,
+        iconEmoji: c.iconEmoji,
+      })),
+      tiLeTrungBinh,
+      soHoanThanh,
+    });
+  }
+
+  // Most urgent first: longest silence, then furthest behind.
+  canHoTro.sort((a, b) => (b.soNgayVang ?? 0) - (a.soNgayVang ?? 0) || a.phanTram - b.phanTram);
+  diNhanh.sort((a, b) => b.soLamThem - a.soLamThem || b.phanTram - a.phanTram);
+
+  return {
+    lop,
+    tongHocSinh: moiHocSinh.size,
+    tiLeTrungBinhChung:
+      tatCaPhanTram.length === 0
+        ? 0
+        : Math.round(tatCaPhanTram.reduce((a, b) => a + b, 0) / tatCaPhanTram.length),
+    canHoTro: canHoTro.slice(0, 8),
+    diNhanh: diNhanh.slice(0, 8),
+  };
+}
+
+/** The next tier up, or null at the top of the scale. */
+export function nhanhKeTiep(tier: Tier): Tier | null {
+  const thang: Tier[] = ['CO_BAN', 'THU_THACH', 'NANG_CAO', 'MO_RONG'];
+  const ke = thang[tierRank(tier) + 1];
+  return ke ?? null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Class detail
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface HangHocSinh {
+  studentId: string;
+  displayName: string;
+  username: string;
+  isActive: boolean;
+  tier: Tier;
+  progress: CourseProgress;
+  soCanThiep: number;
+}
+
+export interface DuLieuLop {
+  classId: string;
+  code: string;
+  name: string;
+  term: string | null;
+  courses: Array<{ courseId: string; slug: string; title: string; iconEmoji: string }>;
+  /** The course the roster is currently reported against. */
+  khoaHienTai: { courseId: string; slug: string; title: string } | null;
+  hocSinh: HangHocSinh[];
+  tiLeTrungBinh: number;
+}
+
+export async function duLieuLop(
+  actor: Actor,
+  classId: string,
+  courseId?: string,
+): Promise<DuLieuLop | null> {
+  // The guard runs BEFORE any data is read: a teacher asking for someone else's
+  // class must be refused, not merely shown an empty page.
+  await authorize(db, actor, { resource: 'class', action: 'read', classId });
+
+  const klass = await db.class.findUnique({
+    where: { id: classId },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      term: true,
+      classCourses: {
+        select: { course: { select: { id: true, slug: true, title: true, iconEmoji: true } } },
+      },
+      enrollments: {
+        where: { isActive: true },
+        select: {
+          student: {
+            select: { id: true, displayName: true, username: true, isActive: true },
+          },
+        },
+      },
+    },
+  });
+  if (!klass) return null;
+
+  const courses = klass.classCourses.map((cc) => cc.course);
+  const chon = courses.find((c) => c.id === courseId) ?? courses[0] ?? null;
+
+  const hocSinh: HangHocSinh[] = [];
+  if (chon) {
+    for (const { student } of klass.enrollments) {
+      const [progress, soCanThiep] = await Promise.all([
+        courseProgress(db, student.id, chon.id),
+        db.lessonOverride.count({
+          where: { studentId: student.id, lesson: { courseId: chon.id } },
+        }),
+      ]);
+      hocSinh.push({
+        studentId: student.id,
+        displayName: student.displayName,
+        username: student.username,
+        isActive: student.isActive,
+        tier: progress.tier,
+        progress,
+        soCanThiep,
+      });
+    }
+  }
+
+  hocSinh.sort((a, b) => a.displayName.localeCompare(b.displayName, 'vi'));
+
+  return {
+    classId: klass.id,
+    code: klass.code,
+    name: klass.name,
+    term: klass.term,
+    courses: courses.map((c) => ({
+      courseId: c.id,
+      slug: c.slug,
+      title: c.title,
+      iconEmoji: c.iconEmoji,
+    })),
+    khoaHienTai: chon ? { courseId: chon.id, slug: chon.slug, title: chon.title } : null,
+    hocSinh,
+    tiLeTrungBinh:
+      hocSinh.length === 0
+        ? 0
+        : Math.round(
+            hocSinh.reduce((sum, h) => sum + h.progress.required.percent, 0) / hocSinh.length,
+          ),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Student detail — where overrides are applied
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface CanThiepHienCo {
+  id: string;
+  lessonId: string;
+  lessonTitle: string;
+  lessonOrder: number;
+  isUnlocked: boolean | null;
+  forceStatus: LessonStatus | null;
+  waivePrerequisites: boolean;
+  reason: string | null;
+  createdAt: Date;
+  createdBy: string;
+  authorName: string;
+  /** True when the override applies to the whole class, not this student. */
+  phamViLop: boolean;
+}
+
+export interface DuLieuHocSinh {
+  studentId: string;
+  displayName: string;
+  username: string;
+  isActive: boolean;
+  classId: string;
+  className: string;
+  course: { courseId: string; slug: string; title: string; iconEmoji: string };
+  tier: Tier;
+  ghiChuNhanh: string | null;
+  progress: CourseProgress;
+  baiHoc: LessonAccess[];
+  canThiep: CanThiepHienCo[];
+}
+
+export async function duLieuHocSinh(
+  actor: Actor,
+  studentId: string,
+  courseId?: string,
+): Promise<DuLieuHocSinh | null> {
+  // Relational check: refuses unless this actor genuinely teaches this student.
+  await authorize(db, actor, { resource: 'student', action: 'read', studentId });
+
+  const student = await db.user.findUnique({
+    where: { id: studentId },
+    select: {
+      id: true,
+      displayName: true,
+      username: true,
+      isActive: true,
+      enrollments: {
+        where: {
+          isActive: true,
+          ...(actor.role === 'ADMIN' ? {} : { class: { teacherId: actor.id } }),
+        },
+        select: {
+          class: {
+            select: {
+              id: true,
+              name: true,
+              classCourses: {
+                select: {
+                  course: { select: { id: true, slug: true, title: true, iconEmoji: true } },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!student) return null;
+
+  const enrolment = student.enrollments[0];
+  if (!enrolment) return null;
+
+  const courses = enrolment.class.classCourses.map((cc) => cc.course);
+  const course = courses.find((c) => c.id === courseId) ?? courses[0];
+  if (!course) return null;
+
+  const [progress, baiHoc, track, overrides] = await Promise.all([
+    courseProgress(db, studentId, course.id),
+    resolveCourseAccess(db, studentId, course.id),
+    db.trackAssignment.findUnique({
+      where: { studentId_courseId: { studentId, courseId: course.id } },
+      select: { note: true },
+    }),
+    db.lessonOverride.findMany({
+      where: {
+        lesson: { courseId: course.id },
+        OR: [{ studentId }, { classId: enrolment.class.id, studentId: null }],
+      },
+      select: {
+        id: true,
+        lessonId: true,
+        studentId: true,
+        isUnlocked: true,
+        forceStatus: true,
+        waivePrerequisites: true,
+        reason: true,
+        createdAt: true,
+        createdBy: true,
+        lesson: { select: { title: true, order: true } },
+        author: { select: { displayName: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ]);
+
+  return {
+    studentId: student.id,
+    displayName: student.displayName,
+    username: student.username,
+    isActive: student.isActive,
+    classId: enrolment.class.id,
+    className: enrolment.class.name,
+    course: {
+      courseId: course.id,
+      slug: course.slug,
+      title: course.title,
+      iconEmoji: course.iconEmoji,
+    },
+    tier: progress.tier,
+    ghiChuNhanh: track?.note ?? null,
+    progress,
+    baiHoc,
+    canThiep: overrides.map((o) => ({
+      id: o.id,
+      lessonId: o.lessonId,
+      lessonTitle: bocMarkdown(o.lesson.title),
+      lessonOrder: o.lesson.order,
+      isUnlocked: o.isUnlocked,
+      forceStatus: o.forceStatus,
+      waivePrerequisites: o.waivePrerequisites,
+      reason: o.reason,
+      createdAt: o.createdAt,
+      createdBy: o.createdBy,
+      authorName: o.author.displayName,
+      phamViLop: o.studentId === null,
+    })),
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Curriculum viewer — the teacher's read of the lesson plan
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface KhoiGiaoVien {
+  blockId: string;
+  order: number;
+  type: BlockType;
+  stage: FlowStage;
+  title: string;
+  tier: Tier;
+  isOptional: boolean;
+  estimatedMinutes: number;
+  coTracNghiem: boolean;
+  coBaiTap: boolean;
+}
+
+export interface BaiHocGiaoVien {
+  lessonId: string;
+  slug: string;
+  order: number;
+  title: string;
+  summary: string;
+  objectives: string[];
+  status: LessonStatus;
+  /** 1–5, a planning aid. Never rendered to a student as a label. */
+  difficulty: number;
+  estimatedMinutes: number;
+  isPublished: boolean;
+  isDerived: boolean;
+  /** Verbatim from the source lesson plan. Teacher-only. */
+  teacherNotes: string | null;
+  tienQuyet: Array<{ order: number; title: string }>;
+  khoi: KhoiGiaoVien[];
+  soKhoiTheoNhanh: Record<Tier, number>;
+}
+
+export interface ModuleGiaoVien {
+  moduleId: string;
+  title: string;
+  description: string;
+  order: number;
+  sessionFrom: number;
+  sessionTo: number;
+  baiHoc: BaiHocGiaoVien[];
+}
+
+export interface DuLieuGiaoTrinh {
+  courseId: string;
+  slug: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  iconEmoji: string;
+  totalSessions: number;
+  modules: ModuleGiaoVien[];
+  soBuoiCoGhiChu: number;
+}
+
+export async function duLieuGiaoTrinh(
+  actor: Actor,
+  courseSlug: string,
+): Promise<DuLieuGiaoTrinh | null> {
+  // Reading the curriculum with its instructional notes is a staff capability.
+  await authorize(db, actor, { resource: 'curriculum', action: 'create' });
+
+  const course = await db.course.findUnique({
+    where: { slug: courseSlug },
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      subtitle: true,
+      description: true,
+      iconEmoji: true,
+      totalSessions: true,
+      modules: {
+        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          title: true,
+          description: true,
+          order: true,
+          sessionFrom: true,
+          sessionTo: true,
+        },
+      },
+      lessons: {
+        orderBy: { order: 'asc' },
+        select: {
+          id: true,
+          slug: true,
+          order: true,
+          title: true,
+          summary: true,
+          objectives: true,
+          status: true,
+          difficulty: true,
+          estimatedMinutes: true,
+          isPublished: true,
+          isDerived: true,
+          teacherNotes: true,
+          moduleId: true,
+          prerequisites: {
+            select: { required: { select: { order: true, title: true } } },
+          },
+          blocks: {
+            orderBy: { order: 'asc' },
+            select: {
+              id: true,
+              order: true,
+              type: true,
+              title: true,
+              tier: true,
+              isOptional: true,
+              estimatedMinutes: true,
+              quizId: true,
+              problemId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!course) return null;
+
+  const theoModule = new Map<string, BaiHocGiaoVien[]>();
+  let soBuoiCoGhiChu = 0;
+
+  for (const lesson of course.lessons) {
+    if (lesson.teacherNotes) soBuoiCoGhiChu += 1;
+
+    const soKhoiTheoNhanh: Record<Tier, number> = {
+      CO_BAN: 0,
+      THU_THACH: 0,
+      NANG_CAO: 0,
+      MO_RONG: 0,
+    };
+    for (const b of lesson.blocks) soKhoiTheoNhanh[b.tier] += 1;
+
+    const row: BaiHocGiaoVien = {
+      lessonId: lesson.id,
+      slug: lesson.slug,
+      order: lesson.order,
+      title: lesson.title,
+      summary: lesson.summary,
+      objectives: lesson.objectives,
+      status: lesson.status,
+      difficulty: lesson.difficulty,
+      estimatedMinutes: lesson.estimatedMinutes,
+      isPublished: lesson.isPublished,
+      isDerived: lesson.isDerived,
+      teacherNotes: lesson.teacherNotes,
+      tienQuyet: lesson.prerequisites
+        .map((p) => ({ order: p.required.order, title: bocMarkdown(p.required.title) }))
+        .sort((a, b) => a.order - b.order),
+      khoi: lesson.blocks.map((b) => ({
+        blockId: b.id,
+        order: b.order,
+        type: b.type,
+        stage: stageOf(b.type),
+        title: b.title,
+        tier: b.tier,
+        isOptional: b.isOptional,
+        estimatedMinutes: b.estimatedMinutes,
+        coTracNghiem: b.quizId !== null,
+        coBaiTap: b.problemId !== null,
+      })),
+      soKhoiTheoNhanh,
+    };
+
+    const list = theoModule.get(lesson.moduleId);
+    if (list) list.push(row);
+    else theoModule.set(lesson.moduleId, [row]);
+  }
+
+  return {
+    courseId: course.id,
+    slug: course.slug,
+    title: course.title,
+    subtitle: course.subtitle ?? '',
+    description: course.description,
+    iconEmoji: course.iconEmoji,
+    totalSessions: course.totalSessions,
+    soBuoiCoGhiChu,
+    modules: course.modules.map((m) => ({
+      moduleId: m.id,
+      title: m.title,
+      description: m.description,
+      order: m.order,
+      sessionFrom: m.sessionFrom,
+      sessionTo: m.sessionTo,
+      baiHoc: (theoModule.get(m.id) ?? []).sort((a, b) => a.order - b.order),
+    })),
+  };
+}
+
+/** Courses a staff member can browse. */
+export async function danhSachKhoaHoc(): Promise<
+  Array<{ slug: string; title: string; iconEmoji: string; totalSessions: number }>
+> {
+  return db.course.findMany({
+    where: { isPublished: true },
+    select: { slug: true, title: true, iconEmoji: true, totalSessions: true },
+    orderBy: { order: 'asc' },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Staff accounts — the deletion flow
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface HangNhanVien {
+  id: string;
+  username: string;
+  displayName: string;
+  role: Role;
+  isActive: boolean;
+  soLop: number;
+  laToi: boolean;
+}
+
+export interface DuLieuNhanVien {
+  nhanVien: HangNhanVien[];
+  nguoiNhanBanGiao: Array<{ id: string; username: string; displayName: string; role: Role }>;
+}
+
+export async function duLieuNhanVien(actor: Actor): Promise<DuLieuNhanVien> {
+  if (actor.role !== 'ADMIN') {
+    // Not a redirect: the caller decides how to present a refusal.
+    return { nhanVien: [], nguoiNhanBanGiao: [] };
+  }
+
+  const [staff, keNhiem] = await Promise.all([
+    db.user.findMany({
+      where: { role: { in: ['TEACHER', 'ADMIN'] } },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        role: true,
+        isActive: true,
+        _count: { select: { taughtClasses: true } },
+      },
+      orderBy: [{ role: 'asc' }, { displayName: 'asc' }],
+    }),
+    nguoiCoTheNhanBanGiao(db, actor.id),
+  ]);
+
+  return {
+    nhanVien: staff.map((s) => ({
+      id: s.id,
+      username: s.username,
+      displayName: s.displayName,
+      role: s.role,
+      isActive: s.isActive,
+      soLop: s._count.taughtClasses,
+      laToi: s.id === actor.id,
+    })),
+    nguoiNhanBanGiao: keNhiem,
+  };
+}
+
+/** What removing this account would collide with. Admin-only. */
+export async function anhHuongXoa(
+  actor: Actor,
+  targetId: string,
+): Promise<AnhHuongXoaTaiKhoan | null> {
+  if (actor.role !== 'ADMIN') return null;
+  return anhHuongXoaTaiKhoan(db, targetId);
+}
+
+/** Every student this actor may legitimately reach. Used by search and pickers. */
+export async function hocSinhTrongTam(actor: Actor): Promise<string[]> {
+  return visibleStudentIds(db, actor);
+}

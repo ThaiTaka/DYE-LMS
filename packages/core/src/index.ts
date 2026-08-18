@@ -63,5 +63,21 @@ export {
   type AuthzRequest,
 } from './authz';
 
+export {
+  ACCOUNT_AUDIT,
+  anhHuongXoaTaiKhoan,
+  chuyenGiaoHoSoGiangDay,
+  khoiPhucNhanVien,
+  nguoiCoTheNhanBanGiao,
+  voHieuHoaNhanVien,
+  xoaTaiKhoanNhanVien,
+  type AnhHuongXoaTaiKhoan,
+  type KetQuaChuyenGiao,
+  type KetQuaXoaTaiKhoan,
+  type RangBuocXoa,
+} from './accounts';
+
+export { bocMarkdown, rutGon, tenBuoi } from './text';
+
 // ── Phase 4: curriculum engine ───────────────────────────────────────────────
 export * from './curriculum/index';

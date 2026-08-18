@@ -275,15 +275,124 @@ than a button that silently does nothing.
 
 ---
 
-## Phase 6 — Teacher UI & Analytics
+## Phase 6 — Teacher UI, Analytics & Vietnamese Docs ✅ COMPLETE
 
-Class management, student provisioning, enrollment, curriculum editor (with flow validation
-surfaced as inline errors), problem/test-case authoring, override & track assignment with bulk
-actions, analytics dashboards (completion, average/median, **most-failed questions and test cases**,
-falling-behind and fast-progressing lists with one-click track adjustment), feedback authoring.
+**Gates: typecheck 4/4 ✅ · lint 3/3 ✅ · test 295/295 ✅ (31 seed + 162 core + 102 web) · `next build` ✅**
 
-**Gate additions:** analytics query p95 < 300 ms on seeded volume, measured; if it fails, add the
-snapshot table before closing the phase.
+### Delivered
+
+| Area | Route / module |
+|---|---|
+| Teacher shell, nav, skip link | `components/giao-vien/vo.tsx` |
+| Dashboard: completion, support list, fast-track list | `/giao-vien` |
+| Class roster with per-student tiers | `/giao-vien/lop/[id]` |
+| Student detail + tier control + lesson overrides | `/giao-vien/hoc-sinh/[id]` |
+| Curriculum viewer with teacher notes | `/giao-vien/giao-trinh/[slug]` |
+| Staff accounts & safe retirement | `/giao-vien/nhan-su` |
+| Teacher data layer (authz-scoped) | `lib/teacher-data.ts` |
+| Account lifecycle engine | `packages/core/src/accounts.ts` |
+| Markdown→plain-text for titles | `packages/core/src/text.ts` |
+| Vietnamese documentation | `README.md`, `docs/SETUP_GUIDE.md`, `docs/DATABASE_GUIDE.md` |
+
+### Decisions that shape what a teacher sees
+
+**Analytics describe work, never the child.** The alert list is *"Nên hỏi thăm"* — worth checking
+in on — which names an action the teacher takes rather than a property the student has. A component
+test asserts the rendered output contains none of `học sinh yếu`, `kém`, `tụt hậu`, `thất bại`,
+`dốt`, and that the tier scale has exactly four rungs with nothing below Cơ bản.
+
+**The roster is alphabetical, not ranked.** Sorting children by progress turns a class list into a
+league table. A test asserts the ordering is by name.
+
+**Flagging requires two signals.** A student appears in the support list only when they are both
+behind the class average *and* quiet for 10+ days. Either alone is noise — a student can be behind
+because they joined late, and quiet for a week because of a school holiday.
+
+**Transferring a class is stated as a grant of access to children**, because that is what it is. The
+staff page says so in the copy, and a test asserts the sentence is present.
+
+### Tech debt from Phase 5 — fixed at the source
+
+Lock reasons interpolated raw lesson titles, so students saw `` Buổi 19 · `calendar` ``. Fixed in
+`@dye/core/text` and applied inside `resolveGating`, so titles are clean at the point they are
+written rather than patched by whichever component displays them.
+
+Two deliberate departures from CommonMark, both because this is a Python curriculum:
+
+- `__` is never read as bold — `__init__` is a dunder, and rendering it as a bold *init* teaches a
+  wrong method name. Real seeded titles include ``Constructor `__init__` & khởi tạo đối tượng``;
+  verified over HTTP that it renders as `Constructor __init__ & khởi tạo đối tượng`.
+- Single `_` only counts at word boundaries, so `so_sanh_hai_list` and `snake_case` survive.
+
+The first version got `__init__` wrong. The test caught it before the UI was built.
+
+### Teacher deletion flow — the RESTRICT constraints
+
+Five foreign keys point at a teacher with `ON DELETE RESTRICT`: `Class.teacherId`,
+`TrackAssignment.assignedBy`, `LessonOverride.createdBy`, `Announcement.authorId`,
+`Feedback.authorId`. Each records a decision a named adult made about a specific child, and *"who
+decided this, and when?"* must stay answerable after that adult leaves. A `CASCADE` here would
+delete a student's feedback history because a teacher changed jobs.
+
+So deletion has two supported paths, and the UI argues for the first:
+
+1. **Deactivate** — access ends on the next request (`validateSession` re-reads `isActive` every
+   call), the record stays whole. This is the primary button.
+2. **Transfer, then delete** — a named successor inherits every row in one transaction, so nothing
+   is left pointing at a deleted person. Behind a disclosure, needs an explicit successor.
+
+Refusals that are part of the workflow (*"this account still owns 2 classes"*) come back as **data**
+with the impact attached, so the UI renders a transfer form. Genuine refusals — not an admin, last
+active admin, deleting yourself — still throw.
+
+A test asserts Postgres itself rejects `DELETE FROM "User"` for a teacher with history. If that ever
+stops throwing, the schema lost its constraint and the safe flow became optional.
+
+### Bug found by the build: server crypto in a client bundle
+
+`next build` failed with `UnhandledSchemeError: node:crypto`. A `'use client'` component imported
+`bocMarkdown` from the `@dye/core` root barrel, which re-exports the session layer, which imports
+`node:crypto`. The build failure was the good outcome — the bad one would have been shipping server
+code to the browser.
+
+Fixed by adding a `./text` subpath export to `@dye/core` so isomorphic helpers are reachable without
+the server barrel, and splitting the type import (erased at compile time) from the value import.
+
+### Bug found by HTTP smoke test: 403 rendering as 500
+
+The same defect class as Phase 5's locked lesson, in a new place. A teacher opening a URL for a
+class they do not own is a **normal** event — a stale bookmark, a shared link — but `duLieuLop`
+threw `ForbiddenError` out of a server component, producing `HTTP 500` and Next.js's internal error
+shell. The boundary held and nothing leaked; the status code lied.
+
+Verified by curl: `co.lan` → `thay.minh`'s class returned `500` with `__next_error__` in the body.
+
+Root-cause fix: `xemDuoc()` in `lib/guard.ts` absorbs `ForbiddenError` into `{ ok: false }` so the
+page can `redirect()` **outside** the try/catch — `redirect()` signals by throwing and would
+otherwise be swallowed. Only `ForbiddenError` is absorbed; real faults stay loud.
+
+Re-verified: `307 → /khong-co-quyen`, final page `200`, zero error shells, and the class name does
+not appear anywhere in the response.
+
+> Worth noting for anyone extending this: in the seed, every student of `thay.minh` is **also** a
+> student of `co.lan`, so seed data cannot produce a true negative for cross-teacher access. The
+> integration tests build disjoint teacher→student worlds for exactly this reason.
+
+### Test rigor
+
+Mutation test: commenting out the `authorize()` call in `duLieuLop` failed exactly two tests —
+cross-teacher access and immediate revocation on deactivation. Reverted after confirming.
+
+### Deliberately not built
+
+Problem/test-case authoring and feedback composition need the judge engine to be meaningful, so they
+stay with Phase 7/8 rather than shipping as forms that write rows nothing reads. Bulk actions and
+the analytics snapshot table are deferred until measured volume justifies them — the current
+per-student resolution is correct by construction, since the progress denominator is per student.
+
+**Not yet measured:** the p95 < 300 ms analytics target. Current dashboard resolves progress per
+student per course in a loop, which is correct but not optimised; on the 12-student seed it is
+imperceptible. This needs measuring against realistic volume before it can be called done.
 
 ---
 

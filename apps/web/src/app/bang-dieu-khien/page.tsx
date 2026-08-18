@@ -1,18 +1,19 @@
-import { visibleStudentIds } from '@dye/core';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 
 import { TheHocTiep } from '@/components/hoc-sinh/the-hoc-tiep';
 import { VoHocSinh } from '@/components/hoc-sinh/vo';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
-import { db } from '@/lib/db';
 import { requireSession } from '@/lib/guard';
 import { duLieuBangDieuKhien } from '@/lib/student-data';
 
 export default async function BangDieuKhien() {
   const actor = await requireSession();
 
-  if (actor.role !== 'STUDENT') return <BangGiaoVien tenHienThi={actor.displayName} id={actor.id} />;
+  // Staff have their own home. This route stays the single "take me to my
+  // dashboard" link so nothing in the app needs to branch on role to build a URL.
+  if (actor.role !== 'STUDENT') redirect('/giao-vien');
 
   const data = await duLieuBangDieuKhien(actor.id);
   const nhanh = data.courses[0]?.tier;
@@ -118,46 +119,6 @@ export default async function BangDieuKhien() {
           </ul>
         </section>
       ) : null}
-    </VoHocSinh>
-  );
-}
-
-/**
- * Placeholder for staff.
- *
- * Phase 6 builds the real teacher experience. Until then this shows the roster
- * derived from `visibleStudentIds` — the same relationship `authorize()` uses —
- * so a teacher never sees a student who is not theirs, even in a placeholder.
- */
-async function BangGiaoVien({ tenHienThi, id }: { tenHienThi: string; id: string }) {
-  const actor = await requireSession();
-  const ids = await visibleStudentIds(db, actor);
-  const students = await db.user.findMany({
-    where: { id: { in: ids } },
-    select: { id: true, username: true, displayName: true },
-    orderBy: { displayName: 'asc' },
-    take: 50,
-  });
-  void id;
-
-  return (
-    <VoHocSinh tenHienThi={tenHienThi}>
-      <h1 className="mt-0 mb-2 text-3xl font-bold">Xin chào, {tenHienThi}</h1>
-      <p className="mb-6 text-chu-phu">
-        Bảng điều khiển dành cho giáo viên sẽ được xây ở giai đoạn tiếp theo. Dưới đây là danh sách
-        học sinh của bạn.
-      </p>
-
-      <section className="rounded-the border border-vien bg-the p-6">
-        <h2 className="mt-0 mb-4 text-lg font-semibold">Học sinh của bạn ({students.length})</h2>
-        <ul className="m-0 list-none space-y-2 p-0">
-          {students.map((s) => (
-            <li key={s.id} className="text-chu">
-              {s.displayName} <span className="text-chu-nhat">· {s.username}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
     </VoHocSinh>
   );
 }
