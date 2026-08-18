@@ -481,6 +481,40 @@ describe('Khu làm bài', () => {
     expect(await screen.findByText(/đang chờ được chấm/i)).toBeInTheDocument();
   });
 
+  it('tự hỏi lại kết quả khi bài đang chờ chấm', async () => {
+    nopStub.mockResolvedValue({
+      trangThai: 'da-nhan',
+      submissionId: 's1',
+      attemptNo: 1,
+      thongDiep: 'Đã nhận bài làm lần 1 của em. Bài đang chờ được chấm.',
+    });
+
+    const dangCho = {
+      id: 's1',
+      attemptNo: 1,
+      verdict: 'PENDING' as const,
+      score: 0,
+      passedTests: 0,
+      totalTests: 0,
+      nopLuc: '2026-08-18T02:00:00Z',
+      dangCho: true,
+    };
+    const daCham = { ...dangCho, verdict: 'ACCEPTED' as const, passedTests: 6, totalTests: 6, dangCho: false };
+
+    lichSuNopStub
+      .mockResolvedValueOnce({ trangThai: 'ok', baiNop: [dangCho] })
+      .mockResolvedValue({ trangThai: 'ok', baiNop: [daCham] });
+
+    const nguoiDung = userEvent.setup();
+    await dungKhu();
+    await nguoiDung.click(await screen.findByRole('button', { name: /^nộp bài$/i }));
+
+    // Without polling, the student would sit on "đang chờ" forever and read it
+    // as the system having lost their work.
+    expect(await screen.findByText(/Đang chờ chấm/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Đúng rồi/i, {}, { timeout: 8000 })).toBeInTheDocument();
+  }, 15_000);
+
   it('sân chơi không có nút nộp bài', async () => {
     await dungKhu({ coBaiTap: false });
     await screen.findByText(/lưu tự động/i);

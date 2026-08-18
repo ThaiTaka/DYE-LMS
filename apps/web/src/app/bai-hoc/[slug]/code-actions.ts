@@ -29,6 +29,7 @@ import {
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
+import { xepHangChamBai } from '@/lib/judge-queue';
 
 import type { Actor } from '@dye/core';
 
@@ -198,6 +199,11 @@ export async function nop(blockId: string, code: string): Promise<KetQuaNop> {
   try {
     const actor = await hocSinhHienTai();
     const kq = await nopBai(db, actor.id, blockId, code);
+
+    // The row is already safe. Enqueueing only makes judging prompt, so a queue
+    // outage must not turn into an error the student sees — the worker's sweep
+    // picks up anything that never made it onto Redis.
+    await xepHangChamBai(kq.submissionId);
 
     return {
       trangThai: 'da-nhan',

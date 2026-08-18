@@ -26,6 +26,9 @@
     "db:seed": "npm run db:seed --workspace @dye/db",
     "db:reset": "npm run db:reset --workspace @dye/db",
     "db:studio": "npm run db:studio --workspace @dye/db",
+    "judge:dev": "npm run dev --workspace @dye/judge-worker",
+    "judge:images": "npm run images --workspace @dye/judge-worker",
+    "judge:verify": "npm run verify-seed --workspace @dye/judge-worker",
     "infra:up": "docker compose up -d postgres redis minio minio-init",
     "infra:down": "docker compose down",
     "infra:nuke": "docker compose down -v"

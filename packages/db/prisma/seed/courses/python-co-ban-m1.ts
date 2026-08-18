@@ -1097,7 +1097,11 @@ export const module2: ModuleSpec = {
               ),
               sample('2.5\n4\n', 'Chu vi: 13.00\nDien tich: 10.00\n'),
               hidden('10\n10\n', 'Chu vi: 40.00\nDien tich: 100.00\n', 25),
-              hidden('1.25\n0.5\n', 'Chu vi: 3.50\nDien tich: 0.63\n', 25),
+              // Deliberately NOT 1.25 × 0.5. That product is exactly 0.625, and
+              // Python's `.2f` rounds half to EVEN, giving 0.62 where a hand
+              // calculation says 0.63 — so the natural correct solution was
+              // being marked wrong. Buổi 7 teaches rectangles, not IEEE-754.
+              hidden('1.25\n0.4\n', 'Chu vi: 3.30\nDien tich: 0.50\n', 25),
               hidden('100\n0.01\n', 'Chu vi: 200.02\nDien tich: 1.00\n', 25),
               hidden('7.777\n3.333\n', 'Chu vi: 22.22\nDien tich: 25.92\n', 25),
             ],

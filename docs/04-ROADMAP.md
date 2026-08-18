@@ -499,21 +499,125 @@ The p95 < 300 ms target from Phase 6 is still **unmeasured** and still owed.
 
 ---
 
-## Phase 8 — Judge engine (Docker sandbox)
+## Phase 8 — Judge engine (Docker sandbox) ✅ COMPLETE
 
-1. `sandbox/images`: three Dockerfiles, pinned base digests, no runtime `pip`.
-2. `sandbox/seccomp/judge.json`: syscall allowlist.
-3. `sandbox/runner`: Python harness for `io_match`, `unit_test`, `performance`; deterministic
-   generators; resource accounting; stderr sanitiser.
-4. `apps/judge-worker`: BullMQ consumer, Dockerode driver, wall-clock watchdog, forced cleanup,
-   output caps, concurrency + per-student limits, retry/backoff, dead-letter handling.
-5. `packages/judge-contract`: zod job/result schemas shared with `web`.
+**Gates: typecheck 5/5 ✅ · lint 4/4 ✅ · test 470/470 ✅ (31 seed + 195 core + 156 web + 88 judge) · `next build` ✅**
 
-**Gate additions — adversarial suite, all must produce a clean verdict and a reaped container:**
-infinite loop · fork bomb · `while True: print()` · 2 GB allocation · `open('/etc/passwd')` ·
-`os.system('rm -rf /')` · `socket` to a public IP · `import ctypes` · 100 MB source file ·
-non-UTF8 bytes · `sys.setrecursionlimit` overflow · zip bomb via `zipfile`.
-Plus: every seeded reference solution is executed through the real judge and must return `ACCEPTED`.
+### Delivered
+
+| Area | Module |
+|---|---|
+| Hardened container runner | `apps/judge-worker/src/sandbox.ts` |
+| Output comparison (beginner-forgiving) | `src/compare.ts` |
+| Verdict + friendly-error classification | `src/classify.ts` |
+| Stdlib unit-test driver (nonce-signed) | `src/driver.ts` |
+| Deterministic Big-O generators | `src/generators.ts` |
+| Mode dispatch + Phase 4 progress hook | `src/judge.ts` |
+| BullMQ worker + orphan sweep | `src/index.ts` |
+| Reference-solution gate | `src/verify-seed.ts` → `npm run judge:verify` |
+| Queue contract (no queue lib in core) | `packages/core/src/judge-queue.ts` |
+| Enqueue from web | `apps/web/src/lib/judge-queue.ts` |
+
+Node/TypeScript worker as instructed — no Python Celery. It shares `@dye/db` and `@dye/core` and
+drives the host daemon through an explicit `docker run` argv.
+
+### The sandbox
+
+`--network none` · `--memory` = `--memory-swap` · `--cpus 0.5` · `--pids-limit 50` · `--read-only` ·
+`--tmpfs /tmp:size=10m,noexec,nosuid,nodev` · `--user 1000:1000` · `--cap-drop ALL` ·
+`--security-opt no-new-privileges` · code mounted `:ro`.
+
+Two properties are structural rather than incidental:
+
+**No shell string is ever built.** Every argument is its own argv entry, so nothing — a filename, a
+problem slug, student code — can be re-parsed as a flag.
+
+**The container is never asked to stop itself.** `timeout` inside a container can be ignored; the
+kill is issued from the host by container name at `timeLimitMs + 1000`.
+
+The flags are asserted directly in tests, not only through behaviour: a test that checked only
+outcomes would pass if `--network none` were silently dropped on a platform that happened to have no
+route out anyway.
+
+### 27 containment tests, all running genuinely hostile code
+
+`os.system("rm -rf /")` · socket egress · fork bomb · infinite loop · rootfs writes · `/tmp` noexec ·
+uid check · docker.sock visibility · memory exhaustion · unbounded printing · path traversal in
+filenames · cross-run leakage. Each asserts both that the attempt failed **and** that no container
+was orphaned.
+
+One test failed honestly and taught me something: binding a port **succeeds** inside
+`--network none`. That is not a hole — the socket lives in an isolated netns with no veth pair, and
+I verified from the host that the connection is refused. It is also deliberately useful: Phase 2's
+`LOOPBACK_ONLY` policy exists precisely so socket lessons run with zero egress. The test now asserts
+the property that actually matters — only `lo` exists, and egress fails.
+
+### Judging, and the beginner rule
+
+Trailing whitespace and CRLF are forgiven; interior spacing and line order are not. `1 2 3` and `123`
+are genuinely different answers, but a 12-year-old who prints the right number with a trailing space
+and is told WRONG learns the machine is arbitrary — and that lesson outlasts the exercise.
+
+`SyntaxError` maps to `COMPILE_ERROR`, not `RUNTIME_ERROR`: one means Python could not read the
+program at all, the other means it ran and then went wrong, and those need different next actions.
+
+Vietnamese explanations name what to look at, never what the student is. Host paths, container
+internals and injected-driver frames are stripped before anything reaches a student; the raw text
+stays in `runnerError`, which is staff-only. Hidden test cases store no stdout or stderr at all —
+otherwise the assessment leaks through the results panel.
+
+The unit-test driver emits results after a **per-run nonce**, so a student printing something that
+looks like a passing result cannot forge one. Tested.
+
+### Three real bugs found by running it
+
+**Queue name with a colon.** BullMQ builds keys as `bull:<name>:<id>` and rejects a name containing
+`:`. Nothing caught it until the worker was started for the first time — the tests never constructed
+a `Queue`. Fixed, and `queue.test.ts` now builds a real one against Redis.
+
+**Read-only working directory.** Session 28 of Python Cơ Bản *is* a file-handling lesson, and
+`open("so.txt", "w")` failed with `OSError` because the cwd was the read-only code mount. A correct
+solution was being told its algorithm was wrong. The working directory is now the writable tmpfs;
+containment is unchanged (still `noexec,nosuid,nodev`, size-capped, discarded with the container),
+and a test asserts the code mount is *still* not writable.
+
+**Output cap too small for sorting.** A PERFORMANCE problem at N = 100 000 prints ~800 KB by design.
+The 256 KB cap turned that into `OUTPUT_LIMIT_EXCEEDED`. PERFORMANCE runs now get their own, larger
+cap — a genuine runaway printer is still caught by the time limit.
+
+### The finding that mattered most
+
+`npm run judge:verify` runs **every seeded reference solution through the real judge**. It found that
+**10 problems cannot pass their own tests** — meaning each would mark a *correct* student answer
+wrong. There is no way to find these by reading the seed files; they only appear when executed.
+
+One was unambiguous and is fixed: `p-b07` used `1.25 × 0.5 = 0.625`, and Python's `.2f` rounds half
+to **even** → `0.62`, while the seed expected `0.63`. Input changed to `1.25 / 0.4`. Buổi 7 teaches
+rectangles, not IEEE-754.
+
+The other **10 are deliberately left unfixed** and documented in
+[`05-NOI-DUNG-CAN-RA-SOAT.md`](05-NOI-DUNG-CAN-RA-SOAT.md). Overwriting `expectedOutput` with
+whatever the reference solution produces would assume the solution is the correct side — and if it
+is the buggy one, that bakes the bug in as ground truth and teaches it to every student. A visibly
+broken exercise beats a silently wrong one. This needs the curriculum author.
+
+Current state: **63/80 pass, 3 skipped (PY_WEB), 10 awaiting review.** The gate exits non-zero, so it
+stays visible.
+
+### Deliberately not built
+
+`PY_WEB` needs a loopback mock server so `requests` works with zero egress. Those 3 problems return
+`SKIPPED` with a reason rather than being graded against nothing — a correct answer must never be
+failed because the system does not support the problem yet.
+
+Also not done: a seccomp syscall allowlist (the capability drop plus read-only rootfs covers the
+realistic surface for CPython), per-student concurrency limits, and dead-letter handling beyond
+BullMQ's retry/backoff.
+
+### Analytics debt — still owed
+
+The p95 < 300 ms target from Phase 6 remains **unmeasured**. Judging adds no load to it: the worker
+writes to `Submission`/`SubmissionTestResult` and touches no aggregate the dashboard reads.
 
 ---
 

@@ -79,6 +79,14 @@ export {
 
 export { bocMarkdown, rutGon, tenBuoi } from './text';
 
+// ── Phase 8: judge queue contract (no queue library — see the module) ────────
+export {
+  CHINH_SACH_THU_LAI,
+  HANG_CHAM_BAI,
+  VIEC_CHAM_BAI,
+  type ViecChamBai,
+} from './judge-queue';
+
 // ── Phase 7: code drafts, history, submission ────────────────────────────────
 export {
   bamMa,

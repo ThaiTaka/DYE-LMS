@@ -41,7 +41,12 @@ const nextConfig = {
   transpilePackages: ['@dye/core', '@dye/db'],
 
   // Prisma's query engine is a native binary; bundling it breaks the client.
-  serverExternalPackages: ['@prisma/client', '@node-rs/argon2'],
+  // Native or Node-only packages that must run from node_modules rather than
+  // being traced into the bundle. `bullmq` is here because it is server-only by
+  // construction (imported from lib/judge-queue.ts, which is `server-only`), and
+  // because bundling it makes webpack try to resolve an optional Valkey client
+  // we do not use and warn that it is missing.
+  serverExternalPackages: ['@prisma/client', '@node-rs/argon2', 'bullmq'],
 
   /**
    * Security headers.

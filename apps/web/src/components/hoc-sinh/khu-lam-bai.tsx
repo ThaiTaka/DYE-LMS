@@ -125,6 +125,8 @@ export function KhuLamBai({
   const id = useId();
   const maRef = useRef(ma);
   maRef.current = ma;
+  /** Bounds the judging poll, so a stuck worker cannot poll forever. */
+  const soLanHoi = useRef(0);
 
   const doiMa = useCallback(
     (moi: string) => {
@@ -143,6 +145,29 @@ export function KhuLamBai({
   useEffect(() => {
     if (moLichSu) void napLichSu();
   }, [moLichSu, napLichSu]);
+
+  /**
+   * Poll while a submission is still being judged.
+   *
+   * Judging takes a second or two in a container. Without this the student
+   * presses "Nộp bài", sees "đang chờ được chấm", and then nothing ever changes
+   * unless they reload the page — which reads as the system having lost their
+   * work.
+   *
+   * Stops as soon as nothing is pending, and gives up after a bounded number of
+   * attempts so a stuck worker cannot leave the tab polling forever.
+   */
+  useEffect(() => {
+    const dangCho = baiNop.some((s) => s.dangCho);
+    if (!dangCho || soLanHoi.current >= 30) return;
+
+    const t = setTimeout(() => {
+      soLanHoi.current += 1;
+      void napLichSu();
+    }, 2000);
+
+    return () => clearTimeout(t);
+  }, [baiNop, napLichSu]);
 
   const xemBan = useCallback(
     async (version: number) => {
@@ -175,7 +200,12 @@ export function KhuLamBai({
       await tuLuu.luuNgay(maRef.current);
       const kq = await nop(blockId, maRef.current);
       setThongBao(kq.thongDiep);
-      if (kq.trangThai === 'da-nhan') await napLichSu();
+      if (kq.trangThai === 'da-nhan') {
+        // Fresh budget: this is a new attempt, not a continuation of the last.
+        soLanHoi.current = 0;
+        setMoLichSu(true);
+        await napLichSu();
+      }
     });
   }, [blockId, napLichSu, tuLuu]);
 

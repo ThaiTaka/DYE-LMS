@@ -102,6 +102,46 @@ services:
     command: ['sh', '-c', 'npx prisma migrate deploy && npx prisma db seed']
     restart: 'no'
 
+  # The judge worker. Behind a profile, so `docker compose up` does NOT start it
+  # by default:
+  #
+  #     docker compose --profile judge up -d judge-worker
+  #
+  # ── Why it is opt-in ──────────────────────────────────────────────────────
+  # It mounts the host's Docker socket, which grants effective root on the host
+  # to whatever holds it. That is a deliberate, visible choice rather than
+  # something that happens the first time someone runs `docker compose up`.
+  #
+  # For local development the better path is to run it on the host instead:
+  #
+  #     npm run judge:dev
+  #
+  # which needs no socket mount at all, because it already runs where the
+  # daemon is. The sandbox containers this worker starts never see the socket —
+  # asserted by a test in apps/judge-worker/src/sandbox.test.ts.
+  judge-worker:
+    profiles: ['judge']
+    build:
+      context: .
+      dockerfile: apps/judge-worker/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      DATABASE_URL: ${DATABASE_URL_DOCKER:-postgresql://dye:dye_dev_password_change_me@postgres:5432/dye_lms?schema=public}
+      REDIS_URL: ${REDIS_URL_DOCKER:-redis://redis:6379}
+      JUDGE_CONCURRENCY: ${JUDGE_CONCURRENCY:-4}
+      JUDGE_MAX_MEMORY_MB: ${JUDGE_MAX_MEMORY_MB:-256}
+      JUDGE_MAX_TIME_MS: ${JUDGE_MAX_TIME_MS:-10000}
+      JUDGE_OUTPUT_LIMIT_BYTES: ${JUDGE_OUTPUT_LIMIT_BYTES:-262144}
+    volumes:
+      # Sibling containers, not nested Docker. See the note above.
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   redis-data:

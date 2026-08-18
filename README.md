@@ -251,9 +251,9 @@ Repo có một quy tắc lint tự viết chặn từ vựng mang nghĩa thiếu
 | 4 | Engine giáo trình: gating · tier · tiến độ | ✅ Xong |
 | 5 | Giao diện học sinh | ✅ Xong |
 | 6 | Giao diện giáo viên & phân tích | ✅ Xong |
-| 7 | Trình soạn code (CodeMirror) | ⬜ Kế tiếp |
-| 8 | Judge engine (Docker sandbox) | ⬜ |
-| 9 | Workspace dự án Pygame | ⬜ |
+| 7 | Trình soạn code (CodeMirror) | ✅ Xong |
+| 8 | Judge engine (Docker sandbox) | ✅ Xong |
+| 9 | Workspace dự án Pygame | ⬜ Kế tiếp |
 | 10–12 | Kiểm thử · rà soát bảo mật · triển khai | ⬜ |
 
 Chi tiết từng phase kèm kết quả kiểm chứng thật: [`docs/04-ROADMAP.md`](docs/04-ROADMAP.md)
@@ -270,6 +270,7 @@ Chi tiết từng phase kèm kết quả kiểm chứng thật: [`docs/04-ROADMA
 | [`docs/02-DATABASE.md`](docs/02-DATABASE.md) | Thiết kế schema chi tiết |
 | [`docs/03-CURRICULUM-MAP.md`](docs/03-CURRICULUM-MAP.md) | Bản đồ 90 buổi học |
 | [`docs/04-ROADMAP.md`](docs/04-ROADMAP.md) | Nhật ký phát triển từng phase |
+| [`docs/05-NOI-DUNG-CAN-RA-SOAT.md`](docs/05-NOI-DUNG-CAN-RA-SOAT.md) | Bài tập có lời giải mẫu chưa qua được chính nó |
 
 ---
 
