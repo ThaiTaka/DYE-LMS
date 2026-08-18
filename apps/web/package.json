@@ -11,8 +11,15 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.11.0",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.9",
     "@dye/core": "*",
     "@dye/db": "*",
+    "@lezer/highlight": "^1.2.3",
     "@prisma/client": "^6.2.1",
     "@tailwindcss/postcss": "^4.3.3",
     "next": "^15.1.6",

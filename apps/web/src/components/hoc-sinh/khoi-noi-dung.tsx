@@ -2,7 +2,7 @@ import { VanBan } from '@/lib/markdown';
 import type { KhoiHienThi } from '@/lib/student-data';
 
 import { BaiTracNghiem } from './bai-trac-nghiem';
-import { SanChoiCode } from './san-choi-code';
+import { KhuLamBai } from './khu-lam-bai';
 import { KIEU_NHANH, KIEU_TRUY_CAP } from '../ui/nhanh';
 
 /**
@@ -121,7 +121,16 @@ function NoiDungTheoLoai({ khoi }: { khoi: KhoiHienThi }) {
         <>
           <VanBan>{nd.markdown}</VanBan>
           <div className="mt-4">
-            <SanChoiCode maNguon={nd.starterCode} mucTieu={nd.goal} />
+            <KhuLamBai
+              blockId={khoi.blockId}
+              maBanDau={khoi.maBanDau}
+              coBanNhap={khoi.coBanNhap}
+              luuLucBanDau={khoi.luuLucBanDau}
+              // A playground has nothing to hand in; it is for trying things.
+              coBaiTap={false}
+              nhan="Khung soạn thảo"
+              mucTieu={nd.goal}
+            />
           </div>
         </>
       );
@@ -130,7 +139,7 @@ function NoiDungTheoLoai({ khoi }: { khoi: KhoiHienThi }) {
       return (
         <>
           <VanBan>{nd.markdown}</VanBan>
-          {khoi.baiTap ? <ThuThachLapTrinh baiTap={khoi.baiTap} /> : null}
+          <ThuThachLapTrinh khoi={khoi} />
         </>
       );
 
@@ -234,16 +243,27 @@ function NoiDungTheoLoai({ khoi }: { khoi: KhoiHienThi }) {
   }
 }
 
-/** Coding challenge — statement, samples and hints. Judge arrives in Phase 8. */
-function ThuThachLapTrinh({ baiTap }: { baiTap: NonNullable<KhoiHienThi['baiTap']> }) {
+/**
+ * Coding challenge — statement, samples, workspace and hints.
+ *
+ * The workspace renders even when no `Problem` row is attached, because the
+ * draft and its history are keyed on the block: a student typing into a
+ * challenge that has not been wired to a problem yet still must not lose their
+ * work. The submit button is what depends on there being something to hand in.
+ */
+function ThuThachLapTrinh({ khoi }: { khoi: KhoiHienThi }) {
+  const baiTap = khoi.baiTap;
+
   return (
     <div className="mt-4 space-y-4">
-      <div className="rounded-nut border border-vien bg-the-mo p-4">
-        <h3 className="mt-0 mb-2 text-base font-bold">{baiTap.title}</h3>
-        <VanBan>{baiTap.statement}</VanBan>
-      </div>
+      {baiTap ? (
+        <div className="rounded-nut border border-vien bg-the-mo p-4">
+          <h3 className="mt-0 mb-2 text-base font-bold">{baiTap.title}</h3>
+          <VanBan>{baiTap.statement}</VanBan>
+        </div>
+      ) : null}
 
-      {baiTap.viDu.length > 0 ? (
+      {baiTap && baiTap.viDu.length > 0 ? (
         <div>
           <p className="mt-0 mb-2 text-sm font-semibold">Ví dụ</p>
           <ul className="m-0 list-none space-y-3 p-0">
@@ -272,9 +292,16 @@ function ThuThachLapTrinh({ baiTap }: { baiTap: NonNullable<KhoiHienThi['baiTap'
         </div>
       ) : null}
 
-      <SanChoiCode maNguon={baiTap.starterCode} nhan="Bài làm của em" />
+      <KhuLamBai
+        blockId={khoi.blockId}
+        maBanDau={khoi.maBanDau}
+        coBanNhap={khoi.coBanNhap}
+        luuLucBanDau={khoi.luuLucBanDau}
+        coBaiTap={baiTap !== null}
+        nhan="Bài làm của em"
+      />
 
-      {baiTap.hints.length > 0 ? (
+      {baiTap && baiTap.hints.length > 0 ? (
         <details className="rounded-nut border border-vien bg-the p-4">
           <summary className="min-h-cham cursor-pointer font-semibold">
             💡 Xem gợi ý ({baiTap.hints.length})

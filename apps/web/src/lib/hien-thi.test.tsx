@@ -193,6 +193,42 @@ describe('Tương phản màu đạt chuẩn WCAG AA', () => {
     expect(tuongPhan(token['thu-lai']!, token['thu-lai-nen']!)).toBeGreaterThanOrEqual(4.5);
   });
 
+  it('mọi màu cú pháp Python đều đạt AA trên nền khung soạn thảo', () => {
+    /*
+     * Read from soan-thao.tsx rather than restated here, so a colour added to
+     * the highlight style cannot skip this check.
+     *
+     * This is the one CodeMirror's own default light theme fails: several of its
+     * tokens sit near 3:1, which is fine for an adult skimming familiar code and
+     * not fine for a child reading each character to find a typo.
+     */
+    const src = readFileSync(
+      resolve(import.meta.dirname, '../components/hoc-sinh/soan-thao.tsx'),
+      'utf8',
+    );
+    const khoi = src.slice(src.indexOf('HighlightStyle.define'), src.indexOf('const GIAO_DIEN'));
+    const mau = [...khoi.matchAll(/color:\s*'(#[0-9a-fA-F]{6})'/g)].map((m) => m[1]!);
+
+    expect(mau.length).toBeGreaterThanOrEqual(10);
+
+    for (const m of mau) {
+      const ti = tuongPhan(m, token['the']!);
+      expect(ti, `màu cú pháp ${m} chỉ đạt ${ti.toFixed(2)}:1 trên nền khung`).toBeGreaterThanOrEqual(
+        4.5,
+      );
+    }
+  });
+
+  it('khung soạn thảo không dùng cỡ chữ nhỏ hơn 16px', () => {
+    const src = readFileSync(
+      resolve(import.meta.dirname, '../components/hoc-sinh/soan-thao.tsx'),
+      'utf8',
+    );
+    // 14px monospace is where beginners start reading `l` as `1`, and this is
+    // exactly the audience that cannot yet tell a typo from a language rule.
+    expect(src).toMatch(/fontSize:\s*'1rem'/);
+  });
+
   it('cỡ chữ nền tảng là 18px, không nhỏ hơn', () => {
     const css = readFileSync(resolve(import.meta.dirname, '../app/globals.css'), 'utf8');
     expect(css).toMatch(/--text-base:\s*1\.125rem/);

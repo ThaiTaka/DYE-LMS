@@ -396,11 +396,106 @@ imperceptible. This needs measuring against realistic volume before it can be ca
 
 ---
 
-## Phase 7 — Code editor
+## Phase 7 — Code editor & submission pipeline ✅ COMPLETE
 
-CodeMirror 6 Python setup, autocomplete, error squiggles, run/reset/submit, hint reveal, split
-statement/editor/console layout, mobile-tolerant layout, autosave drafts, submission history diff.
-Pyodide isolated to its own worker origin so the app CSP keeps `unsafe-eval` off.
+**Gates: typecheck 4/4 ✅ · lint 3/3 ✅ · test 381/381 ✅ (31 seed + 195 core + 155 web) · `next build` ✅**
+
+### Delivered
+
+| Area | Module |
+|---|---|
+| CodeMirror 6, Python, 4-space indent, folding, bracket matching | `components/hoc-sinh/soan-thao.tsx` |
+| Debounced autosave with tab-close flush | `components/hoc-sinh/dung-tu-luu.ts` |
+| Line diff (LCS) + accessible diff view | `components/hoc-sinh/so-sanh-ma.tsx` |
+| Workspace: editor + history + rollback + submit | `components/hoc-sinh/khu-lam-bai.tsx` |
+| Draft / snapshot / submission engine | `packages/core/src/code.ts` |
+| Server actions | `app/bai-hoc/[slug]/code-actions.ts` |
+| Schema: `CodeDraft`, `CodeSnapshot`, `SnapshotReason` | migration `20260818050042` |
+
+### Three storage layers, three jobs
+
+`CodeDraft` is the live working copy, `CodeSnapshot` is append-only history, `Submission` is a
+deliberate act. Drafts and snapshots are keyed on the **block**, not the problem: a Code Playground
+has no problem attached and deserves the same protection as a graded challenge. Submissions stay
+keyed on the problem, because that is what gets judged.
+
+### Idempotency, at both ends
+
+The server stores a SHA-256 of the draft; a save whose hash matches performs **no write**. The
+client separately remembers the last text it sent and cancels its pending timer when the student
+types back to it. Both are tested — the server by comparing Prisma's own `updatedAt` before and
+after ten identical saves, the client by counting calls through a stubbed action.
+
+Snapshots are deliberately **not** taken per autosave. One every three minutes, plus one on every
+submit and one before every restore, keeps an hour of work at roughly twenty entries. History is for
+finding a working state, not for replaying keystrokes.
+
+Pruning removes the oldest `AUTO` entries only. A `SUBMIT` is what the student handed in and a
+`RESTORE` is a decision they made; neither disappears because they kept typing.
+
+### Rollback is not destructive
+
+Restoring snapshots the current draft first. A student who rolls back and then wants their newer
+attempt can still reach it, and the UI says so: *"Bản em đang viết được giữ lại thành bản 4."* Undo
+that loses work is not undo.
+
+### The keyboard trap
+
+Binding Tab to indentation makes a code editor a focus trap — a keyboard-only student presses Tab to
+leave and gets four more spaces, with no way out and no message. That is a WCAG 2.1.2 failure, and
+to a child on a school laptop it is indistinguishable from the page being broken. Removing the Tab
+binding fixes the trap and breaks the editor, because Tab is how a 12-year-old indents Python.
+
+Both work instead: **Tab indents**, **Escape arms the exit and the next Tab leaves**, and **Escape
+twice leaves immediately** for anyone who does not wait to find out what the first one did. Typing
+re-arms the trap, so a student who changed their mind mid-Escape does not get thrown out.
+
+The rule is in **visible text** next to the editor, not only in `aria-describedby` — a sighted
+keyboard user needs it just as much. Tested by focusing the CodeMirror content and asserting focus
+does and does not move in each case.
+
+### Contrast, computed not eyeballed
+
+CodeMirror's default light theme puts several Python tokens near 3:1. That is fine for an adult
+skimming familiar code and not fine for a child reading character by character to find a typo. The
+highlight style is hand-picked, and `hien-thi.test.tsx` **parses the colours out of `soan-thao.tsx`**
+and checks each against the card background, so a colour added later cannot skip the check.
+
+### Two bugs found by the tooling
+
+**`prisma generate` racing itself.** `@dye/db`'s `build` and `typecheck` both ran it, turbo ran them
+in parallel, and two processes wrote `node_modules/@prisma/client` at once — an intermittent bare
+`Error:` with no message, which passed on retry. Fixed in the task graph (`@dye/db#typecheck` and
+`#test` now depend on the package's own `build`) and by dropping the duplicate generate from the
+typecheck script. This was pre-existing; Phase 7 just made it fire often enough to catch.
+
+**Server actions pulled `next-auth` into jsdom.** Adding the workspace to `KhoiNoiDung` made the
+existing component test import `code-actions` → `@/auth` → `next-auth`, which fails on `next/server`
+in jsdom. Next.js rewrites a `'use server'` import into a network stub at build time; Vitest does
+not. Stubbed in the test, the same way the quiz actions already were.
+
+### Bundle cost, measured
+
+`/bai-hoc/[slug]` is now **252 kB First Load** (146 kB route-specific). I checked whether to
+lazy-load CodeMirror and decided against it: **89 of 90 lessons contain a code block**, so the split
+would save bundle on exactly one page while adding a loading state everywhere. The chunk is
+route-level and cached across lessons.
+
+### Deliberately not built
+
+No execution. The submit path writes a complete `Submission` row — student, problem, lesson, exact
+code, attempt number, `queuedAt` — and leaves the verdict at `PENDING`, which is the honest state:
+accepted, not yet judged. A mocked `ACCEPTED` would have demoed better and taught every student that
+the verdict means nothing. The UI says *"Bài đang chờ được chấm"* and a test asserts it never claims
+the code was correct.
+
+Pyodide, the console pane and error squiggles depend on actually running code, so they stay with
+Phase 8.
+
+### Analytics debt — unchanged
+
+Submission inserts add no load to the teacher dashboard: they write one row and touch no aggregate.
+The p95 < 300 ms target from Phase 6 is still **unmeasured** and still owed.
 
 ---
 

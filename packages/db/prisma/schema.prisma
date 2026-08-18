@@ -178,6 +178,8 @@ model User {
   lessonProgress    LessonProgress[]
   blockProgress     BlockProgress[]
   submissions       Submission[]
+  codeDrafts        CodeDraft[]
+  codeSnapshots     CodeSnapshot[]
   quizAttempts      QuizAttempt[]
   trackAssignments  TrackAssignment[] @relation("TrackStudent")
   tracksAssigned    TrackAssignment[] @relation("TrackAssigner")
@@ -409,10 +411,12 @@ model LessonBlock {
   problemId  String?
   quizId     String?
 
-  lesson   Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  problem  Problem?        @relation(fields: [problemId], references: [id])
-  quiz     Quiz?           @relation(fields: [quizId], references: [id])
-  progress BlockProgress[]
+  lesson    Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  problem   Problem?        @relation(fields: [problemId], references: [id])
+  quiz      Quiz?           @relation(fields: [quizId], references: [id])
+  progress  BlockProgress[]
+  drafts    CodeDraft[]
+  snapshots CodeSnapshot[]
 
   @@unique([lessonId, order])
   @@index([lessonId, tier])
@@ -593,6 +597,62 @@ model Submission {
   /// Powers teacher analytics: most-failed coding challenges.
   @@index([problemId, verdict])
   @@index([verdict, createdAt])
+}
+
+/// Why a snapshot was taken. Kept explicit so history reads as a story:
+/// "em tự lưu", "em nộp bài", "em quay lại bản cũ".
+enum SnapshotReason {
+  AUTO
+  SUBMIT
+  RESTORE
+}
+
+/// The student's live working copy for one code block.
+///
+/// Keyed on the BLOCK rather than the Problem, because a Code Playground has no
+/// problem attached and must survive a closed tab just as much as a graded
+/// challenge does. One row per student per block; autosave overwrites it.
+model CodeDraft {
+  id        String   @id @default(cuid())
+  studentId String
+  blockId   String
+  code      String
+  /// SHA-256 of `code`. An autosave whose hash matches skips the write entirely,
+  /// so holding a key down does not turn into a write per keystroke.
+  contentHash String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  block   LessonBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, blockId])
+  @@index([blockId])
+}
+
+/// Append-only history of a student's code for one block.
+///
+/// Deliberately NOT written on every autosave — that would be thousands of rows
+/// per lesson. A snapshot is taken when the code has meaningfully changed and
+/// enough time has passed, on every submit, and before every restore. That last
+/// one is what makes rolling back safe: going back to an old version never
+/// destroys the version you were on.
+model CodeSnapshot {
+  id          String         @id @default(cuid())
+  studentId   String
+  blockId     String
+  /// 1-based, per (student, block). Shown to the student as "Bản 1, Bản 2…".
+  version     Int
+  code        String
+  contentHash String
+  reason      SnapshotReason @default(AUTO)
+  createdAt   DateTime       @default(now())
+
+  student User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  block   LessonBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, blockId, version])
+  @@index([studentId, blockId, createdAt])
 }
 
 model SubmissionTestResult {

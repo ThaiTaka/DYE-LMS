@@ -1,5 +1,6 @@
 // @ts-check
 import js from '@eslint/js';
+import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
 /**
@@ -108,5 +109,22 @@ export default tseslint.config(
     // source. Exempt the definition sites only — nothing else.
     files: ['packages/db/prisma/seed/assertions.ts', 'eslint.config.mjs'],
     rules: { 'dye/no-deficit-language': 'off' },
+  },
+
+  {
+    /*
+     * Hook rules, for the React code only.
+     *
+     * Added in Phase 7 because the code editor introduced the first non-trivial
+     * hooks in the project — a debounced autosave with timers, refs and event
+     * listeners is exactly the shape where a stale closure silently drops a
+     * student's work rather than throwing.
+     */
+    files: ['apps/web/src/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
   },
 );

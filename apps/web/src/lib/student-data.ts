@@ -301,6 +301,15 @@ export interface KhoiHienThi {
   noiDung: NoiDungKhoi;
   tracNghiem: TracNghiemHienThi | null;
   baiTap: BaiTapHienThi | null;
+  /**
+   * The student's saved draft for this block, or the starter code when there is
+   * none. Resolved on the server so the editor renders with the student's own
+   * work already in it — a spinner here would show a 12-year-old an empty box
+   * where their code used to be.
+   */
+  maBanDau: string;
+  coBanNhap: boolean;
+  luuLucBanDau: string | null;
 }
 
 export interface DuLieuBaiHoc {
@@ -454,8 +463,24 @@ export async function duLieuBaiHoc(
 
   const accessOf = new Map(view.blocks.map((b) => [b.blockId, b]));
 
+  // One query for every draft in the lesson rather than one per editor.
+  const drafts = await db.codeDraft.findMany({
+    where: { studentId, blockId: { in: blocks.map((b) => b.id) } },
+    select: { blockId: true, code: true, updatedAt: true },
+  });
+  const draftOf = new Map(drafts.map((d) => [d.blockId, d]));
+
   const hienThi: KhoiHienThi[] = blocks.map((b) => {
     const resolved = accessOf.get(b.id);
+    const draft = draftOf.get(b.id);
+
+    // Where the editor starts: the student's own draft when one exists, the
+    // problem's starter code otherwise, and the playground's starter as a last
+    // resort for blocks with no problem attached.
+    const noiDung = parseNoiDung(b.content);
+    const macDinh =
+      b.problem?.starterCode ?? (noiDung.kind === 'playground' ? noiDung.starterCode : '');
+
     return {
       blockId: b.id,
       order: b.order,
@@ -466,7 +491,10 @@ export async function duLieuBaiHoc(
       access: resolved?.access ?? 'REQUIRED',
       completed: resolved?.completed ?? false,
       estimatedMinutes: b.estimatedMinutes,
-      noiDung: parseNoiDung(b.content),
+      noiDung,
+      maBanDau: draft?.code ?? macDinh,
+      coBanNhap: draft !== undefined,
+      luuLucBanDau: draft?.updatedAt.toISOString() ?? null,
       tracNghiem: b.quiz
         ? {
             quizId: b.quiz.id,

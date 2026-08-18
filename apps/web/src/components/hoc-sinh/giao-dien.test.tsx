@@ -25,6 +25,22 @@ vi.mock('@/app/bai-hoc/[slug]/actions', () => ({
   danhDauKhoiXong: vi.fn(),
 }));
 
+/*
+ * The code workspace imports its own server actions, and those reach `@/auth`
+ * and therefore next-auth. Next.js rewrites a 'use server' import into a network
+ * stub at build time; Vitest does not, so the real module loads and fails on
+ * `next/server`. Stubbed here for the same reason the quiz actions are.
+ */
+vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
+  tuDongLuu: vi.fn().mockResolvedValue({ trangThai: 'khong-doi', luuLuc: null, thongDiep: '' }),
+  layBanNhap: vi.fn(),
+  layLichSu: vi.fn().mockResolvedValue({ trangThai: 'ok', banLuu: [] }),
+  layLichSuNop: vi.fn().mockResolvedValue({ trangThai: 'ok', baiNop: [] }),
+  layNoiDungBanLuu: vi.fn(),
+  khoiPhuc: vi.fn(),
+  nop: vi.fn(),
+}));
+
 beforeEach(() => {
   kiemTra.mockReset();
 });
@@ -45,6 +61,9 @@ function khoi(over: Partial<KhoiHienThi> = {}): KhoiHienThi {
     noiDung: { kind: 'theory', markdown: 'Một **biến** là một cái tên.', keyPoints: ['Ghi nhớ'] },
     tracNghiem: null,
     baiTap: null,
+    maBanDau: '',
+    coBanNhap: false,
+    luuLucBanDau: null,
     ...over,
   };
 }

@@ -79,5 +79,26 @@ export {
 
 export { bocMarkdown, rutGon, tenBuoi } from './text';
 
+// ── Phase 7: code drafts, history, submission ────────────────────────────────
+export {
+  bamMa,
+  docNhap,
+  GIOI_HAN_KY_TU,
+  KHOANG_CACH_BAN_LUU_MS,
+  khoiPhucBanLuu,
+  lichSuMa,
+  lichSuNopBai,
+  luuNhap,
+  moKhoiCode,
+  nopBai,
+  SO_BAN_LUU_TOI_DA,
+  xemBanLuu,
+  type BaiDaNop,
+  type BanLuu,
+  type KetQuaLuuNhap,
+  type KetQuaNopBai,
+  type KhoiCode,
+} from './code';
+
 // ── Phase 4: curriculum engine ───────────────────────────────────────────────
 export * from './curriculum/index';

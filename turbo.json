@@ -25,6 +25,23 @@
     "test": {
       "dependsOn": ["^build"]
     },
+
+    /*
+     * `prisma generate` writes a single shared directory (node_modules/@prisma/client).
+     * Left to the default graph, @dye/db's own `build`, `typecheck` and `test`
+     * all run concurrently and each invoked it, so two processes wrote that
+     * directory at the same time and one lost the file lock on Windows — an
+     * intermittent, confusing "Error:" with no message.
+     *
+     * Pinning both to the package's own `build` makes generation happen exactly
+     * once, before anything reads the client.
+     */
+    "@dye/db#typecheck": {
+      "dependsOn": ["build"]
+    },
+    "@dye/db#test": {
+      "dependsOn": ["build"]
+    },
     "dev": {
       "cache": false,
       "persistent": true

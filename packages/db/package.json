@@ -20,7 +20,7 @@
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
     "build": "prisma generate",
-    "typecheck": "prisma generate && tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src prisma --max-warnings 0",
     "test": "vitest run"
   },
