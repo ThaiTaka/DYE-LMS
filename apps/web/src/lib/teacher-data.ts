@@ -786,6 +786,153 @@ export async function anhHuongXoa(
   return anhHuongXoaTaiKhoan(db, targetId);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// Hardware review queue
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface BaiMicrobitChoCham {
+  submissionId: string;
+  studentId: string;
+  tenHocSinh: string;
+  problemSlug: string;
+  problemTitle: string;
+  lessonTitle: string;
+  lessonOrder: number;
+  attemptNo: number;
+  nopLuc: Date;
+  daCham: boolean;
+  verdict: string;
+}
+
+/**
+ * Micro:bit submissions waiting for a person.
+ *
+ * These never reach a verdict on their own: the judge worker SKIPs MAKECODE
+ * because a container cannot watch an LED matrix. If this queue is not worked,
+ * a student's hardware submission sits unanswered forever — so it is a real
+ * queue with a real count, not a filter on a general list.
+ */
+export async function hangMicrobitChoCham(actor: Actor): Promise<BaiMicrobitChoCham[]> {
+  const ids = await visibleStudentIds(db, actor);
+  if (ids.length === 0) return [];
+
+  const rows = await db.submission.findMany({
+    where: {
+      studentId: { in: ids },
+      problem: { judgeMode: 'MAKECODE' },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 60,
+    select: {
+      id: true,
+      studentId: true,
+      attemptNo: true,
+      createdAt: true,
+      judgedAt: true,
+      verdict: true,
+      student: { select: { displayName: true } },
+      problem: { select: { slug: true, title: true } },
+      lesson: { select: { title: true, order: true } },
+    },
+  });
+
+  return rows.map((r) => ({
+    submissionId: r.id,
+    studentId: r.studentId,
+    tenHocSinh: r.student.displayName,
+    problemSlug: r.problem.slug,
+    problemTitle: bocMarkdown(r.problem.title),
+    lessonTitle: bocMarkdown(r.lesson?.title ?? ''),
+    lessonOrder: r.lesson?.order ?? 0,
+    attemptNo: r.attemptNo,
+    nopLuc: r.createdAt,
+    daCham: r.judgedAt !== null,
+    verdict: r.verdict,
+  }));
+}
+
+export interface BaiMicrobitChiTiet {
+  submissionId: string;
+  studentId: string;
+  tenHocSinh: string;
+  problemTitle: string;
+  problemStatement: string;
+  /** Teacher-only: the reference arrangement, for comparison. */
+  loiGiaiMau: string;
+  blocksXml: string;
+  attemptNo: number;
+  nopLuc: Date;
+  verdict: string;
+  score: number;
+  totalPoints: number;
+  daCham: boolean;
+  nhanXet: Array<{ id: string; comment: string; tenGiaoVien: string; luc: Date }>;
+}
+
+/** One hardware submission, with everything a teacher needs to grade it. */
+export async function baiMicrobitDeCham(
+  actor: Actor,
+  submissionId: string,
+): Promise<BaiMicrobitChiTiet | null> {
+  const sub = await db.submission.findUnique({
+    where: { id: submissionId },
+    select: {
+      id: true,
+      studentId: true,
+      code: true,
+      blocksXml: true,
+      attemptNo: true,
+      createdAt: true,
+      judgedAt: true,
+      verdict: true,
+      score: true,
+      student: { select: { displayName: true } },
+      problem: {
+        select: { title: true, statement: true, solutionCode: true, totalPoints: true, judgeMode: true },
+      },
+      feedback: {
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          comment: true,
+          createdAt: true,
+          author: { select: { displayName: true } },
+        },
+      },
+    },
+  });
+  if (!sub) return null;
+
+  // The relational check, before any of it is returned.
+  await authorize(db, actor, { resource: 'submission', action: 'grade', submissionId });
+
+  if (sub.problem.judgeMode !== 'MAKECODE') return null;
+
+  return {
+    submissionId: sub.id,
+    studentId: sub.studentId,
+    tenHocSinh: sub.student.displayName,
+    problemTitle: bocMarkdown(sub.problem.title),
+    problemStatement: sub.problem.statement,
+    loiGiaiMau: sub.problem.solutionCode,
+    // `blocksXml` is the field of record; `code` carries the same bytes for
+    // every existing query that does not know about hardware.
+    blocksXml: sub.blocksXml ?? sub.code,
+    attemptNo: sub.attemptNo,
+    nopLuc: sub.createdAt,
+    verdict: sub.verdict,
+    score: sub.score,
+    totalPoints: sub.problem.totalPoints,
+    daCham: sub.judgedAt !== null,
+    nhanXet: sub.feedback.map((f) => ({
+      id: f.id,
+      comment: f.comment,
+      tenGiaoVien: f.author.displayName,
+      luc: f.createdAt,
+    })),
+  };
+}
+
 /** Every student this actor may legitimately reach. Used by search and pickers. */
 export async function hocSinhTrongTam(actor: Actor): Promise<string[]> {
   return visibleStudentIds(db, actor);

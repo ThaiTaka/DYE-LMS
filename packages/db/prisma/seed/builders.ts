@@ -90,6 +90,49 @@ export function challenge(
   };
 }
 
+/**
+ * Micro:bit block workspace.
+ *
+ * Carries a `problem` so the submission pipeline, the teacher review queue and
+ * the progress engine all work unchanged — a hardware task is a task like any
+ * other. What differs is `judgeMode: MAKECODE`, which tells the judge worker to
+ * SKIP it: the behaviour of this program lives on a physical board with LEDs, and
+ * no container can observe that. A teacher reads the blocks and grades it.
+ */
+export function microbitTask(
+  problem: ProblemSpec,
+  opts: {
+    title?: string;
+    markdown?: Markdown;
+    goal: string;
+    khoiLenh?: string[];
+    blocksXml?: string;
+    minutes?: number;
+    isOptional?: boolean;
+  },
+): BlockSpec {
+  return {
+    type: 'MICROBIT_WORKSPACE',
+    title: opts.title ?? problem.title,
+    tier: problem.tier ?? 'CO_BAN',
+    estimatedMinutes: opts.minutes ?? 25,
+    isOptional: opts.isOptional ?? false,
+    content: {
+      kind: 'microbit',
+      markdown: opts.markdown ? md(opts.markdown) : 'Em kéo thả các khối lệnh để hoàn thành yêu cầu.',
+      goal: opts.goal,
+      ...(opts.blocksXml ? { blocksXml: opts.blocksXml } : {}),
+      ...(opts.khoiLenh ? { khoiLenh: opts.khoiLenh } : {}),
+    },
+    problem: {
+      ...problem,
+      // Never auto-judged. Stated here so a task cannot be authored into the
+      // Python judge by forgetting to set it.
+      judgeMode: 'MAKECODE',
+    },
+  };
+}
+
 export function codingTask(
   problem: ProblemSpec,
   opts: { title?: string; markdown?: Markdown; minutes?: number; isOptional?: boolean } = {},

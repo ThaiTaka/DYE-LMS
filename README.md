@@ -18,7 +18,7 @@ _Nền tảng dạy lập trình Python dành riêng cho học sinh trung học 
 
 ## Dự án này là gì?
 
-DYE LMS là hệ thống quản lý học tập được viết riêng cho một bài toán cụ thể: **dạy Python cho học sinh lớp 6–9 ở Đà Lạt**, theo đúng ba giáo án đã được biên soạn sẵn, với 90 buổi học nội dung thật.
+DYE LMS là hệ thống quản lý học tập được viết riêng cho một bài toán cụ thể: **dạy Python cho học sinh lớp 6–9 ở Đà Lạt**, theo đúng ba giáo án Python đã được biên soạn sẵn, cộng thêm phần lập trình phần cứng Micro:bit — tổng cộng 94 buổi học nội dung thật.
 
 Đây không phải là một LMS đa dụng được cấu hình lại. Từng quyết định kỹ thuật trong repo này — từ cách tính thanh tiến độ đến việc chọn màu hổ phách thay vì màu đỏ — đều bắt nguồn từ một ràng buộc sư phạm cụ thể, và được ghi chú lại ngay cạnh dòng code tạo ra nó.
 
@@ -66,9 +66,9 @@ Màu đỏ trong hệ thống được dành riêng cho **lỗi kỹ thuật th�
 
 ---
 
-## 📚 Ba khoá học
+## 📚 Bốn khoá học
 
-Toàn bộ nội dung được seed sẵn vào cơ sở dữ liệu — **90 buổi học thật, không có một dòng Lorem Ipsum nào**.
+Toàn bộ nội dung được seed sẵn vào cơ sở dữ liệu — **94 buổi học thật, không có một dòng Lorem Ipsum nào**.
 
 ### 🐍 Python Cơ Bản
 > _30 buổi · Từ phép tính đầu tiên đến chương trình hoàn chỉnh_
@@ -89,7 +89,21 @@ Module 4 thay phần multiplayer bằng các buổi tổng hợp — quyết đ�
 
 Lập trình hướng đối tượng, giao tiếp mạng, Web API, và cấu trúc dữ liệu. Bao gồm phần **thử thách hiệu năng Big-O** mà giáo án yêu cầu bắt buộc: học sinh phải tự đo được sự khác biệt giữa hai thuật toán, không chỉ đọc về nó.
 
-> **Về việc tuân thủ giáo án:** ghi chú của người soạn giáo án được xử lý như **ràng buộc kỹ thuật bắt buộc**, không phải gợi ý. Chúng được kiểm tra tự động bởi 18 quy tắc trong [`packages/db/prisma/seed/assertions.ts`](packages/db/prisma/seed/assertions.ts), chạy **trước** khi bất kỳ dòng dữ liệu nào được ghi vào database. Seed sẽ từ chối chạy nếu nội dung vi phạm giáo án.
+### 🤖 Lập trình Micro:bit Cơ Bản
+> _Module 1 · Từ khối lệnh đầu tiên đến board mạch nhấp nháy trong tay em_
+
+Phần cứng và IoT. Học sinh **kéo thả khối lệnh** trong MakeCode — không gõ cú pháp, không lo thiếu
+dấu hai chấm — rồi tải tệp `.hex` về và thả vào board Micro:bit thật.
+
+Module 1 dạy năm khối nền tảng: `forever`, `show string`, `show icon`, `pause`, `clearScreen`.
+
+Bài Micro:bit **không chấm tự động**: chương trình chạy trên board thật, không có đầu ra nào để máy
+so sánh. Thầy cô đọc khối lệnh rồi chấm — đó là câu trả lời trung thực, không phải cách làm tạm.
+
+> **Phạm vi hiện tại:** chỉ Module 1 được viết, đúng theo phần đề bài đã đặc tả. Các module sau
+> **cố ý chưa bịa ra** — nội dung bịa sẽ trông y hệt nội dung thật trong cơ sở dữ liệu.
+
+> **Về việc tuân thủ giáo án:** ghi chú của người soạn giáo án được xử lý như **ràng buộc kỹ thuật bắt buộc**, không phải gợi ý. Chúng được kiểm tra tự động bởi các quy tắc thực thi được trong [`packages/db/prisma/seed/assertions.ts`](packages/db/prisma/seed/assertions.ts), chạy **trước** khi bất kỳ dòng dữ liệu nào được ghi vào database. Seed sẽ từ chối chạy nếu nội dung vi phạm giáo án.
 
 ---
 
@@ -102,13 +116,14 @@ Lập trình hướng đối tượng, giao tiếp mạng, Web API, và cấu tr
 | **Framework** | Next.js 15 (App Router) | Server Components giữ đáp án quiz và mã lời giải ở lại phía server |
 | **UI** | React 19 + Tailwind CSS v4 | Token thiết kế khai báo bằng cú pháp `@theme`, không cần file config |
 | **Ngôn ngữ** | TypeScript `strict` + `noUncheckedIndexedAccess` | Mọi truy cập mảng đều phải xử lý trường hợp `undefined` |
-| **Monorepo** | npm workspaces + Turborepo | Ba package chia sẻ một `tsconfig.base.json` |
+| **Monorepo** | npm workspaces + Turborepo | Các package chia sẻ một `tsconfig.base.json` |
 
 ### Dữ liệu & hạ tầng
 
 | Lớp | Lựa chọn | Ghi chú |
 |---|---|---|
 | **Database** | PostgreSQL 16 | 30 model · 13 enum |
+| **Phần cứng** | BBC Micro:bit + MakeCode | Nhúng qua iframe, chấm thủ công bởi giáo viên |
 | **ORM** | Prisma 6 | Migration đầy đủ, seed idempotent |
 | **Queue / cache** | Redis 7 | BullMQ cho judge engine (Phase 8) |
 | **Object storage** | MinIO (S3-compatible) | Tài nguyên dự án Pygame, bucket private |
@@ -254,7 +269,8 @@ Repo có một quy tắc lint tự viết chặn từ vựng mang nghĩa thiếu
 | 7 | Trình soạn code (CodeMirror) | ✅ Xong |
 | 8 | Judge engine (Docker sandbox) | ✅ Xong |
 | 9 | Workspace dự án Pygame | ✅ Xong |
-| 10–12 | Kiểm thử · rà soát bảo mật · triển khai | ⬜ Kế tiếp |
+| 11 | Tích hợp Micro:bit (MakeCode) | ✅ Xong |
+| 10 · 12 | Kiểm thử · rà soát bảo mật · triển khai | ⬜ Kế tiếp |
 
 Chi tiết từng phase kèm kết quả kiểm chứng thật: [`docs/04-ROADMAP.md`](docs/04-ROADMAP.md)
 

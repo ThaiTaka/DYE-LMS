@@ -24,20 +24,25 @@ describe('toàn bộ chương trình học', () => {
     expect(() => assertCurriculumCompliance(allCourses)).not.toThrow();
   });
 
-  it('có đúng ba khoá, mỗi khoá 30 buổi', () => {
-    expect(allCourses).toHaveLength(3);
-    for (const course of allCourses) {
-      expect(course.totalSessions).toBe(30);
-      expect(lessonsOf(course)).toHaveLength(30);
+  it('ba khoá Python vẫn đủ 30 buổi mỗi khoá', () => {
+    // Asserted by slug rather than by counting the array: adding a course must
+    // not be able to weaken the guarantee about the three that already existed.
+    for (const slug of ['python-co-ban', 'lap-trinh-game-pygame', 'python-nang-cao']) {
+      const course = byCourse(slug);
+      expect(course.totalSessions, slug).toBe(30);
+      expect(lessonsOf(course), slug).toHaveLength(30);
     }
   });
 
-  it('đánh số buổi liên tục từ 1 đến 30, không trùng, không thiếu', () => {
+  it('mỗi khoá đánh số buổi liên tục từ 1, không trùng, không thiếu', () => {
     for (const course of allCourses) {
       const orders = lessonsOf(course)
         .map((l) => l.order)
         .sort((a, b) => a - b);
-      expect(orders).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
+      expect(
+        orders,
+        course.slug,
+      ).toEqual(Array.from({ length: course.totalSessions }, (_, i) => i + 1));
     }
   });
 
@@ -296,5 +301,118 @@ describe('bộ kiểm tra tuân thủ tự phát hiện vi phạm', () => {
     }
 
     expect(() => assertCurriculumCompliance([broken])).toThrow(/pedagogical-flow/u);
+  });
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Micro:bit — khoá mới, không được phá ba khoá Python
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('Khoá Micro:bit Cơ Bản', () => {
+  const microbit = byCourse('microbit-co-ban');
+  const buoi = lessonsOf(microbit);
+  const moiThu = JSON.stringify(microbit);
+
+  it('nằm cạnh ba khoá Python chứ không thay thế khoá nào', () => {
+    const slug = allCourses.map((c) => c.slug);
+    expect(slug).toEqual(
+      expect.arrayContaining([
+        'python-co-ban',
+        'lap-trinh-game-pygame',
+        'python-nang-cao',
+        'microbit-co-ban',
+      ]),
+    );
+    expect(allCourses).toHaveLength(4);
+  });
+
+  it('dạy đủ năm khối lệnh Basic mà đề bài yêu cầu', () => {
+    for (const khoi of ['forever', 'show string', 'show icon', 'pause', 'clearScreen']) {
+      expect(moiThu, `thiếu khối ${khoi}`).toContain(khoi);
+    }
+  });
+
+  it('dạy pause bằng mili giây — lỗi hay gặp nhất của học sinh', () => {
+    const lyThuyet = buoi
+      .flatMap((l) => l.blocks)
+      .filter((b) => b.content.kind === 'theory')
+      .map((b) => (b.content.kind === 'theory' ? b.content.markdown : ''))
+      .join('\n');
+
+    expect(lyThuyet).toMatch(/mili\s*gi[aâ]y/i);
+    // 1 giây = 1000 ms; nửa giây = 500 ms.
+    expect(lyThuyet).toContain('1000');
+    expect(lyThuyet).toContain('500');
+  });
+
+  it('thử thách 1: mặt cười 0,5 giây rồi mặt khóc, chạy MỘT lần', () => {
+    const bai = buoi
+      .flatMap((l) => l.blocks)
+      .find((b) => b.problem?.slug === 'mb-p-b02-mat-cuoi-mat-khoc-mot-lan');
+
+    expect(bai?.problem).toBeDefined();
+    expect(bai!.problem!.solutionCode).toContain('500');
+    // Running once is the point; forever is what challenge 2 adds.
+    expect(bai!.problem!.solutionCode).not.toMatch(/forever/i);
+  });
+
+  it('thử thách 2: cùng hiệu ứng nhưng lặp vô hạn', () => {
+    const bai = buoi
+      .flatMap((l) => l.blocks)
+      .find((b) => b.problem?.slug === 'mb-p-b03-mat-cuoi-mat-khoc-lap-vo-han');
+
+    expect(bai?.problem).toBeDefined();
+    expect(bai!.problem!.solutionCode).toMatch(/forever/i);
+    expect(bai!.problem!.solutionCode).toContain('500');
+  });
+
+  it('thử thách 2 nằm ở buổi SAU thử thách 1', () => {
+    const mot = buoi.find((l) =>
+      l.blocks.some((b) => b.problem?.slug === 'mb-p-b02-mat-cuoi-mat-khoc-mot-lan'),
+    );
+    const hai = buoi.find((l) =>
+      l.blocks.some((b) => b.problem?.slug === 'mb-p-b03-mat-cuoi-mat-khoc-lap-vo-han'),
+    );
+
+    // Challenge 2 is framed as an upgrade of challenge 1; that only reads
+    // correctly in order.
+    expect(mot).toBeDefined();
+    expect(hai).toBeDefined();
+    expect(hai!.order).toBeGreaterThan(mot!.order);
+  });
+
+  it('MỌI bài tập đều là MAKECODE — không bài nào lọt vào judge Python', () => {
+    const baiTap = buoi.flatMap((l) => l.blocks).filter((b) => b.problem);
+    expect(baiTap.length).toBeGreaterThan(0);
+
+    for (const b of baiTap) {
+      // A Micro:bit task handed to the Python judge would be marked wrong for
+      // producing no stdout.
+      expect(b.problem!.judgeMode, b.problem!.slug).toBe('MAKECODE');
+    }
+  });
+
+  it('bài MAKECODE không có ca kiểm thử, nhưng luôn có lời giải mẫu', () => {
+    for (const b of buoi.flatMap((l) => l.blocks).filter((x) => x.problem)) {
+      expect(b.problem!.tests ?? [], b.problem!.slug).toHaveLength(0);
+      // A task nobody has solved is a task nobody has checked is solvable.
+      expect(b.problem!.solutionCode.trim().length, b.problem!.slug).toBeGreaterThan(0);
+    }
+  });
+
+  it('mỗi buổi đều có khối MICROBIT_WORKSPACE để em làm bài', () => {
+    for (const l of buoi) {
+      expect(
+        l.blocks.some((b) => b.type === 'MICROBIT_WORKSPACE'),
+        `${l.slug} không có khối làm bài`,
+      ).toBe(true);
+    }
+  });
+
+  it('không dùng ngôn ngữ tiêu cực về học sinh', () => {
+    for (const xau of [/học sinh yếu/i, /kém/i, /dở/i]) {
+      expect(moiThu).not.toMatch(xau);
+    }
   });
 });

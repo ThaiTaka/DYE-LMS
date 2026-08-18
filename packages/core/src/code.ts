@@ -440,6 +440,65 @@ export async function nopBai(
   };
 }
 
+/**
+ * Hand in a Micro:bit block workspace.
+ *
+ * Separate from `nopBai` because what is being handed in is different in kind:
+ * there is no source file to run, and no verdict a machine can reach. The blocks
+ * go into `blocksXml`, the row is left at PENDING, and a teacher grades it.
+ *
+ * `code` is still populated — with the workspace — so every existing query that
+ * reads a submission keeps working rather than special-casing hardware.
+ */
+export async function nopBaiMicrobit(
+  db: PrismaClient,
+  studentId: string,
+  blockId: string,
+  blocksXml: string,
+): Promise<KetQuaNopBai> {
+  if (blocksXml.length > GIOI_HAN_KY_TU) throw new ForbiddenError('workspace-too-large');
+
+  const khoi = await moKhoiCode(db, studentId, blockId);
+  if (!khoi.problemId) throw new ForbiddenError('block-has-no-problem');
+
+  const hash = bamMa(blocksXml);
+
+  // The workspace is also kept as a draft and a snapshot, so a student who
+  // resubmits can still reach what they handed in last time.
+  await db.codeDraft.upsert({
+    where: { studentId_blockId: { studentId, blockId } },
+    create: { studentId, blockId, code: blocksXml, contentHash: hash },
+    update: { code: blocksXml, contentHash: hash },
+  });
+  await themBanLuu(db, studentId, blockId, blocksXml, hash, 'SUBMIT');
+
+  const daNop = await db.submission.count({
+    where: { studentId, problemId: khoi.problemId },
+  });
+
+  const queuedAt = new Date();
+  const submission = await db.submission.create({
+    data: {
+      studentId,
+      problemId: khoi.problemId,
+      lessonId: khoi.lessonId,
+      code: blocksXml,
+      blocksXml,
+      verdict: 'PENDING',
+      attemptNo: daNop + 1,
+      queuedAt,
+    },
+    select: { id: true, attemptNo: true, verdict: true, queuedAt: true },
+  });
+
+  return {
+    submissionId: submission.id,
+    attemptNo: submission.attemptNo,
+    verdict: submission.verdict,
+    queuedAt: submission.queuedAt ?? queuedAt,
+  };
+}
+
 export interface BaiDaNop {
   id: string;
   attemptNo: number;

@@ -125,10 +125,14 @@ export function stageOf(type: BlockType): FlowStage {
       return 'VI_DU';
     case 'PLAYGROUND':
       return 'SAN_CHOI';
+    // MICROBIT_WORKSPACE belongs here rather than with PLAYGROUND: it is a
+    // graded task the student hands in and a teacher reads, not a place to
+    // experiment freely.
     case 'MINI_CHALLENGE':
     case 'CODING':
     case 'QUIZ':
     case 'PROJECT':
+    case 'MICROBIT_WORKSPACE':
       return 'THU_THACH';
     case 'REFLECTION':
     case 'RESOURCE':

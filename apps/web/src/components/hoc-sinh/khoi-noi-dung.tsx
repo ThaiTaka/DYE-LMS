@@ -3,6 +3,7 @@ import type { KhoiHienThi } from '@/lib/student-data';
 
 import { BaiTracNghiem } from './bai-trac-nghiem';
 import { KhuLamBai } from './khu-lam-bai';
+import { KhuMicrobit } from './khu-microbit';
 import { KIEU_NHANH, KIEU_TRUY_CAP } from '../ui/nhanh';
 
 /**
@@ -140,6 +141,43 @@ function NoiDungTheoLoai({ khoi }: { khoi: KhoiHienThi }) {
         <>
           <VanBan>{nd.markdown}</VanBan>
           <ThuThachLapTrinh khoi={khoi} />
+        </>
+      );
+
+    /*
+     * The switch between Python and hardware happens here, per block.
+     *
+     * Doing it at block level rather than course level means one lesson could
+     * legitimately carry both — a Python exercise and a Micro:bit task — and
+     * neither component needs to know the other exists.
+     */
+    case 'microbit':
+      return (
+        <>
+          <VanBan>{nd.markdown}</VanBan>
+          <div className="mt-4">
+            <KhuMicrobit
+              blockId={khoi.blockId}
+              goal={nd.goal}
+              khoiLenh={nd.khoiLenh}
+              blocksXmlBanDau={nd.blocksXml}
+              // A saved draft for this block IS the student's workspace.
+              blocksXmlDaLuu={khoi.coBanNhap ? khoi.maBanDau : ''}
+              coBaiTap={khoi.baiTap !== null}
+            />
+          </div>
+          {khoi.baiTap && khoi.baiTap.hints.length > 0 ? (
+            <details className="mt-4 rounded-nut border border-vien bg-the p-4">
+              <summary className="min-h-cham cursor-pointer font-semibold">
+                💡 Xem gợi ý ({khoi.baiTap.hints.length})
+              </summary>
+              <ol className="mt-3 mb-0 space-y-1.5 ps-5 text-sm">
+                {khoi.baiTap.hints.map((h, i) => (
+                  <li key={i}>{h}</li>
+                ))}
+              </ol>
+            </details>
+          ) : null}
         </>
       );
 

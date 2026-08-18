@@ -745,6 +745,122 @@ tracked in [`05-NOI-DUNG-CAN-RA-SOAT.md`](05-NOI-DUNG-CAN-RA-SOAT.md).
 
 ---
 
+## Phase 11 — Micro:bit hardware integration ✅ COMPLETE
+
+**Gates: typecheck 5/5 ✅ · lint 4/4 ✅ · test 637/637 ✅ (41 seed + 282 core + 219 web + 95 judge) · `next build` ✅**
+
+> Numbering note: the roadmap already used 10–12 for testing, security audit and
+> deployment. This phase was inserted as a scope expansion and keeps the name it
+> was given; the original 10–12 are still outstanding.
+
+### Delivered
+
+| Area | Module |
+|---|---|
+| Curriculum: Lập trình Micro:bit Cơ Bản | `seed/courses/microbit-co-ban.ts` |
+| Compliance rules for the new course | `seed/assertions.ts` |
+| Schema: `MICROBIT_WORKSPACE`, `MAKECODE`, `blocksXml`, `hexKey` | migration `20260818085442` |
+| MakeCode iframe protocol | `components/hoc-sinh/makecode.ts` |
+| Student workspace + flash instructions | `components/hoc-sinh/khu-microbit.tsx` |
+| Manual grading engine | `packages/core/src/grading.ts` |
+| Teacher review queue + grading UI | `/giao-vien/microbit`, `components/giao-vien/cham-microbit.tsx` |
+
+### The curriculum, and what was deliberately not written
+
+Module 1 — Khởi lệnh BASIC — is specified in full by the brief: five blocks and
+two named challenges. That is what this course contains, across four sessions,
+and `totalSessions` reflects sessions actually written.
+
+**Later modules were not invented.** The three Python courses are seeded from real
+lesson plans; a fabricated Module 2 would look identical in the database and be
+indistinguishable to a teacher browsing the curriculum. When the rest of the
+Micro:bit plan arrives it gets added the same way.
+
+Six executable compliance rules were added, because a missing `clearScreen`
+lesson would look like an ordinary curriculum tweak in a diff:
+
+- all five Basic blocks are taught somewhere in the course;
+- `pause` is taught in **milliseconds**, stating 1 s = 1000 ms — the single most
+  common student mistake in this module, and the one the brief calls out;
+- challenge 1 uses 500 ms and does **not** use `forever`;
+- challenge 2 does use `forever`;
+- challenge 2 comes in a **later session** than challenge 1, because the brief
+  frames it as an upgrade and that only reads correctly in order;
+- every task is `MAKECODE`.
+
+### Hardware work is never auto-judged, and that is stated everywhere
+
+A Micro:bit program's output is light on a physical LED matrix. There is no
+stdout to compare and no container that can watch a board blink, so:
+
+- the judge worker returns **`SKIPPED`**, not `WRONG_ANSWER` and not
+  `INTERNAL_ERROR`. Marking it wrong would fail a student whose blocks were
+  perfect, for the sole reason that an LED produces no stdout;
+- the check runs **before the runtime-image lookup**, because a hardware task has
+  no container image in any meaningful sense. A test asserts judging returns in
+  under 400 ms, which proves Docker is never involved;
+- `SKIPPED` does **not** mark progress. It waits for a teacher;
+- the student-facing copy says a teacher will look at it. The submission is not
+  even enqueued — putting it on the queue would have the worker pick it up only
+  to skip it, leaving a child watching a spinner for a verdict never coming.
+
+`chamTay` refuses to grade anything the sandbox *can* judge. Without that, a
+verdict could be set on an IO_MATCH problem without a single test running, which
+quietly turns an objective result into an opinion.
+
+`ghiNhanDatBai` is now shared by the worker and manual grading — one
+implementation, so an accepted answer means the same thing however it was
+reached, and lesson completion is still re-derived by the Phase 4 engine.
+
+### The MakeCode embed
+
+`frame-src https://makecode.microbit.org` — the narrowest directive that allows
+the editor. Scripts still may not come from that origin, only a framed document,
+and the host is listed exactly rather than by wildcard. https, so a Micro:bit
+lesson cannot introduce mixed content on an https deployment. Verified by reading
+the real response header.
+
+`window.addEventListener('message')` receives from **any** origin, so every
+inbound message is filtered by `laTinNhanHopLe` before its contents are looked
+at. Tested against six near-miss origins including
+`https://makecode.microbit.org.evil.example`. Outbound `postMessage` targets the
+MakeCode origin explicitly, never `'*'`.
+
+`ws=browser` keeps a child's project in their own browser rather than syncing to
+a third-party cloud account.
+
+Switching is per **block**, not per course, so one lesson could legitimately
+carry both a Python exercise and a Micro:bit task. Verified over HTTP: the
+Micro:bit lesson renders the iframe and no CodeMirror; the Python lesson renders
+two CodeMirror instances and no iframe.
+
+### Two bugs found by running it
+
+**A server-action export used as a `useState` initialiser.** Everything exported
+from a `'use server'` file becomes a callable server reference — including plain
+objects. `useState` treats any callable argument as a lazy initialiser and
+*invoked* it, raising "Server Functions cannot be called during initial render"
+and returning HTTP 500 with Next's error shell. The other teacher controls import
+the same constant safely because `useActionState` never calls its initial state,
+which is why this was the first place it bit. Fixed with a local constant.
+
+**Two existing tests hard-coded "exactly three courses".** They were encoding the
+old truth. Rewritten to assert membership and to check the three Python courses
+by slug, so adding a course is a normal event rather than something that requires
+editing unrelated tests.
+
+### Not built
+
+`hexKey` exists in the schema but no hex is stored server-side: the student
+downloads the `.hex` straight from MakeCode and drags it onto the board, and
+intercepting that only to re-serve it would add a failure point to the one step
+that currently works. The column is there for when a teacher genuinely needs the
+compiled artefact.
+
+Beyond Module 1 the curriculum is unwritten, by choice — see above.
+
+---
+
 ## Phase 10 — Testing
 
 Unit (`packages/core` gating, scoring, tier routing, flow validation), integration with

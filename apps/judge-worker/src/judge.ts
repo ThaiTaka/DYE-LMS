@@ -18,7 +18,7 @@
  */
 import { randomBytes } from 'node:crypto';
 
-import { syncLessonCompletion } from '@dye/core';
+import { ghiNhanDatBai } from '@dye/core';
 
 import { catBot, giaiThichLoi, laLoiCuPhap, locVetLoi, phanLoaiKetThuc } from './classify';
 import { docLuat, soSanhDauRa } from './compare';
@@ -130,42 +130,12 @@ export async function chamBai(db: PrismaClient, submissionId: string): Promise<K
   // Phase 4 integration: an accepted answer is what turns a challenge block
   // into progress, and progress is what unlocks the next lesson.
   if (ketQua.verdict === 'ACCEPTED') {
-    await ghiNhanTienDo(db, sub.studentId, problem.id);
+    // Shared with manual grading, so an accepted answer means the same thing
+    // however it was reached.
+    await ghiNhanDatBai(db, sub.studentId, problem.id);
   }
 
   return ketQua;
-}
-
-/**
- * Mark every block that carries this problem as done, then re-derive lesson
- * completion through the Phase 4 engine.
- *
- * Completion is never written directly: `syncLessonCompletion` recomputes it
- * from the blocks REQUIRED for that particular student, so a Cơ bản student is
- * not held back by a Nâng cao challenge sitting in the same lesson.
- */
-async function ghiNhanTienDo(
-  db: PrismaClient,
-  studentId: string,
-  problemId: string,
-): Promise<void> {
-  const khoi = await db.lessonBlock.findMany({
-    where: { problemId },
-    select: { id: true, lessonId: true },
-  });
-
-  for (const b of khoi) {
-    await db.blockProgress.upsert({
-      where: { studentId_blockId: { studentId, blockId: b.id } },
-      create: { studentId, blockId: b.id, state: 'COMPLETED', completedAt: new Date() },
-      update: { state: 'COMPLETED', completedAt: new Date() },
-    });
-  }
-
-  const baiHoc = [...new Set(khoi.map((b) => b.lessonId))];
-  for (const lessonId of baiHoc) {
-    await syncLessonCompletion(db, studentId, lessonId);
-  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -230,6 +200,24 @@ async function chayTheoChe(
     };
   }
 
+  /*
+   * Micro:bit blocks are never executed here, and the check comes BEFORE the
+   * runtime-image lookup because a hardware task has no container image in any
+   * meaningful sense — `runtimeImage` on such a row is just its column default.
+   *
+   * SKIPPED rather than INTERNAL_ERROR: nothing went wrong. The program's
+   * output is light on a physical LED matrix, which no container can observe,
+   * so a teacher grades it by reading the block logic. Marking it WRONG_ANSWER
+   * for producing no stdout would fail a student whose blocks were perfect.
+   */
+  if (problem.judgeMode === 'MAKECODE') {
+    return {
+      ...trong,
+      verdict: 'SKIPPED',
+      runnerError: 'MAKECODE: bai Micro:bit do giao vien cham, khong chay trong sandbox',
+    };
+  }
+
   const image = ANH_CHAY[problem.runtimeImage];
   if (!image) {
     return { ...trong, runnerError: `khong biet runtime image ${problem.runtimeImage}` };
@@ -254,6 +242,10 @@ async function chayTheoChe(
       return chamHieuNang(code, problem, image);
     case 'PROJECT_UPLOAD':
       return { ...trong, verdict: 'SKIPPED', runnerError: 'du an Pygame thuoc Phase 9' };
+    case 'MAKECODE':
+      // Unreachable: handled above, before the image lookup. Kept so adding a
+      // mode cannot silently fall through to INTERNAL_ERROR.
+      return { ...trong, verdict: 'SKIPPED', runnerError: 'MAKECODE: giao vien cham' };
     default:
       return { ...trong, runnerError: `khong biet judgeMode ${problem.judgeMode}` };
   }

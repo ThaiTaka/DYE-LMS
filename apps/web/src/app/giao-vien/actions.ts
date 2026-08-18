@@ -15,6 +15,7 @@
  */
 import {
   authorize,
+  chamTay,
   chuyenGiaoHoSoGiangDay,
   voHieuHoaNhanVien,
   xoaTaiKhoanNhanVien,
@@ -258,6 +259,55 @@ export async function datCanThiepBaiHoc(
 // ═══════════════════════════════════════════════════════════════════════════
 // Staff accounts
 // ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Grade a Micro:bit submission by hand.
+ *
+ * The one path in the system where a human sets a verdict. `chamTay` in
+ * @dye/core refuses it for anything the sandbox CAN judge, so this cannot be
+ * used to set an IO_MATCH result without a single test having run.
+ */
+export async function chamBaiMicrobit(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const submissionId = String(form.get('submissionId') ?? '');
+    const verdictRaw = String(form.get('verdict') ?? '');
+    const nhanXet = String(form.get('nhanXet') ?? '').trim();
+    const score = Number(form.get('score') ?? 0);
+
+    if (!submissionId) return { trangThai: 'loi', thongDiep: 'Thiếu bài nộp.' };
+    if (nhanXet.length < 3) {
+      return {
+        trangThai: 'loi',
+        thongDiep: 'Thầy cô viết vài dòng nhận xét giúp em nhé — em cần biết vì sao.',
+      };
+    }
+    if (verdictRaw !== 'ACCEPTED' && verdictRaw !== 'WRONG_ANSWER') {
+      return { trangThai: 'loi', thongDiep: 'Kết luận không hợp lệ.' };
+    }
+    if (!Number.isFinite(score)) {
+      return { trangThai: 'loi', thongDiep: 'Điểm không hợp lệ.' };
+    }
+
+    const kq = await chamTay(db, actor, submissionId, verdictRaw, score, nhanXet.slice(0, 4000));
+
+    revalidatePath('/giao-vien/microbit');
+    revalidatePath(`/giao-vien/microbit/${submissionId}`);
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        kq.verdict === 'ACCEPTED'
+          ? `Đã chấm đạt (${kq.score} điểm). Tiến độ của em đã được cập nhật.`
+          : 'Đã gửi nhận xét. Em sẽ thấy và có thể nộp lại.',
+    };
+  });
+}
 
 /** Retire a staff account without destroying their record. Admin-only. */
 export async function voHieuHoa(

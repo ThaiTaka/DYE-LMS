@@ -20,6 +20,7 @@ import {
   luuNhap,
   moKhoiCode,
   nopBai,
+  nopBaiMicrobit,
   xemBanLuu,
   ForbiddenError,
   UnauthorizedError,
@@ -210,6 +211,45 @@ export async function nop(blockId: string, code: string): Promise<KetQuaNop> {
       submissionId: kq.submissionId,
       attemptNo: kq.attemptNo,
       thongDiep: `Đã nhận bài làm lần ${kq.attemptNo} của em. Bài đang chờ được chấm.`,
+    };
+  } catch (error) {
+    const { trangThai, thongDiep } = loiThanhThongDiep(error);
+    return { trangThai, submissionId: null, attemptNo: null, thongDiep };
+  }
+}
+
+/**
+ * Hand in a Micro:bit block workspace.
+ *
+ * Deliberately does NOT enqueue for judging. A Micro:bit program's behaviour is
+ * light on a physical LED matrix; nothing in a container can observe it. Putting
+ * it on the queue would have the worker pick it up only to SKIP it, and the
+ * student would watch a spinner for a verdict that was never coming.
+ *
+ * The wording says a teacher will look at it, because a teacher will.
+ */
+export async function nopMicrobit(blockId: string, blocksXml: string): Promise<KetQuaNop> {
+  try {
+    const actor = await hocSinhHienTai();
+
+    if (!blocksXml.trim()) {
+      return {
+        trangThai: 'tu-choi',
+        submissionId: null,
+        attemptNo: null,
+        thongDiep: 'Vùng làm việc đang trống. Em kéo vài khối lệnh vào rồi nộp nhé.',
+      };
+    }
+
+    const kq = await nopBaiMicrobit(db, actor.id, blockId, blocksXml);
+
+    return {
+      trangThai: 'da-nhan',
+      submissionId: kq.submissionId,
+      attemptNo: kq.attemptNo,
+      thongDiep:
+        `Đã nhận bài lần ${kq.attemptNo} của em. Thầy cô sẽ xem các khối lệnh và nhận xét — ` +
+        'bài Micro:bit không chấm tự động được, vì chương trình chạy trên board thật.',
     };
   } catch (error) {
     const { trangThai, thongDiep } = loiThanhThongDiep(error);

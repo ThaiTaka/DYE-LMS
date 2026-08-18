@@ -62,6 +62,7 @@ export function VoGiaoVien({
           <nav aria-label="Điều hướng chính" className="flex flex-wrap items-center gap-1">
             <MucDieuHuong href="/giao-vien">Tổng quan</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/du-an">Dự án game</MucDieuHuong>
+            <MucDieuHuong href="/giao-vien/microbit">Micro:bit</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/giao-trinh">Giáo trình</MucDieuHuong>
             {vaiTro === 'ADMIN' ? (
               <MucDieuHuong href="/giao-vien/nhan-su">Nhân sự</MucDieuHuong>

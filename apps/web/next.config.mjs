@@ -81,6 +81,16 @@ const nextConfig = {
               "base-uri 'self'",
               "form-action 'self'",
               "object-src 'none'",
+              /*
+               * The MakeCode editor is embedded as an iframe for Micro:bit
+               * lessons. `frame-src` is the narrowest directive that allows it:
+               * scripts still may not come from that origin, only a framed
+               * document. Listed by exact host, never a wildcard.
+               *
+               * https, so a Micro:bit lesson cannot introduce mixed content on
+               * an https deployment.
+               */
+              'frame-src https://makecode.microbit.org',
             ].join('; '),
           },
         ],

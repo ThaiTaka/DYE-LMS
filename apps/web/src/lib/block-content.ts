@@ -35,6 +35,17 @@ export interface NoiDungThuThach {
   markdown: string;
 }
 
+/** Micro:bit block workspace, edited in the embedded MakeCode editor. */
+export interface NoiDungMicrobit {
+  kind: 'microbit';
+  markdown: string;
+  goal: string;
+  /** Seeds the editor with a starting arrangement. Empty means a blank workspace. */
+  blocksXml: string;
+  /** MakeCode blocks this task is about, shown as a reference strip. */
+  khoiLenh: string[];
+}
+
 export interface NoiDungTracNghiem {
   kind: 'quiz';
   markdown: string;
@@ -73,6 +84,7 @@ export type NoiDungKhoi =
   | NoiDungViDu
   | NoiDungSanChoi
   | NoiDungThuThach
+  | NoiDungMicrobit
   | NoiDungTracNghiem
   | NoiDungVideo
   | NoiDungSuyNgam
@@ -121,6 +133,17 @@ export function parseNoiDung(raw: unknown): NoiDungKhoi {
 
     case 'challenge':
       return { kind: 'challenge', markdown: str(raw['markdown']) };
+
+    case 'microbit':
+      return {
+        kind: 'microbit',
+        markdown: str(raw['markdown']),
+        goal: str(raw['goal']),
+        blocksXml: typeof raw['blocksXml'] === 'string' ? raw['blocksXml'] : '',
+        khoiLenh: Array.isArray(raw['khoiLenh'])
+          ? raw['khoiLenh'].filter((k): k is string => typeof k === 'string')
+          : [],
+      };
 
     case 'quiz':
       return { kind: 'quiz', markdown: str(raw['markdown']) };

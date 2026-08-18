@@ -335,10 +335,20 @@ describe('Giáo trình — góc nhìn giáo viên', () => {
     ).toBe(true);
   });
 
-  it('liệt kê đủ ba khoá học', async () => {
+  it('liệt kê đủ các khoá đang có, kể cả khoá Micro:bit mới thêm', async () => {
     const khoa = await danhSachKhoaHoc();
-    expect(khoa.length).toBe(3);
-    expect(khoa.map((k) => k.slug)).toContain('python-co-ban');
+    const slug = khoa.map((k) => k.slug);
+
+    // Asserted by membership, not by count: adding a course is a normal event
+    // and must not require editing an unrelated test.
+    expect(slug).toEqual(
+      expect.arrayContaining([
+        'python-co-ban',
+        'lap-trinh-game-pygame',
+        'python-nang-cao',
+        'microbit-co-ban',
+      ]),
+    );
   });
 });
 

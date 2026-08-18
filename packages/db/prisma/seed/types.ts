@@ -74,6 +74,18 @@ export type BlockContent =
   | { kind: 'example'; markdown: string; code: string; output?: string; notes?: string[] }
   | { kind: 'playground'; markdown: string; starterCode: string; goal: string }
   | { kind: 'challenge'; markdown: string }
+  | {
+      /**
+       * Micro:bit block workspace. `blocksXml` seeds the MakeCode editor with a
+       * starting arrangement; omit it to open an empty workspace.
+       */
+      kind: 'microbit';
+      markdown: string;
+      goal: string;
+      blocksXml?: string;
+      /** MakeCode blocks this task is about, shown as a reference strip. */
+      khoiLenh?: string[];
+    }
   | { kind: 'quiz'; markdown: string }
   | { kind: 'video'; url: string; durationSec: number; markdown?: string }
   | { kind: 'reflection'; prompt: string }

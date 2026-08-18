@@ -59,6 +59,10 @@ enum BlockType {
   PROJECT
   REFLECTION
   RESOURCE
+  /// Micro:bit block workspace, edited in an embedded MakeCode editor.
+  /// Renders a different workspace to CODING, so the lesson player can carry
+  /// both Python and hardware lessons without either knowing about the other.
+  MICROBIT_WORKSPACE
 }
 
 enum JudgeMode {
@@ -66,6 +70,11 @@ enum JudgeMode {
   UNIT_TEST
   PERFORMANCE
   PROJECT_UPLOAD
+  /// Micro:bit blocks. Deliberately NOT auto-judged: the program's behaviour
+  /// lives on a physical board with LEDs, buttons and a radio, and a container
+  /// cannot observe any of it. The judge worker SKIPs these with a reason and a
+  /// teacher grades them by reading the block logic.
+  MAKECODE
 }
 
 /// SECURITY POLICY: default NONE. Socket exercises work over loopback inside a
@@ -582,6 +591,14 @@ model Submission {
   compileError String?
   /// Internal diagnostics. Never rendered raw to a student.
   runnerError  String?
+  /// MAKECODE: the MakeCode workspace, as the editor exported it. This is what
+  /// a teacher reads to review block logic, so it is stored inline rather than
+  /// as a blob — it is small, and it must never be missing at review time.
+  blocksXml    String?
+  /// MAKECODE: content-addressed key for the compiled .hex, when the editor
+  /// produced one. Optional: a student can hand in working blocks without ever
+  /// having compiled, and that must not block review.
+  hexKey       String?
   attemptNo    Int       @default(1)
   queuedAt     DateTime?
   judgedAt     DateTime?

@@ -174,7 +174,14 @@ function assertStructure(course: CourseSpec): void {
  * This is the "no PDF -> Next -> Quiz" directive as an executable check.
  */
 function assertPedagogicalFlow(course: CourseSpec): void {
-  const ASSESSMENT: ReadonlySet<string> = new Set(['QUIZ', 'MINI_CHALLENGE', 'CODING']);
+  // MICROBIT_WORKSPACE counts as assessment: it carries a Problem and is graded,
+  // so a hardware lesson may not jump from theory straight into it either.
+  const ASSESSMENT: ReadonlySet<string> = new Set([
+    'QUIZ',
+    'MINI_CHALLENGE',
+    'CODING',
+    'MICROBIT_WORKSPACE',
+  ]);
   const HANDS_ON: ReadonlySet<string> = new Set(['INTERACTIVE_EXAMPLE', 'PLAYGROUND', 'PROJECT']);
 
   for (const { lesson } of course.modules.flatMap((m) => m.lessons.map((lesson) => ({ lesson })))) {
@@ -203,6 +210,25 @@ function assertProblemsAreTestable(course: CourseSpec): void {
     const mode = problem.judgeMode ?? 'IO_MATCH';
 
     if (mode === 'PROJECT_UPLOAD') continue;
+
+    /*
+     * MAKECODE carries no test cases, and that is the design rather than an
+     * omission: the program's output is light on a physical LED matrix, which
+     * nothing in a container can observe. These are graded by a teacher reading
+     * the block logic.
+     *
+     * What IS still required is a reference solution — a task nobody has solved
+     * is a task nobody has checked is solvable.
+     */
+    if (mode === 'MAKECODE') {
+      if (!problem.solutionCode || problem.solutionCode.trim().length === 0) {
+        throw new CurriculumViolation(
+          'makecode-no-solution',
+          `${problem.slug} is MAKECODE mode but ships no reference solution for the teacher`,
+        );
+      }
+      continue;
+    }
 
     if (mode === 'UNIT_TEST') {
       if (!problem.unitTestCode || problem.unitTestCode.trim().length === 0) {
@@ -538,6 +564,121 @@ function assertPythonAdvancedNotes(course: CourseSpec): void {
   void lessons;
 }
 
+
+/**
+ * Micro:bit Cơ Bản — Module 1, Khởi lệnh BASIC.
+ *
+ * The instructional requirements name five blocks and two specific challenges.
+ * Encoding them here is what stops a later edit from quietly dropping one: a
+ * missing `clearScreen` lesson would look like a normal curriculum tweak in a
+ * diff and be invisible in the UI.
+ */
+function assertMicrobitBasicNotes(course: CourseSpec): void {
+  const lessons = course.modules.flatMap((m) => m.lessons);
+  const allText = JSON.stringify(course);
+
+  // Rule M1: every one of the five Basic blocks is actually taught.
+  const KHOI_BAT_BUOC = ['forever', 'show string', 'show icon', 'pause', 'clearScreen'];
+  for (const khoi of KHOI_BAT_BUOC) {
+    if (!allText.includes(khoi)) {
+      throw new CurriculumViolation(
+        'microbit-missing-block',
+        `Module 1 must teach the "${khoi}" block; it appears nowhere in the course`,
+      );
+    }
+  }
+
+  // Rule M2: pause is taught in MILLISECONDS. A student writing pause(0.5) for
+  // half a second is the single most common mistake in this module, and the
+  // brief calls the unit out explicitly.
+  const dayPause = lessons.some((l) =>
+    l.blocks.some(
+      (b) =>
+        b.content.kind === 'theory' &&
+        /pause/i.test(b.content.markdown) &&
+        /mili\s*gi[aâ]y/i.test(b.content.markdown) &&
+        b.content.markdown.includes('1000'),
+    ),
+  );
+  if (!dayPause) {
+    throw new CurriculumViolation(
+      'microbit-pause-unit',
+      'pause must be taught in milliseconds, stating that 1 second = 1000 ms',
+    );
+  }
+
+  // Rule M3: challenge 1 — smiley for 0.5s then sad, running ONCE.
+  const mot = lessons
+    .flatMap((l) => l.blocks)
+    .find((b) => b.problem?.slug === 'mb-p-b02-mat-cuoi-mat-khoc-mot-lan');
+  if (!mot?.problem) {
+    throw new CurriculumViolation(
+      'microbit-challenge-1',
+      'Challenge 1 (smiley 0.5s then sad, run once) is missing',
+    );
+  }
+  if (!mot.problem.solutionCode.includes('500')) {
+    throw new CurriculumViolation(
+      'microbit-challenge-1',
+      'Challenge 1 must use 500 ms — the brief specifies 0.5 seconds',
+    );
+  }
+  if (/forever/i.test(mot.problem.solutionCode)) {
+    throw new CurriculumViolation(
+      'microbit-challenge-1',
+      'Challenge 1 runs ONCE. Its reference solution must not use forever — ' +
+        'that is what challenge 2 adds.',
+    );
+  }
+
+  // Rule M4: challenge 2 — the same effect, looping forever.
+  const hai = lessons
+    .flatMap((l) => l.blocks)
+    .find((b) => b.problem?.slug === 'mb-p-b03-mat-cuoi-mat-khoc-lap-vo-han');
+  if (!hai?.problem) {
+    throw new CurriculumViolation(
+      'microbit-challenge-2',
+      'Challenge 2 (same effect, looping forever) is missing',
+    );
+  }
+  if (!/forever/i.test(hai.problem.solutionCode)) {
+    throw new CurriculumViolation(
+      'microbit-challenge-2',
+      'Challenge 2 must use forever — looping is the whole point of the upgrade',
+    );
+  }
+
+  // Rule M5: challenge 2 comes AFTER challenge 1. The brief frames it as an
+  // upgrade of the previous program, which only reads that way in order.
+  const buoiMot = lessons.find((l) =>
+    l.blocks.some((b) => b.problem?.slug === 'mb-p-b02-mat-cuoi-mat-khoc-mot-lan'),
+  );
+  const buoiHai = lessons.find((l) =>
+    l.blocks.some((b) => b.problem?.slug === 'mb-p-b03-mat-cuoi-mat-khoc-lap-vo-han'),
+  );
+  if (buoiMot && buoiHai && buoiHai.order <= buoiMot.order) {
+    throw new CurriculumViolation(
+      'microbit-challenge-order',
+      'Challenge 2 is an upgrade of challenge 1 and must come in a later session',
+    );
+  }
+
+  // Rule M6: nothing here is auto-judged. A Micro:bit task handed to the Python
+  // judge would be marked wrong for producing no stdout, which is exactly the
+  // failure mode this rule exists to prevent.
+  for (const lesson of lessons) {
+    for (const block of lesson.blocks) {
+      if (block.problem && block.problem.judgeMode !== 'MAKECODE') {
+        throw new CurriculumViolation(
+          'microbit-judge-mode',
+          `${block.problem.slug} must be judgeMode MAKECODE — hardware behaviour ` +
+            'cannot be observed by the Python sandbox',
+        );
+      }
+    }
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 
 /** Runs every rule. Throws CurriculumViolation on the first failure. */
@@ -559,6 +700,9 @@ export function assertCurriculumCompliance(courses: CourseSpec[]): void {
         break;
       case 'python-nang-cao':
         assertPythonAdvancedNotes(course);
+        break;
+      case 'microbit-co-ban':
+        assertMicrobitBasicNotes(course);
         break;
       default:
         throw new CurriculumViolation(

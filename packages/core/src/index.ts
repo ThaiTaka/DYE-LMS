@@ -79,6 +79,13 @@ export {
 
 export { bocMarkdown, rutGon, tenBuoi } from './text';
 
+export {
+  chamTay,
+  ghiNhanDatBai,
+  KET_LUAN_CHAM_TAY,
+  type KetQuaChamTay,
+} from './grading';
+
 // ── Phase 9: Pygame project workspace ────────────────────────────────────────
 export {
   bamNoiDung,
@@ -141,6 +148,7 @@ export {
   luuNhap,
   moKhoiCode,
   nopBai,
+  nopBaiMicrobit,
   SO_BAN_LUU_TOI_DA,
   xemBanLuu,
   type BaiDaNop,
