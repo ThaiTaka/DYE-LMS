@@ -4,13 +4,17 @@
 
 **Da Lat Young Beginners — Learning Management System**
 
-_Nền tảng dạy lập trình Python dành riêng cho học sinh trung học cơ sở._
+_Nền tảng dạy lập trình dành riêng cho học sinh trung học cơ sở._
 
 [![Next.js](https://img.shields.io/badge/Next.js-15-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Prisma](https://img.shields.io/badge/Prisma-6-2D3748?logo=prisma&logoColor=white)](https://www.prisma.io)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org)
+[![Docker](https://img.shields.io/badge/Docker-sandbox-2496ED?logo=docker&logoColor=white)](https://www.docker.com)
+[![Tests](https://img.shields.io/badge/tests-659%20passing-2ea44f)](#-kiểm-thử--chất-lượng)
+
+**4 khoá học · 94 buổi · 84 bài lập trình chấm tự động · 659 test**
 
 </div>
 
@@ -18,290 +22,329 @@ _Nền tảng dạy lập trình Python dành riêng cho học sinh trung học 
 
 ## Dự án này là gì?
 
-DYE LMS là hệ thống quản lý học tập được viết riêng cho một bài toán cụ thể: **dạy Python cho học sinh lớp 6–9 ở Đà Lạt**, theo đúng ba giáo án Python đã được biên soạn sẵn, cộng thêm phần lập trình phần cứng Micro:bit — tổng cộng 94 buổi học nội dung thật.
+DYE LMS là hệ thống quản lý học tập được xây dựng cho một lớp học lập trình có
+thật ở Đà Lạt. Toàn bộ nội dung trong cơ sở dữ liệu là **giáo án thật của giáo
+viên**, không phải nội dung mẫu: 94 buổi học, từng buổi có mục tiêu, khối lý
+thuyết, bài tập và ghi chú sư phạm riêng.
 
-Đây không phải là một LMS đa dụng được cấu hình lại. Từng quyết định kỹ thuật trong repo này — từ cách tính thanh tiến độ đến việc chọn màu hổ phách thay vì màu đỏ — đều bắt nguồn từ một ràng buộc sư phạm cụ thể, và được ghi chú lại ngay cạnh dòng code tạo ra nó.
+Người học là các em lớp 6 đến lớp 9. Điều đó định hình gần như mọi quyết định kỹ
+thuật trong kho mã này — từ cách đặt tên nhánh học, cách một bài bị khoá, cho tới
+việc mã của học sinh chạy ở đâu.
 
-### Người dùng cuối là ai
+### Ba bài toán mà hệ thống này giải
 
-| Vai trò | Họ cần gì |
-|---|---|
-| **Học sinh** (11–15 tuổi) | Biết mình đang ở đâu, học được gì, làm gì tiếp theo — không cần hỏi ai |
-| **Giáo viên** | Nhìn ra ai đang đi chậm, ai đang đi nhanh, và can thiệp được ngay trong một cú nhấp |
-| **Quản trị viên** | Vận hành nhiều lớp, nhiều khoá, nhiều giáo viên mà không phá vỡ ranh giới dữ liệu |
+| Vấn đề trong lớp học thật | Cách hệ thống giải quyết |
+| --- | --- |
+| Mỗi em một tốc độ, nhưng không em nào được thấy mình "kém" | Thang phân nhánh **hoàn toàn tích cực**, mô tả *bài tập* chứ không xếp loại *học sinh* |
+| Chấm tay 30 bài Python mỗi buổi là bất khả thi | Bộ chấm tự động chạy trong **hộp cát Docker** đã bị siết chặt |
+| Học sinh cấp 2 chán nhanh nếu chỉ có chữ | Ba mạch nội dung: Python → **game Pygame** → **phần cứng Micro:bit** |
 
 ---
 
 ## 🌱 Triết lý cốt lõi: thang đo tích cực
 
-Đây là ràng buộc quan trọng nhất của toàn bộ dự án, và nó được **thực thi bằng code**, không chỉ nằm trong tài liệu.
+Đây là ràng buộc quan trọng nhất của dự án, và nó được **cưỡng chế bằng mã**, không
+phải bằng lời hứa.
 
-> **Hệ thống không bao giờ được gọi một học sinh là "Yếu", "Trung bình", hay bất kỳ nhãn thiếu hụt nào.**
+```
+Cơ bản  →  Thử thách  →  Nâng cao  →  Mở rộng
+```
 
-Thay vào đó, DYE LMS mô tả **công việc được giao**, chứ không mô tả **con người**:
+Bốn nhánh này mô tả **phần việc** mà một em đang làm, và luôn đổi lại được bất cứ
+lúc nào. Không có đáy thang nào đọc lên như một lời phán xét:
 
-<div align="center">
+- **Cơ bản** không có nghĩa là "yếu". Đó là phần nền tảng của giáo án — hoàn thành
+  là đã nắm trọn công cụ cốt lõi của buổi học, và được coi là **xong**.
+- **Mở rộng** không phải phần thưởng cho "học sinh giỏi". Đó là lối đi thêm cho em
+  nào đang muốn đi xa hơn ngày hôm đó.
 
-| 🌱 **Cơ bản** | ⚡ **Thử thách** | 🚀 **Nâng cao** | 🌟 **Mở rộng** |
-|:---:|:---:|:---:|:---:|
-| Nền tảng vững | Đẩy thêm một bậc | Đi sâu hơn | Vượt ra ngoài giáo án |
+Hệ quả được cài thẳng vào hệ thống:
 
-</div>
+1. **Không nhãn thiếu hụt.** Một quy tắc ESLint riêng (`dye/no-deficit-language`)
+   chặn các từ như *yếu*, *kém*, *trung bình*, *tụt hậu* xuất hiện trong giao diện.
+   Vi phạm làm hỏng build, không phải chỉ cảnh báo.
+2. **Bạn cùng lớp không nhìn thấy nhánh của nhau.** Nhánh học chỉ hiện với chính
+   em đó và với giáo viên phụ trách.
+3. **Giáo viên luôn có quyền quyết định cuối.** Mọi cơ chế khoá bài đều có đường
+   can thiệp thủ công, kèm lý do được ghi lại.
 
-Bốn nhánh này **có thể đảo ngược bất cứ lúc nào**, do giáo viên quyết định, và **học sinh không nhìn thấy nhánh của bạn cùng lớp**. Một em ở nhánh Cơ bản không hề biết mình "ở nhánh thấp hơn" — em chỉ đơn giản thấy bài học của mình.
+---
 
-### Ba nguyên tắc được cài vào hệ thống
+## ✨ Tính năng chính
 
-**1. Thanh tiến độ phải đầy được.**
-Mẫu số của thanh tiến độ chỉ tính **phần bắt buộc của riêng em học sinh đó**, không phải toàn bộ khoá học. Python Cơ Bản có 30 buổi, nhưng giáo án ghi rõ nhiều em sẽ dừng quanh phần Vòng lặp. Buổi 1–19 là nền tảng bắt buộc; buổi 20–30 là tuỳ chọn.
+### 🐍 Học Python theo lộ trình có kiểm soát
 
-> Một em hoàn thành buổi 19 phải thấy **100%**, không phải một thanh mắc kẹt ở 63%.
-> Một thanh tiến độ không bao giờ đầy được là một thanh tiến độ dạy đứa trẻ rằng nó đang tụt lại phía sau.
+Trình soạn thảo **CodeMirror 6** ngay trong bài học: tô màu cú pháp Python, thụt
+lề 4 khoảng trắng, gấp khối, khớp ngoặc. Bản nháp được **tự lưu** theo cơ chế
+debounce, có **lịch sử phiên bản** và **so sánh khác biệt** để em quay lại bản cũ
+khi lỡ xoá nhầm.
 
-**2. Nội dung nâng cao là phần thưởng, không phải cánh cửa khoá.**
-Khi một khối nội dung nằm trên nhánh của học sinh, hệ thống **không giấu nó đi**. Nó hiện ra với viền vàng nét đứt và dòng chữ _"🌟 Khám phá thêm — Không làm cũng không sao cả."_ Nhiệm vụ thưởng, không phải biển cấm.
+> Trình soạn thảo thoát được bằng bàn phím (`Esc` rồi `Tab`), nên em dùng phím
+> hoặc dùng trình đọc màn hình không bị "kẹt" trong ô nhập — WCAG 2.1.2.
 
-**3. Trả lời sai không bao giờ có màu đỏ.**
-Màu đỏ trong hệ thống được dành riêng cho **lỗi kỹ thuật thật sự**. Một câu trả lời sai trong bài học là một bước của quá trình học, nên nó hiện màu hổ phách kèm dòng chữ _"↻ Thử lại nhé"_. Trên màn hình của một đứa trẻ 12 tuổi, màu đỏ đọc ra thành sự trừng phạt.
+### ⚖️ Chấm bài tự động trong hộp cát
+
+Mỗi lượt nộp chạy trong một container Docker dùng một lần, với các giới hạn được
+**kiểm chứng bằng test tự động** chứ không chỉ ghi trong tài liệu:
+
+| Ràng buộc | Giá trị | Ngăn được |
+| --- | --- | --- |
+| `--network none` | không có mạng | Gọi ra Internet, tấn công máy khác |
+| `--memory` | 128–256 MB | Cấp phát vô hạn làm treo máy |
+| `--cpus` | 0.5 | Vòng lặp vô tận chiếm hết CPU |
+| `--pids-limit` | 50 | Fork bomb |
+| `--read-only` + `tmpfs noexec` | hệ thống tệp gốc chỉ đọc | Tải xuống rồi chạy mã lạ |
+| `--user 1000:1000` | không phải root | Leo thang đặc quyền trong container |
+
+Ba chế độ chấm: **so khớp đầu ra**, **kiểm thử đơn vị**, và **đo hiệu năng** (chạy
+với N lớn để phân biệt lời giải O(n) với O(n²)).
+
+### 🎮 Xưởng dự án Pygame
+
+Khu làm việc nhiều tệp cho các dự án game: quản lý tệp và tài nguyên, mốc nộp bài,
+luồng giáo viên nhận xét kèm tải về bản `.zip`.
+
+> **Tệp học sinh tải lên không bao giờ được thực thi trên máy chủ.** Nội dung lưu
+> theo địa chỉ băm SHA-256 — tên tệp do học sinh đặt không bao giờ trở thành đường
+> dẫn trên đĩa — và tệp thực thi bị chặn bằng cách đọc **magic byte**, không tin
+> vào phần mở rộng.
+
+### 🤖 Lập trình phần cứng Micro:bit
+
+Nhúng trình soạn khối **MakeCode** ngay trong bài học, chuyển qua lại giữa mạch
+Python và mạch Micro:bit liền mạch. Lưu nguyên workspace (XML/JSON) cùng tệp `.hex`
+đã biên dịch, và có **luồng chấm tay dành cho bài phần cứng** — vì không hộp cát
+nào chạy thay được một mạch điện thật.
+
+### 👩‍🏫 Bảng điều khiển cho giáo viên
+
+Theo dõi tiến độ từng em, cảnh báo sớm, đề xuất đẩy nhanh, mở khoá bài học có ghi
+lý do, và bộ giáo trình có kèm ghi chú sư phạm gốc.
 
 ---
 
 ## 📚 Bốn khoá học
 
-Toàn bộ nội dung được seed sẵn vào cơ sở dữ liệu — **94 buổi học thật, không có một dòng Lorem Ipsum nào**.
+| Khoá | Số buổi | Nội dung |
+| --- | --- | --- |
+| 🐍 **Python Cơ Bản** | 30 | Biến, kiểu dữ liệu, điều kiện, vòng lặp, hàm, danh sách, tệp |
+| 🎮 **Lập Trình Game Python** | 30 | Pygame: vòng lặp game, sprite, va chạm, âm thanh, dự án cuối |
+| ⚡ **Python Nâng Cao & Cấu Trúc Dữ Liệu** | 30 | Đệ quy, sắp xếp, tìm kiếm, độ phức tạp, từ điển, tập hợp |
+| 🤖 **Lập Trình Micro:bit Cơ Bản** | 4 | Module 1 — khối BASIC: `forever`, `show string`, `show icon`, `pause` |
 
-### 🐍 Python Cơ Bản
-> _30 buổi · Từ phép tính đầu tiên đến chương trình hoàn chỉnh_
-
-Nền móng. Bắt đầu từ việc dùng Python như một chiếc máy tính bỏ túi — **buổi 1 cố ý chưa dạy `print()`**, đúng theo ghi chú của giáo án, để học sinh làm quen với biểu thức trước khi làm quen với cú pháp. Kết thúc ở chương trình hoàn chỉnh có xử lý file và ngoại lệ.
-
-Buổi 1–19 là phần nền tảng đảm bảo. Buổi 20–30 mở rộng cho những em đi nhanh hơn.
-
-### 🎮 Lập Trình Game Python
-> _30 buổi · Từ cửa sổ trống đến trò chơi người khác chơi được_
-
-Pygame. Vòng lặp game, va chạm, tài nguyên, âm thanh, màn hình menu (**đã được xếp lại thứ tự theo yêu cầu của giáo án**), và một dự án hoàn chỉnh mà học sinh có thể đưa cho bạn mình chơi thử.
-
-Module 4 thay phần multiplayer bằng các buổi tổng hợp — quyết định này đến từ giáo án, không phải từ giới hạn kỹ thuật.
-
-### ⚡ Python Nâng Cao & Cấu Trúc Dữ Liệu
-> _30 buổi · OOP, Mạng, Web API và Thuật toán_
-
-Lập trình hướng đối tượng, giao tiếp mạng, Web API, và cấu trúc dữ liệu. Bao gồm phần **thử thách hiệu năng Big-O** mà giáo án yêu cầu bắt buộc: học sinh phải tự đo được sự khác biệt giữa hai thuật toán, không chỉ đọc về nó.
-
-### 🤖 Lập trình Micro:bit Cơ Bản
-> _Module 1 · Từ khối lệnh đầu tiên đến board mạch nhấp nháy trong tay em_
-
-Phần cứng và IoT. Học sinh **kéo thả khối lệnh** trong MakeCode — không gõ cú pháp, không lo thiếu
-dấu hai chấm — rồi tải tệp `.hex` về và thả vào board Micro:bit thật.
-
-Module 1 dạy năm khối nền tảng: `forever`, `show string`, `show icon`, `pause`, `clearScreen`.
-
-Bài Micro:bit **không chấm tự động**: chương trình chạy trên board thật, không có đầu ra nào để máy
-so sánh. Thầy cô đọc khối lệnh rồi chấm — đó là câu trả lời trung thực, không phải cách làm tạm.
-
-> **Phạm vi hiện tại:** chỉ Module 1 được viết, đúng theo phần đề bài đã đặc tả. Các module sau
-> **cố ý chưa bịa ra** — nội dung bịa sẽ trông y hệt nội dung thật trong cơ sở dữ liệu.
-
-> **Về việc tuân thủ giáo án:** ghi chú của người soạn giáo án được xử lý như **ràng buộc kỹ thuật bắt buộc**, không phải gợi ý. Chúng được kiểm tra tự động bởi các quy tắc thực thi được trong [`packages/db/prisma/seed/assertions.ts`](packages/db/prisma/seed/assertions.ts), chạy **trước** khi bất kỳ dòng dữ liệu nào được ghi vào database. Seed sẽ từ chối chạy nếu nội dung vi phạm giáo án.
+> Micro:bit hiện mới có Module 1. Các module sau **cố ý chưa được viết**: chúng sẽ
+> được bổ sung khi có giáo án gốc, thay vì bịa nội dung cho đủ số buổi.
 
 ---
 
 ## 🛠 Công nghệ
 
-### Ứng dụng
+<table>
+<tr><td valign="top" width="50%">
 
-| Lớp | Lựa chọn | Vì sao |
-|---|---|---|
-| **Framework** | Next.js 15 (App Router) | Server Components giữ đáp án quiz và mã lời giải ở lại phía server |
-| **UI** | React 19 + Tailwind CSS v4 | Token thiết kế khai báo bằng cú pháp `@theme`, không cần file config |
-| **Ngôn ngữ** | TypeScript `strict` + `noUncheckedIndexedAccess` | Mọi truy cập mảng đều phải xử lý trường hợp `undefined` |
-| **Monorepo** | npm workspaces + Turborepo | Các package chia sẻ một `tsconfig.base.json` |
+**Ứng dụng**
+- Next.js 15 (App Router) + React 19
+- TypeScript `strict` + `noUncheckedIndexedAccess`
+- Tailwind CSS v4 (`@theme` tokens)
+- CodeMirror 6 — trình soạn code
+- npm workspaces + Turborepo
 
-### Dữ liệu & hạ tầng
+</td><td valign="top" width="50%">
 
-| Lớp | Lựa chọn | Ghi chú |
-|---|---|---|
-| **Database** | PostgreSQL 16 | 30 model · 13 enum |
-| **Phần cứng** | BBC Micro:bit + MakeCode | Nhúng qua iframe, chấm thủ công bởi giáo viên |
-| **ORM** | Prisma 6 | Migration đầy đủ, seed idempotent |
-| **Queue / cache** | Redis 7 | BullMQ cho judge engine (Phase 8) |
-| **Object storage** | MinIO (S3-compatible) | Tài nguyên dự án Pygame, bucket private |
-| **Container** | Docker Compose | `docker compose up` là đủ để có một hệ thống chạy được với dữ liệu thật |
+**Dữ liệu & hạ tầng**
+- PostgreSQL 16 + Prisma 6 (30 model, 13 enum)
+- Redis + BullMQ — hàng đợi chấm bài
+- Docker — hộp cát thực thi mã
+- Playwright — kiểm thử đầu-cuối
+- Vitest — unit & integration
 
-### Xác thực
+</td></tr>
+</table>
 
-**Auth.js v5** với Credentials provider và **phiên đăng nhập lưu trong database bằng token mờ (opaque token)**.
+### 🔐 Xác thực bằng phiên mờ (opaque session)
 
-Đây là một lựa chọn có chủ đích và đáng giải thích. Auth.js v5 không hỗ trợ chiến lược `database` session cùng Credentials provider, nên hệ thống ghi đè `jwt.encode` / `jwt.decode`:
+Auth.js v5 với **phiên lưu trong cơ sở dữ liệu**, không dùng JWT:
 
-```
-Cookie của trình duyệt  →  chuỗi ngẫu nhiên vô nghĩa (opaque token)
-                              ↓
-                        băm SHA-256
-                              ↓
-                    tra cứu bảng Session trong DB
-                              ↓
-                  kiểm tra User.isActive MỖI LẦN gọi
-```
+- Token phiên được **băm SHA-256** trước khi lưu — lộ cơ sở dữ liệu vẫn không lấy
+  được token dùng lại được.
+- Cờ `isActive` được **kiểm tra lại ở mỗi request**. Vô hiệu hoá một tài khoản có
+  hiệu lực ngay lập tức, chứ không phải chờ token hết hạn.
+- Argon2id với bộ tham số OWASP (m=19 MiB, t=2, p=1), khai ở **đúng một chỗ** để
+  đường đăng nhập và đường tạo tài khoản không bao giờ lệch nhau.
 
-Kết quả đạt được là điều mà JWT tự chứa không làm được: **vô hiệu hoá một tài khoản sẽ chặn truy cập ngay lập tức**, không phải chờ token hết hạn. Cookie không mang theo bất kỳ thông tin nào về người dùng — nó chỉ là một cái khoá tra bảng.
+### 🧭 Phân quyền theo quan hệ, không theo vai trò
 
-Mật khẩu băm bằng **Argon2id** (`memoryCost` 19456, `timeCost` 2, `parallelism` 1).
-
-### Phân quyền quan hệ, không phải phân quyền theo vai trò
-
-Đây là quy tắc không thể thoả hiệp trong [`packages/core/src/authz.ts`](packages/core/src/authz.ts):
+Một giáo viên **không** được xem hồ sơ của mọi học sinh chỉ vì họ mang vai trò
+`TEACHER`. Mọi truy cập đều phải đi qua một chuỗi quan hệ có thật:
 
 ```
-Giáo viên chạm được dữ liệu học sinh CHỈ QUA quan hệ có thật trong database:
-
-    Class.teacherId = tôi  →  Enrollment(classId, studentId)  →  học sinh
-
-KHÔNG BAO GIỜ vì  role === 'TEACHER'
+Giáo viên → Lớp mình dạy → Ghi danh còn hiệu lực → Học sinh đó
 ```
 
-Một kiểm tra vai trò đơn thuần sẽ cho phép **bất kỳ giáo viên nào trong hệ thống đọc bài nộp của bất kỳ đứa trẻ nào** — đó chính là kịch bản mà module này tồn tại để ngăn chặn. Bộ test tích hợp chứng minh Giáo viên A không chạm được lớp của Giáo viên B, và học sinh không chạm được bài nộp của bạn cùng lớp.
+Quy tắc này nằm trong một hàm `authorize()` duy nhất ở `@dye/core`, dùng union rời
+rạc có kiểm tra vét cạn — thêm một loại tài nguyên mới mà quên khai quyền sẽ **không
+biên dịch được**.
 
 ---
 
 ## 🏗 Kiến trúc
 
-```
-dye-lms/
-├── apps/
-│   └── web/                    Next.js 15 · giao diện học sinh & giáo viên
-│       └── src/
-│           ├── app/            App Router · route theo tiếng Việt
-│           ├── components/     React component
-│           └── lib/            Tầng dữ liệu server-only
-├── packages/
-│   ├── core/                   Logic nghiệp vụ · KHÔNG phụ thuộc UI
-│   │   └── src/
-│   │       ├── authz.ts        Phân quyền quan hệ
-│   │       ├── session.ts      Phiên opaque token
-│   │       └── curriculum/     Engine gating · tier · tiến độ
-│   └── db/                     Prisma schema + seed giáo án thật
-│       └── prisma/
-│           ├── schema.prisma   30 model · 13 enum
-│           └── seed/           90 buổi học · 18 quy tắc kiểm tra giáo án
-└── docs/                       Tài liệu kiến trúc & vận hành
+```mermaid
+flowchart LR
+    subgraph browser["🌐 Trình duyệt"]
+        UI["Next.js App Router<br/>React 19 · CodeMirror 6"]
+    end
+
+    subgraph server["🖥 Máy chủ"]
+        WEB["Web app<br/>Server Actions"]
+        CORE["@dye/core<br/>authorize · gating · tier"]
+        DB[("PostgreSQL 16<br/>Prisma")]
+        REDIS[("Redis<br/>BullMQ")]
+    end
+
+    subgraph judge["⚖️ Chấm bài"]
+        WORKER["Judge worker<br/>TypeScript"]
+        BOX["🔒 Container dùng một lần<br/>--network none · read-only"]
+    end
+
+    UI -->|"Server Action"| WEB
+    WEB --> CORE
+    CORE --> DB
+    WEB -->|"đẩy việc"| REDIS
+    REDIS --> WORKER
+    WORKER -->|"docker run"| BOX
+    WORKER -->|"ghi kết quả"| DB
 ```
 
-**Nguyên tắc phân tầng:** `@dye/core` không biết gì về React, và `apps/web` không chứa một dòng logic phân quyền nào. Chỉ có **đúng một chỗ** quyết định "người này có được làm việc này không", và chỗ đó được phủ bởi test tích hợp.
+Hàng đợi chỉ mang **id của bài nộp**, không mang mã nguồn: cơ sở dữ liệu là nguồn
+sự thật, Redis chỉ là cái chuông báo. Nếu Redis mất kết nối đúng lúc đó, một vòng
+quét định kỳ sẽ nhặt lại các bài nộp chưa được xếp hàng — bài của học sinh không
+bao giờ nằm im mãi ở trạng thái chờ.
 
 ---
 
-## 🚀 Bắt đầu nhanh
+## 🚀 Triển khai lên máy chủ
+
+Toàn bộ quy trình đưa hệ thống lên VPS chạy 24/7 — cài Docker, tường lửa, Nginx
+reverse proxy, chứng chỉ SSL, sao lưu và phục hồi — nằm ở:
+
+### 📘 **[docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)**
+
+Tóm tắt:
 
 ```bash
-# 1. Sao chép cấu hình
-cp .env.example .env
+git clone https://github.com/ThaiTaka/DYE-LMS.git /opt/dye-lms
+cd /opt/dye-lms
 
-# 2. Sinh AUTH_SECRET và dán vào .env
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+cp .env.production.example .env.production
+chmod 600 .env.production          # rồi điền mật khẩu và AUTH_SECRET
 
-# 3. Dựng hạ tầng + migrate + seed giáo án thật
-docker compose up -d
-
-# 4. Cài package và chạy
-npm install
-npm run dev
+docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 ```
 
-Mở http://localhost:3000 và đăng nhập bằng tài khoản demo.
+Mọi dịch vụ chạy nền đều mang `restart: always`, nên hệ thống tự sống lại sau khi
+máy chủ khởi động lại mà không cần ai đăng nhập vào.
 
-📖 **Hướng dẫn đầy đủ từ máy tính mới tinh:** [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md)
-🗄 **Xem và thao tác với database:** [`docs/DATABASE_GUIDE.md`](docs/DATABASE_GUIDE.md)
+> **Máy chủ thật không có tài khoản demo.** Với `NODE_ENV=production`, bộ seed chỉ
+> nạp chương trình học và huy hiệu — **không tạo tài khoản nào**. Tài khoản quản trị
+> đầu tiên được tạo riêng bằng `npm run db:admin`, với mật khẩu đọc từ
+> `.env.production`. Mật khẩu không bao giờ nằm trong mã nguồn.
 
-### Tài khoản demo
+### Chạy thử trên máy cá nhân
 
-Mật khẩu mặc định cho **tất cả** tài khoản demo: `DyeLms#2026` (đổi bằng biến `SEED_DEMO_PASSWORD`).
+Xem [docs/SETUP_GUIDE.md](docs/SETUP_GUIDE.md) để chạy từ một máy vừa cài xong.
 
-| Tài khoản | Vai trò | Bối cảnh |
-|---|---|---|
-| `admin` | Quản trị viên | Toàn quyền hệ thống |
-| `co.lan` | Giáo viên | Lớp `DYE-PY-K7-2026A` · 12 học sinh |
-| `thay.minh` | Giáo viên | Lớp `DYE-GAME-K8-2026A` · dùng để kiểm chứng ranh giới dữ liệu |
-| `hs.an` | Học sinh | Đi nhanh · 24/30 buổi · nhánh 🚀 Nâng cao |
-| `hs.dung` | Học sinh | Đúng mốc nền tảng · 16/30 buổi · nhánh 🌱 Cơ bản |
-| `hs.phuc` | Học sinh | Mới bắt đầu · 4/30 buổi · nhánh 🌱 Cơ bản |
-
-> Dữ liệu demo được thiết kế có **độ phân tán thật** để phần phân tích của giáo viên có gì đó thật để hiển thị ngay lần đăng nhập đầu tiên. Tất cả đều tất định — không dùng `Math.random`, nên chạy seed hai lần cho ra dữ liệu giống hệt nhau.
+```bash
+cp .env.example .env               # rồi sinh AUTH_SECRET
+npm run infra:up                   # postgres + redis
+npm run db:migrate && npm run db:seed
+npm install && npm run dev
+```
 
 ---
 
 ## 🧪 Kiểm thử & chất lượng
 
-```bash
-npm run typecheck     # TypeScript strict, toàn bộ workspace
-npm run lint          # ESLint, --max-warnings 0
-npm run test          # Vitest: unit + integration trên Postgres thật
-npm run build         # Production build
-```
+| Bộ test | Số lượng | Chạy thật với |
+| --- | --- | --- |
+| `@dye/core` | 282 | — |
+| `@dye/db` | 41 | PostgreSQL thật |
+| `@dye/judge-worker` | 95 | Docker thật |
+| `@dye/web` | 241 | PostgreSQL thật |
+| **Tổng** | **659** | |
+| Playwright E2E | 2 luồng | Bản build production thật |
 
-Các cổng chất lượng phải **xanh 100%** trước khi bất kỳ phase nào được coi là hoàn thành. Không có ngoại lệ, không có `// TODO fix later` cho lỗi chức năng.
+```bash
+npm run typecheck    # TypeScript strict trên toàn workspace
+npm run lint         # ESLint, không cho phép cảnh báo
+npm run test         # toàn bộ 659 test
+npm run e2e          # Playwright, chạy trên bản build production
+```
 
 ### Test kiểm tra những gì
 
-- **Bất biến giáo án** — 18 quy tắc chạy trước mỗi lần seed, ví dụ: buổi 1 của Python Cơ Bản không được chứa `print()`
-- **Ranh giới phân quyền** — Giáo viên A không đọc được lớp của Giáo viên B; vô hiệu hoá tài khoản chặn truy cập tức thì
-- **Phân hoá theo nhánh** — Học sinh Cơ bản và học sinh Nâng cao có **mẫu số tiến độ khác nhau** trên cùng một khoá học
-- **An toàn nội dung** — đáp án quiz không bao giờ xuất hiện trong HTML gửi về trình duyệt; markdown chèn thẻ `<script>` chỉ hiện ra thành chữ
-- **Khả năng tiếp cận** — axe-core 0 vi phạm; tương phản màu **được tính từ token CSS thật** bằng công thức độ sáng tương đối WCAG, không ước lượng bằng mắt
+Đây không phải các test chỉ đọc lại hằng số. Chúng chạy với hạ tầng thật vì những
+lỗi đắt giá nhất của dự án này chỉ lộ ra ở đó — một tên hàng đợi chứa dấu `:` mà
+BullMQ từ chối, một thư mục làm việc chỉ đọc làm hỏng bài học về tệp, một tệp
+`'use server'` xuất ra hằng số khiến Next.js loại bỏ cả module.
 
-### ESLint quy tắc riêng: `dye/no-deficit-language`
+Ngoài ra có hai **cổng thường trực** chạy cùng mỗi lần test:
 
-Repo có một quy tắc lint tự viết chặn từ vựng mang nghĩa thiếu hụt trong code và nội dung. Triết lý sư phạm ở trên không chỉ là lời hứa trong tài liệu — nó **làm hỏng build** nếu bị vi phạm.
-
----
-
-## 🗺 Lộ trình
-
-| Phase | Nội dung | Trạng thái |
-|---|---|---|
-| 0–1 | Phân tích & kiến trúc | ✅ Xong |
-| 2 | Database + seed giáo án thật | ✅ Xong |
-| 3 | Xác thực & phân quyền quan hệ | ✅ Xong |
-| 4 | Engine giáo trình: gating · tier · tiến độ | ✅ Xong |
-| 5 | Giao diện học sinh | ✅ Xong |
-| 6 | Giao diện giáo viên & phân tích | ✅ Xong |
-| 7 | Trình soạn code (CodeMirror) | ✅ Xong |
-| 8 | Judge engine (Docker sandbox) | ✅ Xong |
-| 9 | Workspace dự án Pygame | ✅ Xong |
-| 11 | Tích hợp Micro:bit (MakeCode) | ✅ Xong |
-| 12 | Rà soát bảo mật · E2E Playwright · triển khai | ✅ Xong |
-| 10 | Phủ kín test theo tiêu chí nghiệm thu | ⬜ Kế tiếp |
-
-Chi tiết từng phase kèm kết quả kiểm chứng thật: [`docs/04-ROADMAP.md`](docs/04-ROADMAP.md)
+- `bao-mat.test.ts` — kiểm tra mọi server action đều có kiểm tra quyền, đáp án
+  không rò ra client, không có `dangerouslySetInnerHTML`, không có bí mật ghi cứng.
+- `hieu-nang.test.ts` — đo p95 thật trên dữ liệu thật. Hiện ở mức **44 ms** cho
+  bảng tổng quan và **76 ms** cho danh sách lớp, so với ngân sách 300 ms.
 
 ---
 
 ## 📖 Tài liệu
 
 | Tài liệu | Nội dung |
-|---|---|
+| --- | --- |
+| [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) | **Triển khai VPS: Docker, Nginx, SSL, sao lưu** |
 | [`docs/SETUP_GUIDE.md`](docs/SETUP_GUIDE.md) | Chạy dự án từ máy tính mới khởi động |
 | [`docs/DATABASE_GUIDE.md`](docs/DATABASE_GUIDE.md) | Xem, sửa và hiểu cơ sở dữ liệu |
 | [`docs/01-ARCHITECTURE.md`](docs/01-ARCHITECTURE.md) | Quyết định kiến trúc và lý do |
 | [`docs/02-DATABASE.md`](docs/02-DATABASE.md) | Thiết kế schema chi tiết |
-| [`docs/03-CURRICULUM-MAP.md`](docs/03-CURRICULUM-MAP.md) | Bản đồ 90 buổi học |
+| [`docs/03-CURRICULUM-MAP.md`](docs/03-CURRICULUM-MAP.md) | Bản đồ toàn bộ buổi học |
 | [`docs/04-ROADMAP.md`](docs/04-ROADMAP.md) | Nhật ký phát triển từng phase |
 | [`docs/05-NOI-DUNG-CAN-RA-SOAT.md`](docs/05-NOI-DUNG-CAN-RA-SOAT.md) | Bài tập có lời giải mẫu chưa qua được chính nó |
-| [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) | Triển khai lên VPS: Docker, Nginx, SSL, sao lưu |
 
 ---
 
 ## 🔒 Bảo mật
 
-- **Judge engine mặc định tắt mạng.** Chỉ bật khi có chính sách sandbox do giáo viên uỷ quyền tường minh.
-- **Đáp án không bao giờ rời khỏi server.** `Choice.isCorrect`, `Problem.solutionCode` và test case ẩn không nằm trong bất kỳ payload nào gửi về trình duyệt.
-- **Markdown render thẳng thành React node**, không đi qua chuỗi HTML. Không có `dangerouslySetInnerHTML` trên bất kỳ đường đi nào của nội dung do người dùng soạn.
-- **Tệp học sinh tải lên không bao giờ được thực thi.** Nội dung lưu theo địa chỉ băm SHA-256, tên tệp do học sinh đặt không bao giờ trở thành đường dẫn trên đĩa, và tệp thực thi bị chặn bằng cách đọc magic byte chứ không tin phần mở rộng.
-- **Tệp tải lên được phục vụ qua route đã kiểm tra quyền**, kèm CSP riêng `default-src 'none'; sandbox` — chặt hơn hẳn CSP của ứng dụng, để một tệp bị trình duyệt hiểu nhầm thành tài liệu cũng không có gì để chạy.
-- **Máy chủ thật không tạo tài khoản demo.** Với `NODE_ENV=production`, seed chỉ nạp chương trình học; tài khoản quản trị đầu tiên phải tạo thủ công bằng `npm run db:admin`.
+- **Bộ chấm bài mặc định tắt mạng.** Chỉ bật khi có chính sách sandbox do giáo viên
+  uỷ quyền tường minh.
+- **Đáp án không bao giờ rời khỏi máy chủ.** `Choice.isCorrect`, `Problem.solutionCode`
+  và test case ẩn không nằm trong bất kỳ payload nào gửi về trình duyệt.
+- **Markdown render thẳng thành React node**, không đi qua chuỗi HTML. Không có
+  `dangerouslySetInnerHTML` trên bất kỳ đường đi nào của nội dung người dùng soạn.
+- **Tệp học sinh tải lên không bao giờ được thực thi**, và được phục vụ qua route đã
+  kiểm tra quyền với CSP riêng `default-src 'none'; sandbox`.
+- **Không có bí mật nào trong kho mã.** Mật khẩu quản trị đọc từ biến môi trường
+  trong tệp đã bị `.gitignore` loại trừ.
 
-Phát hiện lỗ hổng? Vui lòng báo riêng cho người bảo trì thay vì mở issue công khai.
+> Phát hiện lỗ hổng? Vui lòng báo riêng cho người bảo trì thay vì mở issue công khai.
+
+---
+
+## 🗺 Lộ trình
+
+| Phase | Nội dung | Trạng thái |
+| --- | --- | --- |
+| 0–1 | Phân tích & kiến trúc | ✅ Xong |
+| 2 | Database + seed giáo án thật | ✅ Xong |
+| 3 | Xác thực & phân quyền quan hệ | ✅ Xong |
+| 4 | Engine giáo trình: gating · tier · tiến độ | ✅ Xong |
+| 5 | Giao diện học sinh | ✅ Xong |
+| 6 | Giao diện giáo viên & phân tích | ✅ Xong |
+| 7 | Trình soạn code (CodeMirror 6) | ✅ Xong |
+| 8 | Judge engine (hộp cát Docker) | ✅ Xong |
+| 9 | Xưởng dự án Pygame | ✅ Xong |
+| 11 | Tích hợp Micro:bit (MakeCode) | ✅ Xong |
+| 12 | Rà soát bảo mật · E2E · triển khai | ✅ Xong |
+| 10 | Phủ kín test theo tiêu chí nghiệm thu | ⬜ Kế tiếp |
 
 ---
 

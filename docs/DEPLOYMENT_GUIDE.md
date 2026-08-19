@@ -105,6 +105,18 @@ newgrp docker   # hoặc đăng xuất rồi đăng nhập lại
 docker run --rm hello-world
 ```
 
+Bật Docker khởi động cùng máy — bắt buộc để hệ thống tự sống lại sau khi VPS
+khởi động lại:
+
+```bash
+sudo systemctl enable --now docker
+systemctl is-enabled docker    # phải in ra: enabled
+```
+
+> **Không có bước này thì `restart: always` cũng vô nghĩa.** Chính sách khởi
+> động lại của container do Docker daemon thực thi; nếu daemon không tự chạy khi
+> máy bật, sẽ không có gì khởi động lại các container cả.
+
 > **Cảnh báo bảo mật.** Thêm một tài khoản vào nhóm `docker` tương đương cấp
 > quyền `root` cho tài khoản đó, vì ai điều khiển được Docker daemon thì gắn
 > được thư mục gốc của máy vào một container. Chỉ thêm những tài khoản mà bạn
@@ -250,20 +262,31 @@ Kết quả mong đợi: có khoá học và bài học, còn `tai_khoan` bằng
 
 ## 7. Tạo tài khoản quản trị đầu tiên
 
+Tài khoản quản trị được khai trong `.env.production` (mục 5):
+
 ```bash
-cd /opt/dye-lms
-docker compose -f docker-compose.prod.yml --env-file .env.production run --rm \
-  -e ADMIN_USERNAME='hieutruong' \
-  -e ADMIN_PASSWORD='<mat-khau-manh-it-nhat-12-ky-tu>' \
-  -e ADMIN_DISPLAY_NAME='Nguyễn Văn A' \
-  db-migrate sh -c 'npx tsx prisma/scripts/tao-quan-tri.ts'
+ADMIN_USERNAME=ThaiTaka
+ADMIN_DISPLAY_NAME=Quản Trị Viên
+ADMIN_PASSWORD=<mat-khau-manh-it-nhat-12-ky-tu>
 ```
 
-Lệnh này **không** ghi đè tài khoản đã tồn tại. Nếu quên mật khẩu quản trị và
-muốn đặt lại, thêm `-e ADMIN_FORCE_RESET=yes`.
+Chạy:
 
-> **Mẹo che mật khẩu khỏi lịch sử shell.** Thêm một dấu cách ở đầu dòng lệnh thì
-> bash sẽ không lưu vào `~/.bash_history` (khi `HISTCONTROL=ignorespace`).
+```bash
+cd /opt/dye-lms
+docker compose -f docker-compose.prod.yml --env-file .env.production run --rm   -e ADMIN_USERNAME -e ADMIN_PASSWORD -e ADMIN_DISPLAY_NAME   db-migrate sh -c 'npx tsx prisma/scripts/tao-quan-tri.ts'
+```
+
+> **Mật khẩu không nằm trong mã nguồn.** Kho mã này công khai trên GitHub, nên
+> mật khẩu quản trị chỉ đọc từ `ADMIN_PASSWORD` trong `.env.production` — tệp đã
+> được `.gitignore` loại trừ. Đừng bao giờ ghi thẳng mật khẩu vào tệp `.ts`.
+
+Chạy lại lệnh này sẽ **đặt lại mật khẩu** của tài khoản đang có chứ không tạo
+thêm tài khoản thứ hai. Đó cũng là cách khôi phục khi quên mật khẩu quản trị.
+
+> **Tên đăng nhập luôn lưu ở dạng chữ thường.** Trang đăng nhập tự hạ chữ trước
+> khi tra cứu, nên `ThaiTaka`, `thaitaka` hay `THAITAKA` đều đăng nhập được.
+
 
 Sau khi có tài khoản quản trị, hãy đăng nhập và tạo tài khoản giáo viên, lớp học
 và danh sách học sinh qua giao diện web.

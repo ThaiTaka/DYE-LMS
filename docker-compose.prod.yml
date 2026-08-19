@@ -20,6 +20,20 @@
 #     PROJECT_STORAGE_DIR (apps/web/src/lib/project-storage.ts). Shipping an
 #     object store nothing connects to would just be one more thing to patch.
 #
+# ── Running 24/7 ─────────────────────────────────────────────────────────────
+# Every long-running service carries `restart: always`, so the stack survives a
+# crash, an OOM kill, and a VPS reboot without anyone logging in. Two things are
+# needed OUTSIDE this file for that to actually hold:
+#
+#   1. The Docker daemon must start at boot:  sudo systemctl enable docker
+#      Without it the containers restart only after someone starts Docker.
+#   2. Start the stack detached (`up -d`). A foreground `up` dies with the SSH
+#      session that launched it.
+#
+# `always` rather than `unless-stopped` on purpose: after a reboot, `always`
+# brings a container back even if it had been stopped by hand, which is the
+# behaviour wanted for an unattended school server.
+#
 # See docs/DEPLOYMENT_GUIDE.md for VPS setup, Nginx and TLS.
 
 name: dye-lms-prod
@@ -106,6 +120,13 @@ services:
       # spread to look at.
       SEED_ALLOW_PRODUCTION: ${SEED_ALLOW_PRODUCTION:-no}
       SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
+    # ── The one service that must NOT restart ────────────────────────────────
+    # Every long-running service here carries `restart: always` so the stack
+    # comes back by itself after a crash or a VPS reboot. This one is a one-shot
+    # job that migrates, seeds, and exits 0. `always` would treat that clean exit
+    # as something to retry and re-run migrations in a tight loop forever.
+    # `docker compose up -d` runs it again on the next deploy, which is exactly
+    # when it should run.
     restart: 'no'
 
   # ───────────────────────────────────────────────────────────────────────────
@@ -177,6 +198,11 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks: [noi-bo]
+    # A judged run may take up to JUDGE_MAX_TIME_MS plus container startup. The
+    # 10s default would SIGKILL the worker mid-judge on every deploy, abandoning
+    # a student's submission at RUNNING. The worker closes its queue gracefully
+    # on SIGTERM; this gives it room to finish.
+    stop_grace_period: 30s
     deploy:
       resources:
         # Sized for the worker itself. Each sandbox container carries its own
