@@ -19,6 +19,7 @@ import {
   chuyenGiaoHoSoGiangDay,
   laVaiTroTaoDuoc,
   phanCongLopHoc,
+  taoLopHoc,
   taoTaiKhoan,
   voHieuHoaNhanVien,
   xoaTaiKhoanNhanVien,
@@ -541,6 +542,54 @@ export async function phanCongLop(
         'Thầy cô nhận lớp từ giờ xem được dữ liệu của các em trong những lớp này, ' +
         'và người giao lớp thì không còn xem được nữa.' +
         (kq.giuNguyen > 0 ? ` ${kq.giuNguyen} lớp vốn đã thuộc thầy cô này.` : ''),
+    };
+  });
+}
+
+/**
+ * Create a class. Admin-only, enforced in `taoLopHoc`.
+ *
+ * Three pages are revalidated because a new class changes three different
+ * questions: the class list itself, which classes a teacher can be given
+ * (`/nhan-su`), and which classes a student can be enrolled into
+ * (`/hoc-sinh`). Without this the class exists but does not appear in either
+ * form until something else happens to invalidate the cache.
+ */
+export async function taoLop(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const kq = await taoLopHoc(db, actor, {
+      ten: String(form.get('ten') ?? ''),
+      ma: String(form.get('ma') ?? ''),
+      term: String(form.get('term') ?? ''),
+      giaoVienId: String(form.get('giaoVienId') ?? ''),
+    });
+
+    if (kq.trangThai === 'trung-ma') {
+      return {
+        trangThai: 'loi',
+        thongDiep: `Mã lớp “${kq.ma}” đã có lớp khác dùng. Thầy cô đổi mã giúp em nhé.`,
+      };
+    }
+
+    if (kq.trangThai === 'khong-hop-le') {
+      return { trangThai: 'loi', thongDiep: kq.thongDiep };
+    }
+
+    revalidatePath('/giao-vien/lop');
+    revalidatePath('/giao-vien/nhan-su');
+    revalidatePath('/giao-vien/hoc-sinh');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã tạo lớp “${kq.ten}” (mã ${kq.ma}), do ${kq.giaoVien} phụ trách. ` +
+        'Lớp này đã sẵn sàng để thêm học sinh và để phân công lại cho thầy cô khác.',
     };
   });
 }

@@ -23,7 +23,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src prisma --max-warnings 0",
     "test": "vitest run",
-    "db:admin": "node prisma/chay-voi-env.mjs tsx prisma/scripts/tao-quan-tri.ts"
+    "db:admin": "node prisma/chay-voi-env.mjs tsx prisma/scripts/tao-quan-tri.ts",
+    "db:demo": "node prisma/chay-voi-env.mjs --dat SEED_DEMO=yes prisma db seed"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

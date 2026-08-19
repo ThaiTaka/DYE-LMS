@@ -31,3 +31,7 @@ docker/volumes/
 # Judge sandbox scratch
 sandbox/.work/
 uploads/
+
+# Cloudflare tunnel binary, downloaded per machine — not source.
+cloudflared.exe
+cloudflared

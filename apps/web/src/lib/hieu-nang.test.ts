@@ -45,9 +45,16 @@ let classId: string;
 let siSo: number;
 
 beforeAll(async () => {
-  // The class with the most students. Picking the first would land on the
-  // 1-student Micro:bit class, where any target passes and nothing is proven.
-  const lop = await dem.class.findFirstOrThrow({
+  /*
+   * The class with the most students. Picking the first would land on the
+   * 1-student Micro:bit class, where any target passes and nothing is proven.
+   *
+   * These fixtures are NOT created by `npm run db:seed`, which deliberately makes
+   * only the curriculum and one admin. `findFirstOrThrow` would fail here with a
+   * bare "No Class found", which reads like a broken query rather than a missing
+   * fixture, so the absence is reported in words instead.
+   */
+  const lop = await dem.class.findFirst({
     where: { enrollments: { some: { isActive: true } } },
     orderBy: { enrollments: { _count: 'desc' } },
     select: {
@@ -65,6 +72,16 @@ beforeAll(async () => {
       _count: { select: { enrollments: true } },
     },
   });
+
+  if (!lop) {
+    throw new Error(
+      [
+        'Không tìm thấy lớp nào có học sinh, nên không đo được hiệu năng.',
+        'Bộ seed chỉ tạo chương trình học và một tài khoản quản trị.',
+        'Chạy `npm run db:demo` để có dữ liệu mẫu rồi thử lại.',
+      ].join(' '),
+    );
+  }
 
   classId = lop.id;
   giaoVien = lop.teacher;

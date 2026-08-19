@@ -44,6 +44,7 @@ export const ACCOUNT_AUDIT = {
   DEACTIVATED: 'account.deactivated',
   REACTIVATED: 'account.reactivated',
   RECORD_TRANSFERRED: 'account.record_transferred',
+  CLASS_CREATED: 'class.created',
   CLASS_REASSIGNED: 'account.class_reassigned',
   DELETED: 'account.deleted',
 } as const;
@@ -838,5 +839,184 @@ export async function phanCongLopHoc(
   return {
     daChuyen: canChuyen.map((l) => ({ ten: l.name, tuAi: l.teacher.displayName })),
     giuNguyen: lop.length - canChuyen.length,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Creating a class
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface TaoLopInput {
+  ten: string;
+  /** Left blank, one is derived from the name. */
+  ma?: string | undefined;
+  /** Free text, e.g. "Học kỳ 1 · 2026". */
+  term?: string | undefined;
+  /** Defaults to the admin creating it, who can hand it over afterwards. */
+  giaoVienId?: string | undefined;
+}
+
+export type KetQuaTaoLop =
+  | { trangThai: 'thanh-cong'; id: string; ten: string; ma: string; giaoVien: string }
+  | { trangThai: 'trung-ma'; ma: string }
+  | { trangThai: 'khong-hop-le'; thongDiep: string };
+
+const DAI_TEN_LOP_TOI_DA = 80;
+const MAU_MA_LOP = /^[A-Z0-9][A-Z0-9-]{1,31}$/;
+
+/**
+ * Derive a class code from its name.
+ *
+ * "Lập trình cơ bản" → "LAP-TRINH-CO-BAN". The code appears on rosters and in
+ * URLs, so it has to survive being typed and read aloud: NFD splits each accented
+ * letter into base + combining mark and the mark is dropped, which leaves plain
+ * ASCII. `đ`/`Đ` carry no combining mark and are replaced by hand — without that
+ * line "Đội tuyển" becomes "I-TUYEN".
+ */
+export function maTuTenLop(ten: string): string {
+  return ten
+    .normalize('NFD')
+    // Written as escapes: literal combining marks are invisible in an editor and
+    // silently mangled by a careless copy-paste.
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24)
+    .replace(/-+$/, '');
+}
+
+/** Refuse unless the actor is an active admin and the named teacher can hold a class. */
+async function requireQuanTriTaoLop(
+  db: PrismaClient,
+  actor: Actor,
+  giaoVienId: string,
+): Promise<{ id: string; displayName: string }> {
+  if (!actor.isActive) throw new ForbiddenError('actor-disabled');
+
+  /*
+   * ADMIN only, for the same reason as `phanCongLopHoc`.
+   *
+   * Creating a class is choosing who will have access to the children put in it.
+   * A teacher able to create classes could create one, assign it to themselves,
+   * and then provision students into it — reaching children without anyone in an
+   * oversight role having agreed to it. The relational rule that lets teachers
+   * add students only works because someone else decides which classes they run.
+   */
+  if (actor.role !== 'ADMIN') throw new ForbiddenError('only-admin-creates-classes');
+
+  const gv = await db.user.findUnique({
+    where: { id: giaoVienId },
+    select: { id: true, displayName: true, role: true, isActive: true },
+  });
+  if (!gv) throw new ForbiddenError('teacher-not-found');
+  if (!gv.isActive) throw new ForbiddenError('teacher-inactive');
+  if (gv.role === 'STUDENT') throw new ForbiddenError('student-cannot-hold-class');
+
+  return { id: gv.id, displayName: gv.displayName };
+}
+
+/**
+ * Create a class.
+ *
+ * ── Why it always has a teacher ──────────────────────────────────────────────
+ * `Class.teacherId` is not nullable, so a class cannot be parked without an
+ * owner. Left unspecified the creating admin takes it, which is honest — someone
+ * is accountable for it from the moment it exists — and `phanCongLopHoc` hands it
+ * to a teacher afterwards.
+ *
+ * ── Codes ────────────────────────────────────────────────────────────────────
+ * A code typed by hand is taken literally, and a collision is reported so the
+ * admin can decide. A derived code is deduplicated automatically with a numeric
+ * suffix, because there the admin never chose the string and being told "DYE-2 is
+ * taken" would be a puzzle rather than information.
+ */
+export async function taoLopHoc(
+  db: PrismaClient,
+  actor: Actor,
+  input: TaoLopInput,
+  context: SessionContext = {},
+): Promise<KetQuaTaoLop> {
+  const giaoVienId = input.giaoVienId?.trim() || actor.id;
+  const gv = await requireQuanTriTaoLop(db, actor, giaoVienId);
+
+  const ten = input.ten.trim().replace(/\s+/g, ' ');
+  if (ten.length < 2) {
+    return { trangThai: 'khong-hop-le', thongDiep: 'Tên lớp phải có ít nhất 2 ký tự.' };
+  }
+  if (ten.length > DAI_TEN_LOP_TOI_DA) {
+    return {
+      trangThai: 'khong-hop-le',
+      thongDiep: `Tên lớp không quá ${DAI_TEN_LOP_TOI_DA} ký tự.`,
+    };
+  }
+
+  const term = input.term?.trim() || null;
+  const maGoc = input.ma?.trim().toUpperCase();
+  const doTay = Boolean(maGoc);
+  let ma = maGoc || maTuTenLop(ten);
+
+  if (!ma) {
+    // A name of nothing but punctuation or emoji leaves no code behind.
+    return {
+      trangThai: 'khong-hop-le',
+      thongDiep: 'Không tạo được mã lớp từ tên này. Thầy cô nhập mã lớp giúp em nhé.',
+    };
+  }
+
+  if (!MAU_MA_LOP.test(ma)) {
+    return {
+      trangThai: 'khong-hop-le',
+      thongDiep: 'Mã lớp cần 2–32 ký tự, chỉ gồm chữ in không dấu, số và dấu gạch ngang.',
+    };
+  }
+
+  if (doTay) {
+    const dangCo = await db.class.findUnique({ where: { code: ma }, select: { id: true } });
+    if (dangCo) return { trangThai: 'trung-ma', ma };
+  } else {
+    // Derived: walk to the first free suffix rather than handing the admin a
+    // collision they did not cause.
+    const goc = ma.slice(0, 29);
+    for (let i = 2; i <= 99; i += 1) {
+      const co = await db.class.findUnique({ where: { code: ma }, select: { id: true } });
+      if (!co) break;
+      ma = `${goc}-${i}`;
+    }
+  }
+
+  let lop;
+  try {
+    lop = await db.class.create({
+      data: { code: ma, name: ten, term, teacherId: gv.id },
+      select: { id: true, code: true, name: true },
+    });
+  } catch (error) {
+    // Two admins creating the same code between the check and the insert. The
+    // unique index is the arbiter; this turns its error into the same answer.
+    if (laTrungKhoa(error)) return { trangThai: 'trung-ma', ma };
+    throw error;
+  }
+
+  await db.auditLog.create({
+    data: {
+      actorId: actor.id,
+      action: ACCOUNT_AUDIT.CLASS_CREATED,
+      entityType: 'Class',
+      entityId: lop.id,
+      meta: { lop: lop.name, ma: lop.code, giaoVien: gv.displayName, giaoVienId: gv.id },
+      ipAddress: context.ipAddress ?? null,
+      userAgent: context.userAgent ?? null,
+    },
+  });
+
+  return {
+    trangThai: 'thanh-cong',
+    id: lop.id,
+    ten: lop.name,
+    ma: lop.code,
+    giaoVien: gv.displayName,
   };
 }

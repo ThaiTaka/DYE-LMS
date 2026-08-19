@@ -54,9 +54,32 @@ function napEnv() {
 
 napEnv();
 
-const [lenh, ...thamSo] = process.argv.slice(2);
+/*
+ * Leading `--dat KEY=VALUE` pairs set variables for the child.
+ *
+ * `SEED_DEMO=yes prisma db seed` is the obvious way to write this and does not
+ * work in an npm script on Windows: cmd.exe reads the prefix as a command, not as
+ * an assignment. Passing it as a flag keeps one script definition working on both
+ * platforms without pulling in cross-env.
+ *
+ * These are set unconditionally, unlike the file-loaded values above: the caller
+ * asked for them on the command line, which is more specific than a `.env`.
+ */
+const argv = process.argv.slice(2);
+while (argv[0] === '--dat') {
+  const cap = argv[1];
+  if (!cap || !cap.includes('=')) {
+    console.error('--dat cần dạng KEY=VALUE');
+    process.exit(1);
+  }
+  const bang = cap.indexOf('=');
+  process.env[cap.slice(0, bang)] = cap.slice(bang + 1);
+  argv.splice(0, 2);
+}
+
+const [lenh, ...thamSo] = argv;
 if (!lenh) {
-  console.error('Cách dùng: node prisma/chay-voi-env.mjs <lệnh> [tham số...]');
+  console.error('Cách dùng: node prisma/chay-voi-env.mjs [--dat KEY=VALUE] <lệnh> [tham số...]');
   process.exit(1);
 }
 

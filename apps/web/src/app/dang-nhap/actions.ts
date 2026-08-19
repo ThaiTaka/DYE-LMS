@@ -1,6 +1,7 @@
 'use server';
 
 import { AuthError } from 'next-auth';
+import { redirect } from 'next/navigation';
 
 import { signIn } from '@/auth';
 
@@ -31,16 +32,38 @@ export async function dangNhap(
   // open redirect to an attacker's site.
   const dichDen = tiepTuc.startsWith('/') && !tiepTuc.startsWith('//') ? tiepTuc : '/bang-dieu-khien';
 
+  /*
+   * ── Why `redirect: false` and our own `redirect()` ─────────────────────────
+   * Auth.js does not redirect to a relative path. Given `redirectTo`, `signIn`
+   * resolves an ABSOLUTE url through `createActionURL`, which begins:
+   *
+   *     const envUrl = envObject.AUTH_URL ?? envObject.NEXTAUTH_URL;
+   *     if (envUrl) { url = new URL(envUrl) }        // ← wins outright
+   *     else { detectedHost = x-forwarded-host ?? host }
+   *
+   * So AUTH_URL overrides host detection completely, and `trustHost: true` does
+   * nothing while it is set. Behind a Cloudflare quick tunnel — whose hostname
+   * changes every restart — that pinned a successful login to whichever tunnel
+   * host happened to be in the environment when the value was written, and the
+   * browser was sent to a hostname that no longer resolved.
+   *
+   * `redirect: false` makes `signIn` return that url instead of following it. We
+   * throw it away and redirect to a path, so the Location header is relative and
+   * the browser stays on whatever host it already reached us on. The flow no
+   * longer has an opinion about its own hostname.
+   *
+   * The cookie is still set: `signIn` writes it before the redirect decision.
+   */
   try {
-    await signIn('credentials', { username, password, redirectTo: dichDen });
+    await signIn('credentials', { username, password, redirect: false });
   } catch (error) {
     if (error instanceof AuthError) {
       return { loi: 'Tên đăng nhập hoặc mật khẩu không đúng.' };
     }
-    // `signIn` signals a successful redirect by throwing NEXT_REDIRECT.
-    // Swallowing it here would leave the user stuck on the login page.
     throw error;
   }
 
-  return {};
+  // Outside the try: `redirect()` signals by throwing NEXT_REDIRECT, and catching
+  // that would leave the user staring at the login page after a valid sign-in.
+  redirect(dichDen);
 }

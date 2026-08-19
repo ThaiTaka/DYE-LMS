@@ -1074,3 +1074,72 @@ export async function duLieuTaiKhoanHocSinh(actor: Actor): Promise<DuLieuTaiKhoa
     batBuocChonLop: !laQuanTri,
   };
 }
+
+/** One class on the class-management page. */
+export interface HangLopHoc {
+  id: string;
+  ten: string;
+  ma: string;
+  term: string | null;
+  giaoVien: string;
+  soHocSinh: number;
+  daLuuTru: boolean;
+}
+
+export interface DuLieuLopHoc {
+  lop: HangLopHoc[];
+  /** Staff who can be put in charge of a new class. */
+  nhanSu: Array<{ id: string; displayName: string; username: string; laToi: boolean }>;
+}
+
+/**
+ * Classes, for the admin page that creates them.
+ *
+ * Admin-only. Archived classes are included and flagged rather than hidden: an
+ * admin looking for "why can I not reuse that code?" needs to see the class that
+ * holds it.
+ */
+export async function duLieuLopHoc(actor: Actor): Promise<DuLieuLopHoc> {
+  if (actor.role !== 'ADMIN') {
+    // Not a redirect: the caller decides how to present a refusal.
+    return { lop: [], nhanSu: [] };
+  }
+
+  const [lop, nhanSu] = await Promise.all([
+    db.class.findMany({
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        term: true,
+        isArchived: true,
+        teacher: { select: { displayName: true } },
+        _count: { select: { enrollments: true } },
+      },
+      orderBy: [{ isArchived: 'asc' }, { name: 'asc' }],
+    }),
+    db.user.findMany({
+      where: { isActive: true, role: { in: ['TEACHER', 'ADMIN'] } },
+      select: { id: true, displayName: true, username: true },
+      orderBy: { displayName: 'asc' },
+    }),
+  ]);
+
+  return {
+    lop: lop.map((l) => ({
+      id: l.id,
+      ten: l.name,
+      ma: l.code,
+      term: l.term,
+      giaoVien: l.teacher.displayName,
+      soHocSinh: l._count.enrollments,
+      daLuuTru: l.isArchived,
+    })),
+    nhanSu: nhanSu.map((n) => ({
+      id: n.id,
+      displayName: n.displayName,
+      username: n.username,
+      laToi: n.id === actor.id,
+    })),
+  };
+}

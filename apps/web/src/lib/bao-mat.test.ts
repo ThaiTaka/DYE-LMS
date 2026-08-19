@@ -77,6 +77,7 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   'ghiNhanXet(': 'moDuAn',
   'chamTay(': 'ForbiddenError',
   'phanCongLopHoc(': 'requireQuanTriPhanCongLop',
+  'taoLopHoc(': 'requireQuanTriTaoLop',
   'taoTaiKhoan(': 'requireCoQuyenTaoTaiKhoan',
   'voHieuHoaNhanVien(': 'requireAdminActingOnOther',
   'chuyenGiaoHoSoGiangDay(': 'requireAdminActingOnOther',
@@ -496,5 +497,61 @@ describe('CSP chỉ nới lỏng cho máy chủ phát triển', () => {
       );
 
     expect(chia(await docCsp('development'))).toEqual(chia(await docCsp('production')));
+  });
+});
+
+/**
+ * The auth flow must not know its own hostname.
+ *
+ * The deployment is reached through a Cloudflare tunnel whose hostname changes on
+ * every restart, and Auth.js resolves `redirectTo` into an ABSOLUTE url via
+ * `createActionURL`, which prefers `AUTH_URL` over any request header. A single
+ * `redirectTo` reintroduced here sends users to whichever host was configured
+ * when the value was written — and it fails as a dead hostname in the browser,
+ * far from the line that caused it.
+ */
+describe('Luồng đăng nhập / đăng xuất không phụ thuộc hostname', () => {
+  const doc = (duongDan: string) => maKhongChuThich(join(GOC, duongDan));
+
+  it('hành động đăng nhập không nhờ Auth.js chuyển trang', () => {
+    const src = doc('app/dang-nhap/actions.ts');
+
+    // `redirectTo` is the argument that makes signIn resolve an absolute url.
+    expect(src).not.toContain('redirectTo');
+    expect(src).toContain('redirect: false');
+    // …and we do it ourselves, with a path.
+    expect(src).toMatch(/\bredirect\(dichDen\)/);
+  });
+
+  it('mọi lần đăng xuất đều tự chuyển trang bằng đường dẫn tương đối', () => {
+    for (const tep of [
+      'components/giao-vien/vo.tsx',
+      'components/hoc-sinh/vo.tsx',
+      'app/doi-mat-khau/page.tsx',
+    ]) {
+      const src = doc(tep);
+      expect(src, tep).toContain('signOut({ redirect: false })');
+      expect(src, tep).toMatch(/redirect\('\//);
+    }
+  });
+
+  it('middleware dựng đích đến từ request, không từ cấu hình', () => {
+    const src = doc('middleware.ts');
+
+    /*
+     * Next.js parses a middleware Location header as a URL and throws
+     * ERR_INVALID_URL on a relative one, so absolute is mandatory here. The rule
+     * that can be enforced is where the origin comes from: `request.nextUrl`
+     * echoes the host the visitor used, while a literal origin or AUTH_URL would
+     * send them somewhere else.
+     */
+    expect(src).toContain('request.nextUrl.clone()');
+    expect(src).not.toMatch(/https?:\/\/[a-z0-9.]/i);
+  });
+
+  it('không tệp nguồn nào đọc AUTH_URL', () => {
+    // Reading it would mean the app forms an opinion about its own origin.
+    const doc2 = TEP_NGUON.filter((p) => maKhongChuThich(p).includes('AUTH_URL'));
+    expect(doc2.map((p) => relative(GOC, p))).toEqual([]);
   });
 });

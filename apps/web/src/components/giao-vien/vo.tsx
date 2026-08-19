@@ -66,7 +66,10 @@ export function VoGiaoVien({
             <MucDieuHuong href="/giao-vien/giao-trinh">Giáo trình</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/hoc-sinh">Học sinh</MucDieuHuong>
             {vaiTro === 'ADMIN' ? (
-              <MucDieuHuong href="/giao-vien/nhan-su">Nhân sự</MucDieuHuong>
+              <>
+                <MucDieuHuong href="/giao-vien/lop">Lớp học</MucDieuHuong>
+                <MucDieuHuong href="/giao-vien/nhan-su">Nhân sự</MucDieuHuong>
+              </>
             ) : null}
           </nav>
 

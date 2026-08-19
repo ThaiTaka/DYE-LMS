@@ -7,10 +7,19 @@
  * Order matters:
  *   1. Compliance assertions   — fail BEFORE writing anything if a teacher note
  *                                has been violated by a curriculum edit.
- *   2. Curriculum              — 3 courses / 90 lessons, upserted by natural key.
+ *   2. Curriculum              — 4 courses / 94 lessons, upserted by natural key.
  *   3. Badges                  — gamification catalogue.
- *   4. Demo data               — accounts, classes, progress, submissions, so
- *                                teacher analytics is not an empty page.
+ *   4. Root admin              — the ONE account this creates.
+ *
+ * What it deliberately does NOT create: teachers, students, classes, enrolments,
+ * progress or submissions. A seeded database is a clean database — the curriculum
+ * plus exactly one way in. Everything else is made through the web UI by a real
+ * person whose name ends up in the audit log.
+ *
+ * The demo spread that used to live in step 4 is now a development fixture behind
+ * SEED_DEMO=yes, and the test suites that need it ask for it explicitly. Keeping
+ * it in the default path meant a fresh database arrived pre-populated with six
+ * accounts sharing one password documented in this repository.
  *
  * Every write is an upsert on a stable key, so running this twice produces
  * identical row counts and never orphans student progress.
@@ -21,37 +30,42 @@ import { assertCurriculumCompliance, CurriculumViolation } from './seed/assertio
 import { seedBadges } from './seed/badges.ts';
 import { allCourses } from './seed/courses/index.ts';
 import { seedDemoData } from './seed/demo.ts';
+import { taoQuanTriGoc } from './seed/quan-tri.ts';
 import { seedCourse } from './seed/upsert.ts';
 
 const db = new PrismaClient();
 
 /**
- * Should the demo accounts be created?
+ * Should the development fixtures be created?
  *
- * The curriculum and badges ARE the product: a production database is useless
- * without them, so they always seed. The demo accounts are a different thing —
- * they all share one password that is documented in this repository, so creating
- * them on a live server hands six working logins to anyone who has read the
- * README, one of them an admin.
+ * Off unless asked for, in every environment. The demo accounts share a single
+ * password documented in this repository, so a database that gets them by default
+ * hands out six working logins — one of them an admin — to anyone who has read the
+ * README. They exist for local work and for the integration and end-to-end suites,
+ * which set this themselves.
  *
- * Hence the split rather than a single all-or-nothing refusal. In production the
- * demo data is skipped and the seed still succeeds, leaving a server with the
- * full 90-lesson curriculum and no accounts except the ones a real admin makes.
- * SEED_ALLOW_PRODUCTION=yes opts back in, for a staging box that genuinely wants
- * the demo spread to look at.
+ * Refused outright under NODE_ENV=production. There is no flag to override that:
+ * a live server has no legitimate use for a shared known password.
  */
 function nenTaoDuLieuDemo(): boolean {
-  if (process.env['NODE_ENV'] !== 'production') return true;
+  if (process.env['SEED_DEMO'] !== 'yes') return false;
 
-  if (process.env['SEED_ALLOW_PRODUCTION'] === 'yes') {
-    console.warn('  ⚠ Tạo tài khoản demo trên database PRODUCTION vì SEED_ALLOW_PRODUCTION=yes.');
-    return true;
+  if (process.env['NODE_ENV'] === 'production') {
+    throw new Error(
+      'SEED_DEMO=yes bị từ chối vì NODE_ENV=production. ' +
+        'Tài khoản demo dùng chung một mật khẩu đã công bố trong kho mã.',
+    );
   }
-  return false;
+  return true;
 }
 
 async function main(): Promise<void> {
   const startedAt = Date.now();
+
+  // Asked and answered before anything is written. Refusing SEED_DEMO in
+  // production only after the curriculum and the admin are already committed
+  // would report a failure for a run that half succeeded.
+  const taoDemo = nenTaoDuLieuDemo();
 
   console.log('');
   console.log('  DYE LMS — seed');
@@ -86,15 +100,22 @@ async function main(): Promise<void> {
   const badgeCount = await seedBadges(db);
   console.log(`${badgeCount} huy hiệu`);
 
-  // ── 4. Demo data ─────────────────────────────────────────────────────────
-  process.stdout.write('  4/4  Dữ liệu demo ... ');
-  const demo = nenTaoDuLieuDemo() ? await seedDemoData(db) : null;
+  // ── 4. Root admin ────────────────────────────────────────────────────────
+  process.stdout.write('  4/4  Tài khoản quản trị gốc ... ');
+  const quanTri = await taoQuanTriGoc(db, {
+    username: process.env['ADMIN_USERNAME'],
+    password: process.env['ADMIN_PASSWORD'] ?? '',
+    displayName: process.env['ADMIN_DISPLAY_NAME'],
+  });
+  console.log(`${quanTri.username} (${quanTri.laMoi ? 'mới tạo' : 'đặt lại mật khẩu'})`);
+
+  // ── 5. Development fixtures, only when asked for ─────────────────────────
+  const demo = taoDemo ? await seedDemoData(db) : null;
   if (demo) {
     console.log(
-      `${demo.users} tài khoản · ${demo.classes} lớp · ${demo.enrollments} lượt ghi danh`,
+      `  5/5  Dữ liệu demo (SEED_DEMO=yes) ... ${demo.users} tài khoản · ` +
+        `${demo.classes} lớp · ${demo.enrollments} lượt ghi danh`,
     );
-  } else {
-    console.log('bỏ qua (NODE_ENV=production)');
   }
 
   // ── Summary ──────────────────────────────────────────────────────────────
@@ -107,9 +128,13 @@ async function main(): Promise<void> {
 
   if (!demo) {
     console.log('');
-    console.log('  Bỏ qua dữ liệu demo vì NODE_ENV=production.');
-    console.log('    Database đã có đủ chương trình học, chưa có tài khoản nào.');
-    console.log('    Tạo tài khoản quản trị thật trước khi mở cho học sinh dùng.');
+    console.log(`  Đăng nhập bằng ${quanTri.username} · ${quanTri.displayName}`);
+    console.log('    Mật khẩu lấy từ ADMIN_PASSWORD, không in ra ở đây.');
+    console.log('');
+    console.log('    Chưa có giáo viên, học sinh hay lớp nào — tạo bằng giao diện web:');
+    console.log('      Lớp học   → /giao-vien/lop');
+    console.log('      Nhân sự   → /giao-vien/nhan-su');
+    console.log('      Học sinh  → /giao-vien/hoc-sinh');
     console.log('');
     return;
   }

@@ -84,16 +84,19 @@ export default defineConfig({
     stderr: 'pipe',
     env: {
       /*
-       * AUTH_URL must name THIS server.
+       * AUTH_URL is deliberately EMPTY, not set to this server.
        *
-       * The root .env points it at port 3000 for local development. Inherited
-       * unchanged, Auth.js redirects the browser to port 3000 after a successful
-       * login — off the server under test entirely. When nothing is listening
-       * there the navigation just fails; when a dev server IS listening, the
-       * suite quietly starts asserting against a different build, which is the
-       * worse of the two outcomes because it passes.
+       * It used to be pinned to BASE, because a stale AUTH_URL sent the browser
+       * off the server under test after a successful login — silently asserting
+       * against a different build whenever something else was listening there.
+       *
+       * The login action no longer lets Auth.js issue that redirect; it redirects
+       * to a path itself, so no host needs pinning. Passing an empty string
+       * blanks any AUTH_URL inherited from the root .env, which means the suite
+       * exercises the same unpinned configuration a tunnel or a proxy runs — the
+       * one that was broken. Pinning it here would hide exactly that bug.
        */
-      AUTH_URL: BASE,
+      AUTH_URL: '',
       AUTH_TRUST_HOST: 'true',
     },
   },

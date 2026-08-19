@@ -21,10 +21,20 @@ let studentId: string;
 let loiGiaiDung: string;
 
 test.beforeAll(async () => {
-  const hs = await db().user.findFirstOrThrow({
+  /*
+   * `npm run db:seed` no longer creates this student — it makes the curriculum and
+   * one admin, nothing else. Say so, because "No User found" reads like a broken
+   * query rather than a missing fixture.
+   */
+  const hs = await db().user.findFirst({
     where: { username: HOC_SINH },
     select: { id: true },
   });
+  if (!hs) {
+    throw new Error(
+      `Không có tài khoản demo "${HOC_SINH}". Chạy \`npm run db:demo\` rồi thử lại.`,
+    );
+  }
   studentId = hs.id;
 
   /*

@@ -13,11 +13,14 @@ import {
   anhHuongXoaTaiKhoan,
   chuyenGiaoHoSoGiangDay,
   khoiPhucNhanVien,
+  maTuTenLop,
   nguoiCoTheNhanBanGiao,
   phanCongLopHoc,
+  taoLopHoc,
   taoTaiKhoan,
   voHieuHoaNhanVien,
   xoaTaiKhoanNhanVien,
+  type TaoLopInput,
   type TaoTaiKhoanInput,
 } from './accounts';
 import { visibleStudentIds } from './authz';
@@ -914,5 +917,186 @@ describe('phanCongLopHoc — giao lớp cho thầy cô', () => {
     expect(await visibleStudentIds(fx.db, gvB)).toContain(fx.studentB1);
 
     await fx.db.enrollment.deleteMany({ where: { classId: lop1, studentId: fx.studentB1 } });
+  });
+});
+
+describe('maTuTenLop — mã lớp suy ra từ tên', () => {
+  it('bỏ dấu tiếng Việt', () => {
+    expect(maTuTenLop('Lập trình cơ bản')).toBe('LAP-TRINH-CO-BAN');
+    expect(maTuTenLop('Micro:bit')).toBe('MICRO-BIT');
+  });
+
+  it('xử lý được chữ đ và Đ', () => {
+    // `đ` carries no combining mark, so NFD alone leaves nothing to strip and it
+    // would vanish: "Đội tuyển" would come out as "I-TUYEN".
+    expect(maTuTenLop('Đội tuyển')).toBe('DOI-TUYEN');
+    expect(maTuTenLop('Lớp đặc biệt')).toBe('LOP-DAC-BIET');
+  });
+
+  it('không để lại gạch ngang thừa ở hai đầu', () => {
+    expect(maTuTenLop('  Lớp 6A!!  ')).toBe('LOP-6A');
+    expect(maTuTenLop('--Python--')).toBe('PYTHON');
+  });
+
+  it('tên không có chữ nào thì trả về rỗng', () => {
+    // The caller turns this into "nhập mã lớp giúp em" rather than inventing one.
+    expect(maTuTenLop('🎮🎮')).toBe('');
+    expect(maTuTenLop('...')).toBe('');
+  });
+});
+
+describe('taoLopHoc — tạo lớp mới', () => {
+  const daTao: string[] = [];
+
+  let gvA: Actor;
+  let gvNgung: string;
+
+  beforeAll(async () => {
+    const a = await fx.db.user.create({
+      data: {
+        username: `${fx.prefix}tl.gva`,
+        displayName: 'Cô Tạo Lớp',
+        role: 'TEACHER',
+        passwordHash: fx.passwordHash,
+      },
+      select: { id: true },
+    });
+    const ngung = await fx.db.user.create({
+      data: {
+        username: `${fx.prefix}tl.ngung`,
+        displayName: 'Cô Đã Ngưng',
+        role: 'TEACHER',
+        passwordHash: fx.passwordHash,
+        isActive: false,
+      },
+      select: { id: true },
+    });
+    gvA = await actorFor(fx.db, a.id);
+    gvNgung = ngung.id;
+  });
+
+  afterAll(async () => {
+    await fx.db.class.deleteMany({ where: { code: { in: daTao } } });
+    await fx.db.user.deleteMany({ where: { id: { in: [gvA.id, gvNgung] } } });
+  });
+
+  async function tao(input: Partial<TaoLopInput> & { ten: string }, boi: Actor = admin) {
+    const kq = await taoLopHoc(fx.db, boi, input);
+    if (kq.trangThai === 'thanh-cong') daTao.push(kq.ma);
+    return kq;
+  }
+
+  it('tạo được lớp với mã suy ra từ tên', async () => {
+    const ten = `${fx.prefix} Lập trình cơ bản`;
+    const kq = await tao({ ten });
+    expect(kq.trangThai).toBe('thanh-cong');
+    if (kq.trangThai !== 'thanh-cong') return;
+
+    // Compared against the deriver rather than a literal: `fx.prefix` is long
+    // enough that the 24-character cap trims the tail, which is correct and would
+    // make a hardcoded expectation wrong for the wrong reason.
+    expect(kq.ma).toBe(maTuTenLop(ten));
+    const lop = await fx.db.class.findUniqueOrThrow({
+      where: { id: kq.id },
+      select: { name: true, teacherId: true, isArchived: true },
+    });
+    expect(lop.teacherId).toBe(fx.admin);
+    expect(lop.isArchived).toBe(false);
+  });
+
+  it('không có giáo viên thì admin tự nhận, vì teacherId không cho phép rỗng', async () => {
+    const kq = await tao({ ten: `${fx.prefix} Lớp chưa giao` });
+    expect(kq.trangThai).toBe('thanh-cong');
+    if (kq.trangThai !== 'thanh-cong') return;
+    expect(kq.giaoVien).toBeTruthy();
+  });
+
+  it('giao được ngay cho một giáo viên', async () => {
+    const kq = await tao({ ten: `${fx.prefix} Lớp của cô A`, giaoVienId: gvA.id });
+    expect(kq.trangThai).toBe('thanh-cong');
+    if (kq.trangThai !== 'thanh-cong') return;
+
+    const lop = await fx.db.class.findUniqueOrThrow({
+      where: { id: kq.id },
+      select: { teacherId: true },
+    });
+    expect(lop.teacherId).toBe(gvA.id);
+  });
+
+  it('mã suy ra bị trùng thì tự thêm số, không báo lỗi', async () => {
+    const ten = `${fx.prefix} Trùng mã`;
+    const mot = await tao({ ten });
+    const hai = await tao({ ten });
+
+    expect(mot.trangThai).toBe('thanh-cong');
+    expect(hai.trangThai).toBe('thanh-cong');
+    if (mot.trangThai !== 'thanh-cong' || hai.trangThai !== 'thanh-cong') return;
+    expect(hai.ma).not.toBe(mot.ma);
+  });
+
+  it('mã tự nhập bị trùng thì BÁO LỖI, không tự đổi', async () => {
+    // The admin chose this string; silently changing it would hide the clash.
+    const ma = `${fx.prefix}TAY-1`.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+    const mot = await tao({ ten: `${fx.prefix} Mã tay`, ma });
+    expect(mot.trangThai).toBe('thanh-cong');
+
+    const hai = await tao({ ten: `${fx.prefix} Mã tay lần hai`, ma });
+    expect(hai.trangThai).toBe('trung-ma');
+  });
+
+  it('từ chối tên quá ngắn', async () => {
+    const kq = await tao({ ten: 'A' });
+    expect(kq.trangThai).toBe('khong-hop-le');
+  });
+
+  it('tên không có chữ nào thì yêu cầu nhập mã', async () => {
+    const kq = await tao({ ten: '🎮🎮' });
+    expect(kq.trangThai).toBe('khong-hop-le');
+    if (kq.trangThai !== 'khong-hop-le') return;
+    expect(kq.thongDiep).toMatch(/mã lớp/i);
+  });
+
+  it('GIÁO VIÊN không được tạo lớp', async () => {
+    /*
+     * The escalation this closes: a teacher who could create a class would
+     * assign it to themselves and then provision students into it, reaching
+     * children with nobody in an oversight role agreeing to it.
+     */
+    await expect(tao({ ten: `${fx.prefix} Lớp tự lập` }, gvA)).rejects.toThrow(ForbiddenError);
+  });
+
+  it('học sinh thì hoàn toàn không', async () => {
+    const hocSinh = await actorFor(fx.db, fx.studentA1);
+    await expect(tao({ ten: `${fx.prefix} Lớp hs` }, hocSinh)).rejects.toThrow(ForbiddenError);
+  });
+
+  it('quản trị viên đã bị ngưng cũng không', async () => {
+    const daNgung: Actor = { ...admin, isActive: false };
+    await expect(tao({ ten: `${fx.prefix} Lớp ngưng` }, daNgung)).rejects.toThrow(ForbiddenError);
+  });
+
+  it('không giao lớp mới cho tài khoản đã ngưng hoạt động', async () => {
+    await expect(
+      tao({ ten: `${fx.prefix} Lớp giao sai`, giaoVienId: gvNgung }),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('không giao lớp cho học sinh', async () => {
+    await expect(
+      tao({ ten: `${fx.prefix} Lớp giao hs`, giaoVienId: fx.studentA1 }),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('ghi nhật ký ai đã tạo lớp', async () => {
+    const kq = await tao({ ten: `${fx.prefix} Lớp nhật ký` });
+    expect(kq.trangThai).toBe('thanh-cong');
+    if (kq.trangThai !== 'thanh-cong') return;
+
+    const log = await fx.db.auditLog.findFirst({
+      where: { action: ACCOUNT_AUDIT.CLASS_CREATED, entityId: kq.id },
+      select: { actorId: true, meta: true },
+    });
+    expect(log?.actorId).toBe(fx.admin);
+    expect((log?.meta as { ma: string }).ma).toBe(kq.ma);
   });
 });
