@@ -80,23 +80,62 @@ test('học sinh đăng nhập, mở bài, nộp code, được chấm ĐẠT v�
   await page.goto(`/bai-hoc/${lessonSlug}`);
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 
+  /*
+   * Scope everything to the exercise block, never `.first()`.
+   *
+   * Buổi 6 renders an INTERACTIVE_EXAMPLE and a PLAYGROUND editor BEFORE the
+   * graded MINI_CHALLENGE, and all three are `soan-thao`. Taking the first one
+   * meant typing into the example — whose sample code happens to be the
+   * solution, so even a full-text assertion passed — and then clicking the
+   * exercise's own submit button, which handed in its untouched starter code.
+   * The run failed at the verdict and read like a broken judge.
+   */
+  const khuLamBai = page.locator(`[data-block-id="${blockId}"]`);
+  await expect(khuLamBai).toBeVisible();
+
   // The editor must actually mount — a lesson page that renders without it
   // would leave a student with nowhere to type.
-  const soanThao = page.getByTestId('soan-thao').first();
+  const soanThao = khuLamBai.getByTestId('soan-thao');
   await expect(soanThao).toBeVisible();
 
   // ── 3. Type a correct solution and submit ────────────────────────────────
   const vungGo = soanThao.locator('.cm-content').first();
-  await vungGo.click();
-  await page.keyboard.press('ControlOrMeta+a');
-  await page.keyboard.press('Delete');
-  // `insertText` rather than `type`: CodeMirror auto-indents and auto-closes
-  // brackets, so simulating keystrokes would mangle real Python.
-  await page.keyboard.insertText(loiGiaiDung);
 
-  await expect(vungGo).toContainText(loiGiaiDung.split('\n')[0]!.slice(0, 12));
+  /*
+   * Retry the whole type-and-check, and assert the FULL text.
+   *
+   * Two things went wrong here before, and they hid each other:
+   *
+   *   1. The editor fills itself asynchronously — a saved draft if there is
+   *      one, otherwise the problem's starter code. Clearing and typing before
+   *      that lands means the app overwrites the solution a moment later, and
+   *      the submission carries the starter template instead.
+   *   2. The check was `toContainText(first 12 chars of line 1)`. This
+   *      problem's starter template opens with the same two lines as its
+   *      solution, so that assertion passed while the editor still held the
+   *      template — and the run failed later at the verdict, blaming the judge
+   *      for a WRONG_ANSWER on code the test had never actually entered.
+   *
+   * `toPass` re-runs the click/clear/insert until the editor really holds the
+   * solution, so a slow fill is retried instead of silently submitted.
+   * `insertText` rather than `type`: CodeMirror auto-indents and auto-closes
+   * brackets, so simulating keystrokes would mangle real Python.
+   */
+  await expect(async () => {
+    await vungGo.click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press('Delete');
+    await page.keyboard.insertText(loiGiaiDung);
 
-  const nutNop = page.getByRole('button', { name: /^Nộp bài$/ }).first();
+    // CodeMirror renders each line as its own element and pads empty lines with
+    // non-breaking spaces, so compare on normalised text.
+    const trongTrinhSoan = (await vungGo.innerText()).replace(/\u00a0/g, ' ').trim();
+    expect(trongTrinhSoan, 'trình soạn thảo phải chứa đúng lời giải mẫu').toBe(
+      loiGiaiDung.trim(),
+    );
+  }).toPass({ timeout: 20_000 });
+
+  const nutNop = khuLamBai.getByRole('button', { name: /^Nộp bài$/ });
   await expect(nutNop).toBeEnabled();
   await nutNop.click();
 

@@ -13,17 +13,17 @@
   },
   "scripts": {
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate deploy",
-    "db:migrate:dev": "prisma migrate dev",
-    "db:seed": "prisma db seed",
-    "db:verify": "tsx prisma/seed/verify.ts",
-    "db:reset": "prisma migrate reset --force",
-    "db:studio": "prisma studio",
+    "db:migrate": "node prisma/chay-voi-env.mjs prisma migrate deploy",
+    "db:migrate:dev": "node prisma/chay-voi-env.mjs prisma migrate dev",
+    "db:seed": "node prisma/chay-voi-env.mjs prisma db seed",
+    "db:verify": "node prisma/chay-voi-env.mjs tsx prisma/seed/verify.ts",
+    "db:reset": "node prisma/chay-voi-env.mjs prisma migrate reset --force",
+    "db:studio": "node prisma/chay-voi-env.mjs prisma studio",
     "build": "prisma generate",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src prisma --max-warnings 0",
     "test": "vitest run",
-    "db:admin": "tsx prisma/scripts/tao-quan-tri.ts"
+    "db:admin": "node prisma/chay-voi-env.mjs tsx prisma/scripts/tao-quan-tri.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

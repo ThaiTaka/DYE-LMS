@@ -210,7 +210,20 @@ export function KhuLamBai({
   }, [blockId, napLichSu, tuLuu]);
 
   return (
-    <div className="rounded-nut border border-vien bg-the">
+    /*
+     * `data-block-id` identifies WHICH exercise this is.
+     *
+     * A lesson can render several editors — an interactive example and a
+     * playground both appear before the graded block on Buổi 6 — and they are
+     * indistinguishable by role or test id. Without an anchor, an end-to-end
+     * test picking "the first editor" types into the example and submits the
+     * untouched exercise below it.
+     */
+    <div
+      data-testid="khu-lam-bai"
+      data-block-id={blockId}
+      className="rounded-nut border border-vien bg-the"
+    >
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-vien px-4 py-2.5">
         <span className="text-sm font-semibold">{nhan}</span>
         <DauLuu

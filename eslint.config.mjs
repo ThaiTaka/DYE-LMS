@@ -1,5 +1,6 @@
 // @ts-check
 import js from '@eslint/js';
+import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 import tseslint from 'typescript-eslint';
 
@@ -102,6 +103,20 @@ export default tseslint.config(
       eqeqeq: ['error', 'always', { null: 'ignore' }],
       'no-console': 'off',
     },
+  },
+
+  {
+    /*
+     * Node globals for plain JavaScript.
+     *
+     * TypeScript files never needed this: typescript-eslint turns `no-undef`
+     * off, because the compiler already knows what `process` is. A `.mjs`
+     * script gets the base recommended config instead, where `no-undef` is on
+     * and no environment is assumed — so `process` and `console` read as
+     * undefined variables.
+     */
+    files: ['**/*.mjs', '**/*.js', '**/*.cjs'],
+    languageOptions: { globals: globals.node },
   },
 
   {
