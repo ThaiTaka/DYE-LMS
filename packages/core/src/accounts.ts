@@ -30,6 +30,7 @@
  * ADMIN action and is checked here rather than only at the route, because this
  * is the module that can actually destroy data.
  */
+import { authorize } from './authz';
 import { ForbiddenError } from './errors';
 import { hashPassword, MIN_PASSWORD_LENGTH } from './password';
 import { revokeAllSessions } from './session';
@@ -492,11 +493,65 @@ export type KetQuaTaoTaiKhoan =
   | { trangThai: 'trung-ten'; username: string }
   | { trangThai: 'khong-hop-le'; thongDiep: string };
 
-/** Refuse unless the actor is an active admin. */
-async function requireQuanTriTaoTaiKhoan(actor: Actor): Promise<void> {
+/**
+ * Refuse unless this actor may create THIS account.
+ *
+ * ── Why the guard takes the request, not just the actor ──────────────────────
+ * "May you create accounts?" is not answerable on its own. An admin may create
+ * anyone; a teacher may create a student in a class they actually run, and
+ * nothing else. The role being minted and the classes being assigned are part of
+ * the question, so they are arguments here rather than something the caller is
+ * trusted to have checked.
+ */
+async function requireCoQuyenTaoTaiKhoan(
+  db: PrismaClient,
+  actor: Actor,
+  role: VaiTroTaoDuoc,
+  classIds: string[],
+): Promise<void> {
   if (!actor.isActive) throw new ForbiddenError('actor-disabled');
-  if (actor.role !== 'ADMIN') throw new ForbiddenError('only-admin-creates-accounts');
-  await Promise.resolve();
+
+  // An admin provisions anyone, into any class, or into none.
+  if (actor.role === 'ADMIN') return;
+
+  if (actor.role !== 'TEACHER') throw new ForbiddenError('only-staff-creates-accounts');
+
+  /*
+   * A teacher may mint students, and only students.
+   *
+   * This is the privilege-escalation boundary. Without it the cheapest attack on
+   * the entire system is a teacher creating a second account with role ADMIN and
+   * logging into it — no exploit required, just a different value in a form
+   * field the UI never renders for them.
+   */
+  if (role !== 'STUDENT') throw new ForbiddenError('teacher-cannot-create-staff');
+
+  /*
+   * And only into their own classes — at least one of them.
+   *
+   * Requiring a class is not bureaucracy. A student created with no enrolment is
+   * invisible to the teacher who created them and absent from every roster, so
+   * an unbounded number could be created with nothing tying them to anyone. An
+   * admin may do that because an admin can see every account; a teacher sees
+   * only their own classes, so their creations have to land where they can see
+   * them.
+   */
+  if (classIds.length === 0) throw new ForbiddenError('teacher-must-assign-own-class');
+
+  /*
+   * `authorize()` rather than a query written here.
+   *
+   * It is the one place that decides "may this actor manage this class?", and it
+   * answers from `Class.teacherId`. Reusing it means this path cannot drift from
+   * the rest of the teacher surface: if class ownership ever changes shape, this
+   * changes with it. A hand-rolled `findFirst` here would be a second opinion,
+   * and second opinions about authorization are how gaps open.
+   */
+  await Promise.all(
+    classIds.map((classId) =>
+      authorize(db, actor, { resource: 'class', action: 'manage', classId }),
+    ),
+  );
 }
 
 /**
@@ -530,11 +585,17 @@ function laTrungKhoa(error: unknown): boolean {
 /**
  * Create a teacher, admin or student account.
  *
+ * ── Who may call this ────────────────────────────────────────────────────────
+ *   ADMIN    — anyone, into any class, or into none.
+ *   TEACHER  — students only, and only into classes they run (see
+ *              `requireCoQuyenTaoTaiKhoan`).
+ *
  * ── Why this lives in core rather than in the server action ──────────────────
  * This function can mint an ADMIN, which is the most powerful thing the system
  * can do. Like the deletion paths above, it authorizes itself rather than
  * trusting its caller to have done so, which means the check cannot be lost by a
- * later refactor that adds a second call site.
+ * later refactor that adds a second call site — and the teacher path has exactly
+ * that shape, since the UI now offers this to two different roles.
  *
  * Refusals a form should explain — a taken username, a password too short — come
  * back as values. Only "you may not do this at all" throws, because that is not
@@ -546,12 +607,14 @@ export async function taoTaiKhoan(
   input: TaoTaiKhoanInput,
   context: SessionContext = {},
 ): Promise<KetQuaTaoTaiKhoan> {
-  await requireQuanTriTaoTaiKhoan(actor);
-
   const username = input.username.trim().toLowerCase();
   const displayName = input.displayName.trim();
   const avatarUrl = input.avatarUrl?.trim() ?? '';
   const classIds = input.role === 'STUDENT' ? (input.classIds ?? []) : [];
+
+  // After the role and classes are resolved, because they ARE the question —
+  // and before any validation, so a refusal never depends on field order.
+  await requireCoQuyenTaoTaiKhoan(db, actor, input.role, classIds);
 
   if (!MAU_USERNAME.test(username)) {
     return {

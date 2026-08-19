@@ -86,12 +86,15 @@ export function TaoTaiKhoan({
   nhanMo,
   tieuDe,
   lop = [],
+  batBuocChonLop = false,
 }: {
   /** STUDENT locks the form to students; omitted offers teacher / admin. */
   vaiTroCoDinh?: 'STUDENT';
   nhanMo: string;
   tieuDe: string;
   lop?: LopDeChon[];
+  /** A teacher must place the account in one of their own classes. */
+  batBuocChonLop?: boolean;
 }) {
   const [mo, setMo] = useState(false);
   const [soLanXong, setSoLanXong] = useState(0);
@@ -179,12 +182,16 @@ export function TaoTaiKhoan({
               <legend className="px-1 text-sm font-semibold">Xếp vào lớp</legend>
               {lop.length === 0 ? (
                 <p className="m-0 text-sm text-chu-phu">
-                  Chưa có lớp nào đang mở. Tài khoản vẫn tạo được, và thầy cô xếp lớp sau.
+                  {batBuocChonLop
+                    ? 'Thầy cô chưa phụ trách lớp nào đang mở, nên chưa thêm được học sinh. Nhờ quản trị viên xếp lớp trước.'
+                    : 'Chưa có lớp nào đang mở. Tài khoản vẫn tạo được, và thầy cô xếp lớp sau.'}
                 </p>
               ) : (
                 <>
                   <p className="mt-0 mb-3 text-xs text-chu-phu">
-                    Chọn được nhiều lớp. Bỏ trống cũng được — khi đó em chưa thuộc lớp nào.
+                    {batBuocChonLop
+                      ? 'Chọn ít nhất một lớp — bắt buộc, vì em phải nằm trong lớp thầy cô dạy. Chọn được nhiều lớp.'
+                      : 'Chọn được nhiều lớp. Bỏ trống cũng được — khi đó em chưa thuộc lớp nào.'}
                   </p>
                   <div className="space-y-2">
                     {lop.map((l) => (
@@ -244,7 +251,9 @@ export function TaoTaiKhoan({
             </span>
           </label>
 
-          <NutGui nhan={laHocSinh ? 'Tạo tài khoản học sinh' : 'Tạo tài khoản'} />
+          {batBuocChonLop && lop.length === 0 ? null : (
+            <NutGui nhan={laHocSinh ? 'Tạo tài khoản học sinh' : 'Tạo tài khoản'} />
+          )}
         </form>
       ) : null}
     </section>

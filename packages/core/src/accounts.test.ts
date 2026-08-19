@@ -540,3 +540,178 @@ describe('taoTaiKhoan — cấp tài khoản mới', () => {
     expect(log?.actorId).toBe(fx.admin);
   });
 });
+
+/**
+ * The relational boundary on provisioning.
+ *
+ * A teacher creating accounts is the first path where a non-admin adds rows to
+ * `User`, so the interesting cases are all about what they CANNOT do. Every
+ * refusal is asserted against a real database, because the rule is a
+ * relationship (`Class.teacherId`) and not a flag.
+ *
+ * This block builds its own teachers and classes rather than reusing the shared
+ * fixture: the retirement tests above transfer teacher A's classes to a
+ * successor, so by the time execution reaches here `fx.classA` has a different
+ * owner. Depending on that would make these pass or fail according to the order
+ * the file happens to run in, which is the last property a security test should
+ * have.
+ */
+describe('taoTaiKhoan — giáo viên chỉ cấp được cho lớp mình dạy', () => {
+  const daTao: string[] = [];
+
+  let gvChinh: Actor;
+  let gvKhac: string;
+  let lopCuaToi: string;
+  let lopNguoiKhac: string;
+
+  beforeAll(async () => {
+    const chinh = await fx.db.user.create({
+      data: {
+        username: `${fx.prefix}gv.chinh`,
+        displayName: 'Cô Chính',
+        role: 'TEACHER',
+        passwordHash: fx.passwordHash,
+      },
+      select: { id: true },
+    });
+    const khac = await fx.db.user.create({
+      data: {
+        username: `${fx.prefix}gv.khac`,
+        displayName: 'Thầy Khác',
+        role: 'TEACHER',
+        passwordHash: fx.passwordHash,
+      },
+      select: { id: true },
+    });
+
+    const [cuaToi, nguoiKhac] = await Promise.all([
+      fx.db.class.create({
+        data: { code: `${fx.prefix}LOP-TOI`, name: 'Lớp của tôi', teacherId: chinh.id },
+        select: { id: true },
+      }),
+      fx.db.class.create({
+        data: { code: `${fx.prefix}LOP-KHAC`, name: 'Lớp người khác', teacherId: khac.id },
+        select: { id: true },
+      }),
+    ]);
+
+    gvChinh = await actorFor(fx.db, chinh.id);
+    gvKhac = khac.id;
+    lopCuaToi = cuaToi.id;
+    lopNguoiKhac = nguoiKhac.id;
+  });
+
+  afterAll(async () => {
+    await fx.db.user.deleteMany({ where: { username: { in: daTao } } });
+    await fx.db.class.deleteMany({ where: { id: { in: [lopCuaToi, lopNguoiKhac] } } });
+    await fx.db.user.deleteMany({ where: { id: { in: [gvChinh.id, gvKhac] } } });
+  });
+
+  async function tao(
+    input: Partial<TaoTaiKhoanInput> & { username: string },
+    boi?: Actor,
+  ) {
+    daTao.push(input.username.trim().toLowerCase());
+    return taoTaiKhoan(fx.db, boi ?? gvChinh, {
+      password: 'MatKhau#2026',
+      displayName: 'Em Mới',
+      role: 'STUDENT',
+      classIds: [lopCuaToi],
+      ...input,
+    });
+  }
+
+  it('tạo được học sinh cho lớp của chính mình', async () => {
+    const kq = await tao({ username: `${fx.prefix}hs.loptoi` });
+    expect(kq.trangThai).toBe('thanh-cong');
+    if (kq.trangThai !== 'thanh-cong') return;
+
+    const ghiDanh = await fx.db.enrollment.findMany({
+      where: { studentId: kq.id },
+      select: { classId: true },
+    });
+    expect(ghiDanh).toEqual([{ classId: lopCuaToi }]);
+  });
+
+  it('KHÔNG xếp được vào lớp của giáo viên khác', async () => {
+    // The whole point of the change.
+    await expect(
+      tao({ username: `${fx.prefix}hs.lopkhac`, classIds: [lopNguoiKhac] }),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('KHÔNG lách được bằng cách kèm lớp của mình cùng lớp người khác', async () => {
+    // A check that only read the first id, or that passed when ANY class
+    // matched, would let this through.
+    await expect(
+      tao({ username: `${fx.prefix}hs.tronlop`, classIds: [lopCuaToi, lopNguoiKhac] }),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('bị từ chối thì không để lại tài khoản nào', async () => {
+    await expect(
+      tao({ username: `${fx.prefix}hs.tuchoi`, classIds: [lopNguoiKhac] }),
+    ).rejects.toThrow(ForbiddenError);
+
+    const co = await fx.db.user.count({
+      where: { username: `${fx.prefix}hs.tuchoi`.toLowerCase() },
+    });
+    expect(co).toBe(0);
+  });
+
+  it('KHÔNG tạo được tài khoản giáo viên', async () => {
+    await expect(
+      tao({ username: `${fx.prefix}gv.tugiao`, role: 'TEACHER', classIds: [] }),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('KHÔNG tạo được tài khoản quản trị — đây là ranh giới leo thang quyền', async () => {
+    // Without this rule a teacher simply creates themselves an admin account and
+    // logs into it. No exploit needed, just a different value in a form field
+    // the UI never renders for them.
+    await expect(
+      tao({
+        username: `${fx.prefix}qt.tuphong`,
+        role: 'ADMIN',
+        password: 'MatKhauQuanTri#2026',
+        classIds: [],
+      }),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it('phải xếp vào ít nhất một lớp', async () => {
+    // A student with no enrolment is invisible to the teacher who created them
+    // and missing from every roster.
+    await expect(tao({ username: `${fx.prefix}hs.kholop`, classIds: [] })).rejects.toThrow(
+      ForbiddenError,
+    );
+  });
+
+  it('giáo viên đã bị ngưng thì không cấp được', async () => {
+    const daNgung: Actor = { ...gvChinh, isActive: false };
+    await expect(tao({ username: `${fx.prefix}hs.gvngung` }, daNgung)).rejects.toThrow(
+      ForbiddenError,
+    );
+  });
+
+  it('học sinh thì hoàn toàn không cấp được tài khoản', async () => {
+    const hocSinh = await actorFor(fx.db, fx.studentA1);
+    await expect(tao({ username: `${fx.prefix}hs.hstao` }, hocSinh)).rejects.toThrow(
+      ForbiddenError,
+    );
+  });
+
+  it('quản trị viên vẫn xếp được vào lớp của bất kỳ ai', async () => {
+    // The teacher rule must not have narrowed the admin path.
+    const kq = await tao(
+      { username: `${fx.prefix}hs.qtmoilop`, classIds: [lopCuaToi, lopNguoiKhac] },
+      admin,
+    );
+    expect(kq.trangThai).toBe('thanh-cong');
+  });
+
+  it('quản trị viên vẫn tạo được học sinh chưa có lớp', async () => {
+    const kq = await tao({ username: `${fx.prefix}hs.qtkholop`, classIds: [] }, admin);
+    expect(kq.trangThai).toBe('thanh-cong');
+  });
+});

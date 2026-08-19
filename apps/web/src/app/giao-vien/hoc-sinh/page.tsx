@@ -7,14 +7,15 @@ import { requireRole } from '@/lib/guard';
 import { duLieuTaiKhoanHocSinh } from '@/lib/teacher-data';
 
 export default async function TrangTaiKhoanHocSinh() {
-  // Admin-only, like Nhân sự. Creating an account is provisioning, not teaching:
-  // a teacher manages the children already in their class, and reaches them
-  // through the class roster rather than through a list of every account.
-  const actor = await requireRole('ADMIN');
+  // Open to teachers as well as admins. What each of them SEES differs, and that
+  // difference comes from `duLieuTaiKhoanHocSinh` rather than from this page: a
+  // teacher gets only the children they teach and only their own classes.
+  const actor = await requireRole('ADMIN', 'TEACHER');
   const data = await duLieuTaiKhoanHocSinh(actor);
+  const laQuanTri = actor.role === 'ADMIN';
 
   return (
-    <VoGiaoVien tenHienThi={actor.displayName} vaiTro="ADMIN">
+    <VoGiaoVien tenHienThi={actor.displayName} vaiTro={laQuanTri ? 'ADMIN' : 'TEACHER'}>
       <DuongDan muc={[{ nhan: 'Tổng quan', href: '/giao-vien' }, { nhan: 'Học sinh' }]} />
 
       <header className="mb-6">
@@ -22,6 +23,7 @@ export default async function TrangTaiKhoanHocSinh() {
         <p className="m-0 text-chu-phu">
           Tạo tài khoản cho các em và xếp vào lớp. Mật khẩu ban đầu do thầy cô đặt, và em sẽ tự
           đổi ngay ở lần đăng nhập đầu tiên.
+          {laQuanTri ? null : ' Trang này chỉ hiện các lớp và các em thầy cô đang dạy.'}
         </p>
       </header>
 
@@ -30,6 +32,7 @@ export default async function TrangTaiKhoanHocSinh() {
         tieuDe="Thêm học sinh"
         nhanMo="Thêm học sinh"
         lop={data.lopDangMo}
+        batBuocChonLop={data.batBuocChonLop}
       />
 
       <h2 className="mt-0 mb-4 text-xl font-bold">Danh sách học sinh ({data.hocSinh.length})</h2>

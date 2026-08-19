@@ -430,17 +430,43 @@ export async function taoTaiKhoanMoi(
       return { trangThai: 'loi', thongDiep: 'Vai trò không hợp lệ.' };
     }
 
-    const ketQua = await taoTaiKhoan(db, actor, {
-      username: String(form.get('username') ?? ''),
-      password: String(form.get('password') ?? ''),
-      displayName: String(form.get('displayName') ?? ''),
-      role: vaiTroTho,
-      avatarUrl: String(form.get('avatarUrl') ?? ''),
-      classIds: form.getAll('classIds').map(String).filter(Boolean),
-      // Absent checkbox means unchecked, and the safe reading of "unchecked" is
-      // still to force a change — so this only turns OFF when asked explicitly.
-      mustChangePassword: form.get('giuMatKhau') !== 'co',
-    });
+    let ketQua;
+    try {
+      ketQua = await taoTaiKhoan(db, actor, {
+        username: String(form.get('username') ?? ''),
+        password: String(form.get('password') ?? ''),
+        displayName: String(form.get('displayName') ?? ''),
+        role: vaiTroTho,
+        avatarUrl: String(form.get('avatarUrl') ?? ''),
+        classIds: form.getAll('classIds').map(String).filter(Boolean),
+        // Absent checkbox means unchecked, and the safe reading of "unchecked" is
+        // still to force a change — so this only turns OFF when asked explicitly.
+        mustChangePassword: form.get('giuMatKhau') !== 'co',
+      });
+    } catch (error) {
+      /*
+       * One refusal is a form mistake, not a permission problem.
+       *
+       * A teacher who forgets to tick a class would otherwise be told "thầy cô
+       * không có quyền" by the generic handler and go asking an admin for
+       * something they can fix themselves in two seconds.
+       *
+       * `reason` is internal and is never echoed — this matches ONE known value
+       * and answers with a sentence written here. Every other reason keeps the
+       * generic refusal, so a real boundary violation still says nothing about
+       * why.
+       */
+      if (
+        error instanceof ForbiddenError &&
+        error.reason === 'teacher-must-assign-own-class'
+      ) {
+        return {
+          trangThai: 'loi',
+          thongDiep: 'Thầy cô chọn giúp em ít nhất một lớp mà thầy cô đang dạy nhé.',
+        };
+      }
+      throw error;
+    }
 
     if (ketQua.trangThai === 'trung-ten') {
       return {

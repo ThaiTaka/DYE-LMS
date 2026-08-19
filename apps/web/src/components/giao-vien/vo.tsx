@@ -64,11 +64,9 @@ export function VoGiaoVien({
             <MucDieuHuong href="/giao-vien/du-an">Dự án game</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/microbit">Micro:bit</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/giao-trinh">Giáo trình</MucDieuHuong>
+            <MucDieuHuong href="/giao-vien/hoc-sinh">Học sinh</MucDieuHuong>
             {vaiTro === 'ADMIN' ? (
-              <>
-                <MucDieuHuong href="/giao-vien/hoc-sinh">Học sinh</MucDieuHuong>
-                <MucDieuHuong href="/giao-vien/nhan-su">Nhân sự</MucDieuHuong>
-              </>
+              <MucDieuHuong href="/giao-vien/nhan-su">Nhân sự</MucDieuHuong>
             ) : null}
           </nav>
 

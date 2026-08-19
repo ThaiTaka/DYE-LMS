@@ -76,7 +76,7 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   'nopBaiMicrobit(': 'moKhoiCode',
   'ghiNhanXet(': 'moDuAn',
   'chamTay(': 'ForbiddenError',
-  'taoTaiKhoan(': 'requireQuanTriTaoTaiKhoan',
+  'taoTaiKhoan(': 'requireCoQuyenTaoTaiKhoan',
   'voHieuHoaNhanVien(': 'requireAdminActingOnOther',
   'chuyenGiaoHoSoGiangDay(': 'requireAdminActingOnOther',
   'xoaTaiKhoanNhanVien(': 'requireAdminActingOnOther',

@@ -952,27 +952,39 @@ export interface HangTaiKhoanHocSinh {
 export interface DuLieuTaiKhoanHocSinh {
   hocSinh: HangTaiKhoanHocSinh[];
   lopDangMo: Array<{ id: string; ten: string; ma: string; giaoVien: string }>;
+  /** A teacher must place the new account in one of their own classes. */
+  batBuocChonLop: boolean;
 }
 
 /**
- * Every student account, plus the classes an admin can enrol one into.
+ * The accounts this actor may provision into, and the ones they already have.
  *
- * Admin-only, and queried BY ROLE — which every other loader in this file is
- * forbidden from doing. The exception is deliberate and narrow: this is the
- * account-provisioning view, where the question really is "which accounts
- * exist?" rather than "which children may this teacher see?". A teacher never
- * reaches it; `duLieuTaiKhoanHocSinh` returns empty for them and the page requires ADMIN
- * before it calls this at all.
+ * ── Two different questions, one loader ──────────────────────────────────────
+ * An ADMIN sees every student account and every open class, because their
+ * question is "which accounts exist?".
+ *
+ * A TEACHER sees only the children they teach and only the classes they run.
+ * That scope is taken from `hocSinhTrongTam` / `Class.teacherId` — the same
+ * relationship `taoTaiKhoan` enforces server-side — so the form can never offer
+ * a class the action would refuse. The filtering here is an affordance, not the
+ * boundary: the boundary is in core, and it holds whatever this returns.
+ *
+ * The per-student class list is scoped too. Showing a teacher every class a
+ * shared student belongs to would name another teacher's class to someone with
+ * no relationship to it.
  */
 export async function duLieuTaiKhoanHocSinh(actor: Actor): Promise<DuLieuTaiKhoanHocSinh> {
-  if (actor.role !== 'ADMIN') {
+  if (actor.role === 'STUDENT') {
     // Not a redirect: the caller decides how to present a refusal.
-    return { hocSinh: [], lopDangMo: [] };
+    return { hocSinh: [], lopDangMo: [], batBuocChonLop: false };
   }
+
+  const laQuanTri = actor.role === 'ADMIN';
+  const trongTam = laQuanTri ? null : await visibleStudentIds(db, actor);
 
   const [students, classes] = await Promise.all([
     db.user.findMany({
-      where: { role: 'STUDENT' },
+      where: laQuanTri ? { role: 'STUDENT' } : { role: 'STUDENT', id: { in: trongTam ?? [] } },
       select: {
         id: true,
         username: true,
@@ -980,14 +992,16 @@ export async function duLieuTaiKhoanHocSinh(actor: Actor): Promise<DuLieuTaiKhoa
         isActive: true,
         mustChangePassword: true,
         enrollments: {
-          where: { isActive: true },
+          where: laQuanTri
+            ? { isActive: true }
+            : { isActive: true, class: { teacherId: actor.id } },
           select: { class: { select: { name: true } } },
         },
       },
       orderBy: { displayName: 'asc' },
     }),
     db.class.findMany({
-      where: { isArchived: false },
+      where: laQuanTri ? { isArchived: false } : { isArchived: false, teacherId: actor.id },
       select: {
         id: true,
         name: true,
@@ -1013,5 +1027,6 @@ export async function duLieuTaiKhoanHocSinh(actor: Actor): Promise<DuLieuTaiKhoa
       ma: c.code,
       giaoVien: c.teacher.displayName,
     })),
+    batBuocChonLop: !laQuanTri,
   };
 }
