@@ -31,6 +31,25 @@ function loadRootEnv() {
   }
 }
 
+/**
+ * Is this the dev server?
+ *
+ * Read BEFORE `loadRootEnv()` on purpose. The repo's `.env` carries
+ * `NODE_ENV=development` for local work, so loading it first would let a
+ * checked-in file decide a security header: a build started without NODE_ENV
+ * set would pick up `development` from disk and ship `unsafe-eval`. Only the
+ * real process environment gets a vote, and `next dev` / `next build` both set
+ * it before this file is loaded.
+ *
+ * Compared against the exact string `'development'` rather than testing for
+ * "not production", so any other value — including an unset one — yields the
+ * STRICT policy. Breaking Fast Refresh is loud and harmless; shipping
+ * `unsafe-eval` to a real server is silent and not.
+ *
+ * Both directions are asserted in src/lib/bao-mat.test.ts.
+ */
+const laMoiTruongPhatTrien = process.env.NODE_ENV === 'development';
+
 loadRootEnv();
 
 /** @type {import('next').NextConfig} */
@@ -66,9 +85,17 @@ const nextConfig = {
   /**
    * Security headers.
    *
-   * CSP deliberately omits `unsafe-eval` on this origin. Pyodide needs it, so
-   * the code playground will be served from its own sandboxed origin in Phase 7
-   * rather than weakening the policy here.
+   * The production CSP omits `unsafe-eval` on this origin, and that is load
+   * bearing: this app runs code written by children, and `eval` is the shortest
+   * path from an injected string to running script. Pyodide needs it, so the
+   * code playground will be served from its own sandboxed origin rather than
+   * weakening the policy here.
+   *
+   * The DEV SERVER ONLY is a different matter. Next.js compiles modules and
+   * applies Fast Refresh by evaluating generated source at runtime, so without
+   * `unsafe-eval` the dev server throws `EvalError` and renders a blank page.
+   * That relaxation is scoped to `laMoiTruongPhatTrien` and never reaches a
+   * built artefact — asserted by a test in src/lib/bao-mat.test.ts.
    */
   async headers() {
     return [
@@ -87,7 +114,9 @@ const nextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
+              laMoiTruongPhatTrien
+                ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+                : "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self' data:",

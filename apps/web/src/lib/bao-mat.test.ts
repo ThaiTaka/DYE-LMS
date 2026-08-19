@@ -409,3 +409,90 @@ describe("Tệp 'use server' chỉ export hàm async", () => {
     expect(hong).toEqual([]);
   });
 });
+
+/**
+ * The production CSP must never carry `unsafe-eval`.
+ *
+ * `script-src` is now conditional: the Next.js dev server compiles modules and
+ * applies Fast Refresh by evaluating generated source, so without `unsafe-eval`
+ * it throws `EvalError` and renders a blank page. A conditional is exactly the
+ * shape a later edit flattens "to keep things simple", and the result would be
+ * an `eval`-friendly policy on a server running code written by children —
+ * silent, and invisible in review.
+ *
+ * So this asserts the real header both ways, by loading the actual config
+ * rather than grepping it.
+ */
+describe('CSP chỉ nới lỏng cho máy chủ phát triển', () => {
+  /*
+   * Next.js types NODE_ENV as a read-only literal union, so it cannot be
+   * assigned through `process.env` directly. This alias is the narrowest way to
+   * write it, and it exists only to drive the config through both branches.
+   */
+  const moiTruong = process.env as Record<string, string | undefined>;
+
+  async function docCsp(nodeEnv: string | undefined): Promise<string> {
+    const truoc = moiTruong['NODE_ENV'];
+    if (nodeEnv === undefined) delete moiTruong['NODE_ENV'];
+    else moiTruong['NODE_ENV'] = nodeEnv;
+
+    try {
+      // Cache-busted so the module re-evaluates: the flag is computed once at
+      // load time, which is the whole point of the check.
+      const mod = (await import(
+        /* @vite-ignore */ `${join(GOC, '../next.config.mjs')}?env=${nodeEnv ?? 'unset'}`
+      )) as { default: { headers: () => Promise<HeaderRule[]> } };
+
+      const quyTac = await mod.default.headers();
+      const chung = quyTac.find((h) => h.source === '/:path*');
+      if (!chung) throw new Error('không tìm thấy quy tắc header chung');
+
+      const csp = chung.headers.find((h) => h.key === 'Content-Security-Policy');
+      if (!csp) throw new Error('không tìm thấy Content-Security-Policy');
+      return csp.value;
+    } finally {
+      if (truoc === undefined) delete moiTruong['NODE_ENV'];
+      else moiTruong['NODE_ENV'] = truoc;
+    }
+  }
+
+  interface HeaderRule {
+    source: string;
+    headers: { key: string; value: string }[];
+  }
+
+  it('production KHÔNG có unsafe-eval', async () => {
+    const csp = await docCsp('production');
+    expect(csp).not.toContain('unsafe-eval');
+    expect(csp).toContain("script-src 'self' 'unsafe-inline'");
+  });
+
+  it('development có unsafe-eval, nếu không Fast Refresh sẽ trắng trang', async () => {
+    const csp = await docCsp('development');
+    expect(csp).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval'");
+  });
+
+  it('NODE_ENV lạ hoặc thiếu thì vẫn dùng chính sách chặt', async () => {
+    // Fail safe: only the exact string "development" relaxes the policy, so a
+    // build with NODE_ENV unset ships the strict header rather than the loose
+    // one. Breaking Fast Refresh is loud; shipping `unsafe-eval` is not.
+    for (const env of [undefined, 'test', 'staging', 'Development', 'dev']) {
+      const csp = await docCsp(env);
+      expect(csp, `NODE_ENV=${String(env)}`).not.toContain('unsafe-eval');
+    }
+  });
+
+  it('các chỉ thị còn lại giống hệt nhau ở hai môi trường', async () => {
+    // Only script-src may differ. If a future edit relaxes connect-src or
+    // frame-src "just for dev", this catches it.
+    const chia = (csp: string) =>
+      new Set(
+        csp
+          .split(';')
+          .map((s) => s.trim())
+          .filter((s) => s && !s.startsWith('script-src')),
+      );
+
+    expect(chia(await docCsp('development'))).toEqual(chia(await docCsp('production')));
+  });
+});
