@@ -25,6 +25,7 @@ const canThiepStub = vi.hoisted(() => vi.fn());
 const voHieuStub = vi.hoisted(() => vi.fn());
 const chuyenGiaoStub = vi.hoisted(() => vi.fn());
 const xoaStub = vi.hoisted(() => vi.fn());
+const phanCongStub = vi.hoisted(() => vi.fn());
 
 vi.mock('@/app/giao-vien/actions', () => ({
   CHUA_LAM: { trangThai: 'chua-lam', thongDiep: '' },
@@ -33,10 +34,12 @@ vi.mock('@/app/giao-vien/actions', () => ({
   voHieuHoa: voHieuStub,
   chuyenGiao: chuyenGiaoStub,
   xoaNhanVien: xoaStub,
+  phanCongLop: phanCongStub,
 }));
 
 beforeEach(() => {
-  for (const s of [datNhanhStub, canThiepStub, voHieuStub, chuyenGiaoStub, xoaStub]) s.mockReset();
+  for (const s of [datNhanhStub, canThiepStub, voHieuStub, chuyenGiaoStub, xoaStub, phanCongStub])
+    s.mockReset();
 });
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
@@ -70,7 +73,13 @@ const NHAN_SU = {
   isActive: true,
   soLop: 2,
   laToi: false,
+  tenLop: ['Python Cơ Bản · Khối 7', 'Lập Trình Game · Khối 8'],
 };
+
+/** Open classes held by SOMEONE ELSE, so this row can be offered them. */
+const LOP_CO_THE_GIAO = [
+  { id: 'lop9', ten: 'Python Nâng Cao · Khối 9', ma: 'DYE-ADV-K9', chuId: 'gv2', chuTen: 'Thầy Trần Văn Minh' },
+];
 
 const NGUOI_NHAN = [
   { id: 'gv2', username: 'thay.minh', displayName: 'Thầy Trần Văn Minh' },
@@ -390,5 +399,89 @@ describe('Khả năng tiếp cận (axe)', () => {
 
     expect(chamToi).toContain('INPUT');
     expect(chamToi).toContain('BUTTON');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Phân công lớp
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('Phân công lớp cho nhân sự', () => {
+  it('mở được biểu mẫu và nói rõ lớp đang do ai phụ trách', async () => {
+    const nguoiDung = userEvent.setup();
+    render(<HangNhanSu nv={NHAN_SU} nguoiNhan={NGUOI_NHAN} lopDangMo={LOP_CO_THE_GIAO} />);
+
+    await nguoiDung.click(screen.getByRole('button', { name: /phân công lớp/i }));
+
+    // Every class already has a holder, so the admin has to be told whose class
+    // they are about to move before they tick it.
+    expect(screen.getByText(/đang do Thầy Trần Văn Minh phụ trách/i)).toBeInTheDocument();
+  });
+
+  it('nói thẳng rằng nhận lớp là được xem dữ liệu của các em', async () => {
+    const nguoiDung = userEvent.setup();
+    render(<HangNhanSu nv={NHAN_SU} nguoiNhan={NGUOI_NHAN} lopDangMo={LOP_CO_THE_GIAO} />);
+
+    await nguoiDung.click(screen.getByRole('button', { name: /phân công lớp/i }));
+    expect(screen.getByText(/không còn xem được nữa/i)).toBeInTheDocument();
+  });
+
+  it('không chào lại lớp mà người đó đang phụ trách', async () => {
+    const nguoiDung = userEvent.setup();
+    render(
+      <HangNhanSu
+        nv={NHAN_SU}
+        nguoiNhan={NGUOI_NHAN}
+        lopDangMo={[
+          ...LOP_CO_THE_GIAO,
+          { id: 'lop7', ten: 'Python Cơ Bản · Khối 7', ma: 'DYE-PY-K7', chuId: NHAN_SU.id, chuTen: NHAN_SU.displayName },
+        ]}
+      />,
+    );
+
+    await nguoiDung.click(screen.getByRole('button', { name: /phân công lớp/i }));
+    const o = screen.getAllByRole('checkbox');
+    // Only the other teacher's class. Re-offering their own would imply that
+    // unticking could take it away, and `Class.teacherId` cannot be null.
+    expect(o.map((x) => x.getAttribute('value'))).toEqual(['lop9']);
+  });
+
+  it('vẫn phân công được cho chính mình, dù không tự ngưng hay tự xoá được', async () => {
+    const nguoiDung = userEvent.setup();
+    render(
+      <HangNhanSu
+        nv={{ ...NHAN_SU, laToi: true }}
+        nguoiNhan={NGUOI_NHAN}
+        lopDangMo={LOP_CO_THE_GIAO}
+      />,
+    );
+
+    // Taking a class is ordinary admin work; removing your own account is not.
+    expect(screen.queryByRole('button', { name: /ngưng quyền truy cập/i })).not.toBeInTheDocument();
+    await nguoiDung.click(screen.getByRole('button', { name: /phân công lớp/i }));
+    expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+  });
+
+  it('không hiện nút khi không còn lớp nào để giao', () => {
+    render(<HangNhanSu nv={NHAN_SU} nguoiNhan={NGUOI_NHAN} lopDangMo={[]} />);
+    expect(screen.queryByRole('button', { name: /phân công lớp/i })).not.toBeInTheDocument();
+  });
+
+  it('không phân công cho tài khoản đã ngưng hoạt động', () => {
+    // A class whose teacher cannot log in is a class nobody is running, so the
+    // control is not offered at all.
+    render(
+      <HangNhanSu
+        nv={{ ...NHAN_SU, isActive: false }}
+        nguoiNhan={NGUOI_NHAN}
+        lopDangMo={LOP_CO_THE_GIAO}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /phân công lớp/i })).not.toBeInTheDocument();
+  });
+
+  it('liệt kê các lớp người đó đang phụ trách ngay ở dòng tóm tắt', () => {
+    render(<HangNhanSu nv={NHAN_SU} nguoiNhan={NGUOI_NHAN} lopDangMo={LOP_CO_THE_GIAO} />);
+    expect(screen.getByText(/Lập Trình Game · Khối 8/)).toBeInTheDocument();
   });
 });

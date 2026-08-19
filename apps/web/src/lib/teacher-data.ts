@@ -734,20 +734,40 @@ export interface HangNhanVien {
   isActive: boolean;
   soLop: number;
   laToi: boolean;
+  /** Names of the classes this person currently runs. */
+  tenLop: string[];
+}
+
+/** An open class, and who runs it today. */
+export interface LopCoTheGiao {
+  id: string;
+  ten: string;
+  ma: string;
+  chuId: string;
+  chuTen: string;
 }
 
 export interface DuLieuNhanVien {
   nhanVien: HangNhanVien[];
   nguoiNhanBanGiao: Array<{ id: string; username: string; displayName: string; role: Role }>;
+  /**
+   * Every open class with its current holder.
+   *
+   * `Class.teacherId` is not nullable, so there is no pool of unheld classes to
+   * offer — assigning one always takes it from the person named here. The row UI
+   * shows that name, because "who is this coming from?" is the question an admin
+   * needs answered before they confirm.
+   */
+  lopDangMo: LopCoTheGiao[];
 }
 
 export async function duLieuNhanVien(actor: Actor): Promise<DuLieuNhanVien> {
   if (actor.role !== 'ADMIN') {
     // Not a redirect: the caller decides how to present a refusal.
-    return { nhanVien: [], nguoiNhanBanGiao: [] };
+    return { nhanVien: [], nguoiNhanBanGiao: [], lopDangMo: [] };
   }
 
-  const [staff, keNhiem] = await Promise.all([
+  const [staff, keNhiem, lop] = await Promise.all([
     db.user.findMany({
       where: { role: { in: ['TEACHER', 'ADMIN'] } },
       select: {
@@ -757,10 +777,26 @@ export async function duLieuNhanVien(actor: Actor): Promise<DuLieuNhanVien> {
         role: true,
         isActive: true,
         _count: { select: { taughtClasses: true } },
+        taughtClasses: {
+          where: { isArchived: false },
+          select: { name: true },
+          orderBy: { name: 'asc' },
+        },
       },
       orderBy: [{ role: 'asc' }, { displayName: 'asc' }],
     }),
     nguoiCoTheNhanBanGiao(db, actor.id),
+    db.class.findMany({
+      where: { isArchived: false },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        teacherId: true,
+        teacher: { select: { displayName: true } },
+      },
+      orderBy: { name: 'asc' },
+    }),
   ]);
 
   return {
@@ -772,8 +808,16 @@ export async function duLieuNhanVien(actor: Actor): Promise<DuLieuNhanVien> {
       isActive: s.isActive,
       soLop: s._count.taughtClasses,
       laToi: s.id === actor.id,
+      tenLop: s.taughtClasses.map((c) => c.name),
     })),
     nguoiNhanBanGiao: keNhiem,
+    lopDangMo: lop.map((l) => ({
+      id: l.id,
+      ten: l.name,
+      ma: l.code,
+      chuId: l.teacherId,
+      chuTen: l.teacher.displayName,
+    })),
   };
 }
 

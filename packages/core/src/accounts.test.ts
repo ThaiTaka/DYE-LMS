@@ -14,11 +14,13 @@ import {
   chuyenGiaoHoSoGiangDay,
   khoiPhucNhanVien,
   nguoiCoTheNhanBanGiao,
+  phanCongLopHoc,
   taoTaiKhoan,
   voHieuHoaNhanVien,
   xoaTaiKhoanNhanVien,
   type TaoTaiKhoanInput,
 } from './accounts';
+import { visibleStudentIds } from './authz';
 import { ForbiddenError } from './errors';
 import { verifyPassword } from './password';
 import { createSession, validateSession, type Actor } from './session';
@@ -713,5 +715,204 @@ describe('taoTaiKhoan — giáo viên chỉ cấp được cho lớp mình dạy
   it('quản trị viên vẫn tạo được học sinh chưa có lớp', async () => {
     const kq = await tao({ username: `${fx.prefix}hs.qtkholop`, classIds: [] }, admin);
     expect(kq.trangThai).toBe('thanh-cong');
+  });
+});
+
+/**
+ * Handing a class to a member of staff.
+ *
+ * Reassigning `Class.teacherId` moves access to a group of children from one
+ * adult to another, so the tests that matter are the ones proving who cannot do
+ * it. Own teachers and classes again, for the same reason as the block above: the
+ * retirement tests upstream have already moved `fx.classA` to a successor.
+ */
+describe('phanCongLopHoc — giao lớp cho thầy cô', () => {
+  let gvA: string;
+  let gvB: Actor;
+  let gvNgung: string;
+  let lop1: string;
+  let lop2: string;
+  let lopLuuTru: string;
+
+  beforeAll(async () => {
+    const tao = (username: string, displayName: string, isActive = true) =>
+      fx.db.user.create({
+        data: { username, displayName, role: 'TEACHER', passwordHash: fx.passwordHash, isActive },
+        select: { id: true },
+      });
+
+    const [a, b, ngung] = await Promise.all([
+      tao(`${fx.prefix}pc.gva`, 'Cô A'),
+      tao(`${fx.prefix}pc.gvb`, 'Thầy B'),
+      tao(`${fx.prefix}pc.ngung`, 'Cô Đã Ngưng', false),
+    ]);
+
+    const [l1, l2, luu] = await Promise.all([
+      fx.db.class.create({
+        data: { code: `${fx.prefix}PC-1`, name: 'Lớp Một', teacherId: a.id },
+        select: { id: true },
+      }),
+      fx.db.class.create({
+        data: { code: `${fx.prefix}PC-2`, name: 'Lớp Hai', teacherId: a.id },
+        select: { id: true },
+      }),
+      fx.db.class.create({
+        data: {
+          code: `${fx.prefix}PC-LUU`,
+          name: 'Lớp Lưu Trữ',
+          teacherId: a.id,
+          isArchived: true,
+        },
+        select: { id: true },
+      }),
+    ]);
+
+    gvA = a.id;
+    gvB = await actorFor(fx.db, b.id);
+    gvNgung = ngung.id;
+    lop1 = l1.id;
+    lop2 = l2.id;
+    lopLuuTru = luu.id;
+  });
+
+  afterAll(async () => {
+    await fx.db.class.deleteMany({ where: { id: { in: [lop1, lop2, lopLuuTru] } } });
+    await fx.db.user.deleteMany({ where: { id: { in: [gvA, gvB.id, gvNgung] } } });
+  });
+
+  /** Put both classes back with teacher A, so each test starts from the same place. */
+  async function traVeGvA(): Promise<void> {
+    await fx.db.class.updateMany({
+      where: { id: { in: [lop1, lop2, lopLuuTru] } },
+      data: { teacherId: gvA },
+    });
+  }
+
+  async function chuLop(id: string): Promise<string> {
+    const l = await fx.db.class.findUniqueOrThrow({
+      where: { id },
+      select: { teacherId: true },
+    });
+    return l.teacherId;
+  }
+
+  it('quản trị viên giao được nhiều lớp một lượt', async () => {
+    await traVeGvA();
+    const kq = await phanCongLopHoc(fx.db, admin, gvB.id, [lop1, lop2]);
+
+    expect(kq.daChuyen.map((l) => l.ten).sort()).toEqual(['Lớp Hai', 'Lớp Một']);
+    expect(kq.daChuyen.every((l) => l.tuAi === 'Cô A')).toBe(true);
+    expect(await chuLop(lop1)).toBe(gvB.id);
+    expect(await chuLop(lop2)).toBe(gvB.id);
+  });
+
+  it('GIÁO VIÊN không được tự giao lớp cho mình', async () => {
+    await traVeGvA();
+    // The escalation this guard exists for: whoever holds a class holds access to
+    // those children's records.
+    await expect(phanCongLopHoc(fx.db, gvB, gvB.id, [lop1])).rejects.toThrow(ForbiddenError);
+    expect(await chuLop(lop1)).toBe(gvA);
+  });
+
+  it('giáo viên không được giao cả lớp của CHÍNH MÌNH cho người khác', async () => {
+    await traVeGvA();
+    const chuA = await actorFor(fx.db, gvA);
+    await expect(phanCongLopHoc(fx.db, chuA, gvB.id, [lop1])).rejects.toThrow(ForbiddenError);
+    expect(await chuLop(lop1)).toBe(gvA);
+  });
+
+  it('học sinh thì hoàn toàn không', async () => {
+    await traVeGvA();
+    const hocSinh = await actorFor(fx.db, fx.studentA1);
+    await expect(phanCongLopHoc(fx.db, hocSinh, gvB.id, [lop1])).rejects.toThrow(ForbiddenError);
+  });
+
+  it('quản trị viên đã bị ngưng cũng không', async () => {
+    await traVeGvA();
+    const daNgung: Actor = { ...admin, isActive: false };
+    await expect(phanCongLopHoc(fx.db, daNgung, gvB.id, [lop1])).rejects.toThrow(ForbiddenError);
+  });
+
+  it('không giao được cho tài khoản đã ngưng hoạt động', async () => {
+    await traVeGvA();
+    // A class whose teacher cannot log in is a class nobody is running.
+    await expect(phanCongLopHoc(fx.db, admin, gvNgung, [lop1])).rejects.toThrow(ForbiddenError);
+    expect(await chuLop(lop1)).toBe(gvA);
+  });
+
+  it('không giao được cho học sinh', async () => {
+    await traVeGvA();
+    await expect(phanCongLopHoc(fx.db, admin, fx.studentA1, [lop1])).rejects.toThrow(
+      ForbiddenError,
+    );
+    expect(await chuLop(lop1)).toBe(gvA);
+  });
+
+  it('lớp đã lưu trữ thì không giao', async () => {
+    await traVeGvA();
+    await expect(phanCongLopHoc(fx.db, admin, gvB.id, [lopLuuTru])).rejects.toThrow(
+      ForbiddenError,
+    );
+    expect(await chuLop(lopLuuTru)).toBe(gvA);
+  });
+
+  it('một id lạ thì huỷ CẢ lượt, không giao một nửa', async () => {
+    await traVeGvA();
+    await expect(
+      phanCongLopHoc(fx.db, admin, gvB.id, [lop1, 'lop-khong-ton-tai']),
+    ).rejects.toThrow(ForbiddenError);
+    // The valid half must not have moved.
+    expect(await chuLop(lop1)).toBe(gvA);
+  });
+
+  it('lớp đã thuộc người đó thì bỏ qua, không tính là chuyển', async () => {
+    await traVeGvA();
+    await phanCongLopHoc(fx.db, admin, gvB.id, [lop1]);
+
+    const lai = await phanCongLopHoc(fx.db, admin, gvB.id, [lop1, lop2]);
+    expect(lai.giuNguyen).toBe(1);
+    expect(lai.daChuyen.map((l) => l.ten)).toEqual(['Lớp Hai']);
+  });
+
+  it('ghi nhật ký từng lớp, kèm người giao và người nhận', async () => {
+    await traVeGvA();
+    await phanCongLopHoc(fx.db, admin, gvB.id, [lop1, lop2]);
+
+    const log = await fx.db.auditLog.findMany({
+      where: {
+        action: ACCOUNT_AUDIT.CLASS_REASSIGNED,
+        entityType: 'Class',
+        entityId: { in: [lop1, lop2] },
+      },
+      select: { actorId: true, entityId: true, meta: true },
+      orderBy: { createdAt: 'desc' },
+      take: 2,
+    });
+
+    expect(log).toHaveLength(2);
+    expect(log.every((l) => l.actorId === fx.admin)).toBe(true);
+    for (const l of log) {
+      const meta = l.meta as { tuAi: string; choAi: string };
+      expect(meta.tuAi).toBe('Cô A');
+      expect(meta.choAi).toBe('Thầy B');
+    }
+  });
+
+  it('người mất lớp không còn thấy các em đó, không cần đăng xuất', async () => {
+    await traVeGvA();
+
+    // Enrol a real child in the class, then move the class.
+    await fx.db.enrollment.create({ data: { classId: lop1, studentId: fx.studentB1 } });
+    const chuA = await actorFor(fx.db, gvA);
+    expect(await visibleStudentIds(fx.db, chuA)).toContain(fx.studentB1);
+
+    await phanCongLopHoc(fx.db, admin, gvB.id, [lop1]);
+
+    // Same Actor object — no re-login — because scope is read per request from
+    // Class.teacherId rather than cached at sign-in.
+    expect(await visibleStudentIds(fx.db, chuA)).not.toContain(fx.studentB1);
+    expect(await visibleStudentIds(fx.db, gvB)).toContain(fx.studentB1);
+
+    await fx.db.enrollment.deleteMany({ where: { classId: lop1, studentId: fx.studentB1 } });
   });
 });

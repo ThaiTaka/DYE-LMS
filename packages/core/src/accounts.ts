@@ -44,6 +44,7 @@ export const ACCOUNT_AUDIT = {
   DEACTIVATED: 'account.deactivated',
   REACTIVATED: 'account.reactivated',
   RECORD_TRANSFERRED: 'account.record_transferred',
+  CLASS_REASSIGNED: 'account.class_reassigned',
   DELETED: 'account.deleted',
 } as const;
 
@@ -710,5 +711,132 @@ export async function taoTaiKhoan(
     displayName: user.displayName,
     role: user.role,
     soLop: classIds.length,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Assigning classes to a teacher
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface KetQuaPhanCongLop {
+  /** Classes that actually changed hands. */
+  daChuyen: Array<{ ten: string; tuAi: string }>;
+  /** Classes already held by this person, left alone. */
+  giuNguyen: number;
+}
+
+/** Refuse unless the actor is an active admin, and the target can hold a class. */
+async function requireQuanTriPhanCongLop(
+  db: PrismaClient,
+  actor: Actor,
+  targetId: string,
+): Promise<{ id: string; displayName: string }> {
+  if (!actor.isActive) throw new ForbiddenError('actor-disabled');
+
+  /*
+   * ADMIN only, and deliberately not relational.
+   *
+   * Everywhere else a teacher's reach is bounded by `Class.teacherId`, so it is
+   * tempting to let a teacher hand their own class to a colleague. That would be
+   * the one relational rule that grants rather than limits: whoever holds a class
+   * holds access to those children's records, so a teacher able to reassign could
+   * pass that access around without anyone with oversight involved. Moving
+   * children between adults is an administrative act.
+   */
+  if (actor.role !== 'ADMIN') throw new ForbiddenError('only-admin-assigns-classes');
+
+  const target = await db.user.findUnique({
+    where: { id: targetId },
+    select: { id: true, displayName: true, role: true, isActive: true },
+  });
+  if (!target) throw new ForbiddenError('target-not-found');
+
+  // A class whose teacher cannot log in is a class nobody is running.
+  if (!target.isActive) throw new ForbiddenError('target-inactive');
+  if (target.role === 'STUDENT') throw new ForbiddenError('student-cannot-hold-class');
+
+  return { id: target.id, displayName: target.displayName };
+}
+
+/**
+ * Hand classes to a member of staff.
+ *
+ * ── Every assignment is a REASSIGNMENT ───────────────────────────────────────
+ * `Class.teacherId` is not nullable, so no class is ever unheld and there is no
+ * "unassigned" pool to draw from. Giving a class to someone always takes it from
+ * someone else, which is why the result names who each class came from and why
+ * the caller shows that before the admin confirms. It is also why the UI can only
+ * add: "unticking" a class would have to mean assigning it to nobody, and the
+ * column forbids that.
+ *
+ * ── What moves, and what deliberately does not ───────────────────────────────
+ * Only `Class.teacherId`. `TrackAssignment.assignedBy`, `LessonOverride.createdBy`,
+ * `Announcement.authorId` and `Feedback.authorId` keep pointing at whoever made
+ * those decisions — see the note at the top of this file. The new teacher runs
+ * the class from now on; they did not retroactively decide that a child belongs on
+ * Nâng cao. `chuyenGiaoHoSoGiangDay` is the flow for moving authorship, and it
+ * exists because someone is leaving.
+ *
+ * ── No session work ──────────────────────────────────────────────────────────
+ * The teacher losing a class keeps their session, and loses sight of those
+ * children on their very next request: `authorize()` and `visibleStudentIds()`
+ * both read `Class.teacherId` every time rather than caching a scope at login.
+ * Revoking sessions here would log someone out of their other classes for no
+ * reason.
+ */
+export async function phanCongLopHoc(
+  db: PrismaClient,
+  actor: Actor,
+  targetId: string,
+  classIds: string[],
+  context: SessionContext = {},
+): Promise<KetQuaPhanCongLop> {
+  const target = await requireQuanTriPhanCongLop(db, actor, targetId);
+
+  if (classIds.length === 0) throw new ForbiddenError('no-class-selected');
+
+  const lop = await db.class.findMany({
+    where: { id: { in: classIds }, isArchived: false },
+    select: { id: true, name: true, teacherId: true, teacher: { select: { displayName: true } } },
+  });
+
+  // An id that names nothing, or names an archived class, is not a partial
+  // success. Refusing the whole batch means the admin sees a stale form for what
+  // it is instead of half a reassignment.
+  if (lop.length !== classIds.length) throw new ForbiddenError('class-not-found-or-archived');
+
+  const canChuyen = lop.filter((l) => l.teacherId !== target.id);
+
+  await db.$transaction([
+    db.class.updateMany({
+      where: { id: { in: canChuyen.map((l) => l.id) } },
+      data: { teacherId: target.id },
+    }),
+    // One row per class: each is a separate group of children changing hands, and
+    // "who was running this class in March?" has to stay answerable per class.
+    ...canChuyen.map((l) =>
+      db.auditLog.create({
+        data: {
+          actorId: actor.id,
+          action: ACCOUNT_AUDIT.CLASS_REASSIGNED,
+          entityType: 'Class',
+          entityId: l.id,
+          meta: {
+            lop: l.name,
+            tuAi: l.teacher.displayName,
+            tuId: l.teacherId,
+            choAi: target.displayName,
+            choId: target.id,
+          },
+          ipAddress: context.ipAddress ?? null,
+          userAgent: context.userAgent ?? null,
+        },
+      }),
+    ),
+  ]);
+
+  return {
+    daChuyen: canChuyen.map((l) => ({ ten: l.name, tuAi: l.teacher.displayName })),
+    giuNguyen: lop.length - canChuyen.length,
   };
 }

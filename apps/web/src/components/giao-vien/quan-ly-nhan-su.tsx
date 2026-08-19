@@ -1,9 +1,9 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
-import { chuyenGiao, voHieuHoa, xoaNhanVien } from '@/app/giao-vien/actions';
+import { chuyenGiao, phanCongLop, voHieuHoa, xoaNhanVien } from '@/app/giao-vien/actions';
 import { CHUA_LAM } from '@/app/giao-vien/ket-qua';
 
 import { PhanHoi } from './dieu-khien-nhanh';
@@ -16,12 +16,22 @@ export interface NhanVienHienThi {
   isActive: boolean;
   soLop: number;
   laToi: boolean;
+  tenLop: string[];
 }
 
 export interface NguoiNhan {
   id: string;
   username: string;
   displayName: string;
+}
+
+/** An open class and who runs it today. */
+export interface LopCoTheGiao {
+  id: string;
+  ten: string;
+  ma: string;
+  chuId: string;
+  chuTen: string;
 }
 
 function Nut({
@@ -62,17 +72,39 @@ function Nut({
 export function HangNhanSu({
   nv,
   nguoiNhan,
+  lopDangMo = [],
 }: {
   nv: NhanVienHienThi;
   nguoiNhan: NguoiNhan[];
+  lopDangMo?: LopCoTheGiao[];
 }) {
   const [moXoa, setMoXoa] = useState(false);
+  const [moLop, setMoLop] = useState(false);
 
   const [kqVoHieu, actionVoHieu] = useActionState(voHieuHoa, CHUA_LAM);
   const [kqChuyen, actionChuyen] = useActionState(chuyenGiao, CHUA_LAM);
   const [kqXoa, actionXoa] = useActionState(xoaNhanVien, CHUA_LAM);
+  const [kqLop, actionLop] = useActionState(phanCongLop, CHUA_LAM);
 
   const vungId = `xoa-${nv.id}`;
+  const vungLopId = `lop-${nv.id}`;
+
+  /*
+   * Only classes this person does NOT already run.
+   *
+   * `Class.teacherId` cannot be null, so this form can only ADD: unticking a
+   * class would have to mean assigning it to nobody. Taking a class away is done
+   * by giving it to someone else, from their own row.
+   */
+  const lopCoTheGiao = lopDangMo.filter((l) => l.chuId !== nv.id);
+
+  // Remount the class form after each success so nothing stays ticked. The list
+  // itself shrinks on its own: a revalidated page no longer offers a class this
+  // person now runs.
+  const [soLanGiao, setSoLanGiao] = useState(0);
+  useEffect(() => {
+    if (kqLop.trangThai === 'thanh-cong') setSoLanGiao((n) => n + 1);
+  }, [kqLop]);
 
   return (
     <li className="rounded-the border border-vien bg-the p-5">
@@ -96,32 +128,103 @@ export function HangNhanSu({
           </h3>
           <p className="m-0 text-sm text-chu-nhat">
             {nv.username} · phụ trách {nv.soLop} lớp
+            {nv.tenLop.length > 0 ? `: ${nv.tenLop.join(', ')}` : ''}
           </p>
         </div>
 
-        {!nv.laToi ? (
-          <div className="flex flex-wrap items-center gap-2">
-            {nv.isActive ? (
-              <form action={actionVoHieu}>
-                <input type="hidden" name="targetId" value={nv.id} />
-                <Nut nhan="Ngưng quyền truy cập" kieu="chinh" />
-              </form>
-            ) : null}
-
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+            Outside the `laToi` guard, unlike the retirement controls: an admin
+            may not deactivate or delete themselves, but taking a class is a
+            perfectly ordinary thing for them to do.
+          */}
+          {nv.isActive && lopCoTheGiao.length > 0 ? (
             <button
               type="button"
-              onClick={() => setMoXoa((v) => !v)}
-              aria-expanded={moXoa}
-              aria-controls={vungId}
+              onClick={() => setMoLop((v) => !v)}
+              aria-expanded={moLop}
+              aria-controls={vungLopId}
               className="min-h-cham rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-vien-dam hover:text-chu"
             >
-              {moXoa ? 'Đóng' : 'Bàn giao hoặc xoá…'}
+              {moLop ? 'Đóng' : 'Phân công lớp…'}
             </button>
-          </div>
-        ) : null}
+          ) : null}
+
+          {!nv.laToi ? (
+            <>
+              {nv.isActive ? (
+                <form action={actionVoHieu}>
+                  <input type="hidden" name="targetId" value={nv.id} />
+                  <Nut nhan="Ngưng quyền truy cập" kieu="chinh" />
+                </form>
+              ) : null}
+
+              <button
+                type="button"
+                onClick={() => setMoXoa((v) => !v)}
+                aria-expanded={moXoa}
+                aria-controls={vungId}
+                className="min-h-cham rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-vien-dam hover:text-chu"
+              >
+                {moXoa ? 'Đóng' : 'Bàn giao hoặc xoá…'}
+              </button>
+            </>
+          ) : null}
+        </div>
       </div>
 
       <PhanHoi ketQua={kqVoHieu} />
+
+      {/* Kept outside the panel so the outcome survives the remount that clears
+          the boxes, and stays readable after the panel is closed again. */}
+      <div className="mt-3 empty:mt-0">
+        <PhanHoi ketQua={kqLop} />
+      </div>
+
+      {moLop && nv.isActive ? (
+        <div id={vungLopId} className="mt-4 border-t border-vien pt-4">
+          <form key={soLanGiao} action={actionLop}>
+            <input type="hidden" name="targetId" value={nv.id} />
+
+            <h4 className="mt-0 mb-2 text-sm font-bold">
+              Giao lớp cho {nv.displayName}
+            </h4>
+            <p className="mt-0 mb-3 text-sm text-chu-phu">
+              Mỗi lớp luôn có đúng một người phụ trách, nên giao lớp là{' '}
+              <strong className="text-chu">chuyển</strong> lớp từ người đang phụ trách sang thầy
+              cô này.{' '}
+              <strong className="text-chu">
+                Người nhận lớp sẽ xem được dữ liệu của các em trong lớp đó, và người giao thì
+                không còn xem được nữa.
+              </strong>
+            </p>
+
+            <fieldset className="m-0 mb-3 border-0 p-0">
+              <legend className="mb-2 text-sm font-semibold">Chọn lớp để giao</legend>
+              <div className="space-y-2">
+                {lopCoTheGiao.map((l) => (
+                  <label key={l.id} className="flex items-start gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name="classIds"
+                      value={l.id}
+                      className="mt-0.5 h-4 w-4"
+                    />
+                    <span>
+                      {l.ten}{' '}
+                      <span className="text-chu-phu">
+                        ({l.ma} · đang do {l.chuTen} phụ trách)
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <Nut nhan="Giao các lớp đã chọn" kieu="chinh" />
+          </form>
+        </div>
+      ) : null}
 
       {moXoa && !nv.laToi ? (
         <div id={vungId} className="mt-4 border-t border-vien pt-4">

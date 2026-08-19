@@ -51,7 +51,12 @@ export default async function TrangNhanSu() {
 
       <ul className="m-0 list-none space-y-4 p-0">
         {data.nhanVien.map((nv) => (
-          <HangNhanSu key={nv.id} nv={nv} nguoiNhan={data.nguoiNhanBanGiao} />
+          <HangNhanSu
+            key={nv.id}
+            nv={nv}
+            nguoiNhan={data.nguoiNhanBanGiao}
+            lopDangMo={data.lopDangMo}
+          />
         ))}
       </ul>
     </VoGiaoVien>

@@ -18,6 +18,7 @@ import {
   chamTay,
   chuyenGiaoHoSoGiangDay,
   laVaiTroTaoDuoc,
+  phanCongLopHoc,
   taoTaiKhoan,
   voHieuHoaNhanVien,
   xoaTaiKhoanNhanVien,
@@ -491,6 +492,55 @@ export async function taoTaiKhoanMoi(
         `Đã tạo tài khoản ${vaiTro} “${ketQua.displayName}” với tên đăng nhập ${ketQua.username}` +
         (ketQua.soLop > 0 ? `, đã xếp vào ${ketQua.soLop} lớp` : '') +
         '. Lần đăng nhập đầu tiên, tài khoản sẽ được yêu cầu tự đặt lại mật khẩu.',
+    };
+  });
+}
+
+/**
+ * Hand one or more classes to a member of staff. Admin-only, enforced in
+ * `phanCongLopHoc`.
+ *
+ * Both the personnel page and the student page are revalidated: moving a class
+ * changes who runs it AND which children each teacher can see, and the student
+ * page is built from exactly that scope.
+ */
+export async function phanCongLop(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const targetId = String(form.get('targetId') ?? '');
+    if (!targetId) return { trangThai: 'loi', thongDiep: 'Thiếu thầy cô cần phân công.' };
+
+    const classIds = form.getAll('classIds').map(String).filter(Boolean);
+    if (classIds.length === 0) {
+      // Answered here rather than letting the guard refuse it, so forgetting to
+      // tick a box does not read as a permission problem.
+      return { trangThai: 'loi', thongDiep: 'Chọn giúp em ít nhất một lớp để giao nhé.' };
+    }
+
+    const kq = await phanCongLopHoc(db, actor, targetId, classIds);
+    revalidatePath('/giao-vien/nhan-su');
+    revalidatePath('/giao-vien/hoc-sinh');
+
+    if (kq.daChuyen.length === 0) {
+      return {
+        trangThai: 'thanh-cong',
+        thongDiep: 'Các lớp đã chọn vốn đã do thầy cô này phụ trách, nên không có gì thay đổi.',
+      };
+    }
+
+    const dsLop = kq.daChuyen.map((l) => `${l.ten} (từ ${l.tuAi})`).join('; ');
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã giao ${kq.daChuyen.length} lớp: ${dsLop}. ` +
+        'Thầy cô nhận lớp từ giờ xem được dữ liệu của các em trong những lớp này, ' +
+        'và người giao lớp thì không còn xem được nữa.' +
+        (kq.giuNguyen > 0 ? ` ${kq.giuNguyen} lớp vốn đã thuộc thầy cô này.` : ''),
     };
   });
 }
