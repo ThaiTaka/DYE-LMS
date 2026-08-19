@@ -1,4 +1,5 @@
 import { HangNhanSu } from '@/components/giao-vien/quan-ly-nhan-su';
+import { TaoTaiKhoan } from '@/components/giao-vien/tao-tai-khoan';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { requireRole } from '@/lib/guard';
@@ -21,6 +22,8 @@ export default async function TrangNhanSu() {
           rời trường.
         </p>
       </header>
+
+      <TaoTaiKhoan tieuDe="Thêm nhân sự" nhanMo="Thêm nhân sự" />
 
       <section
         aria-labelledby="vi-sao-ban-giao"

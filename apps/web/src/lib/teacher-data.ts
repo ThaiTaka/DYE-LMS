@@ -937,3 +937,81 @@ export async function baiMicrobitDeCham(
 export async function hocSinhTrongTam(actor: Actor): Promise<string[]> {
   return visibleStudentIds(db, actor);
 }
+
+/** One student row on the provisioning page. */
+export interface HangTaiKhoanHocSinh {
+  id: string;
+  username: string;
+  displayName: string;
+  isActive: boolean;
+  mustChangePassword: boolean;
+  /** Class names this student is actively enrolled in. */
+  lop: string[];
+}
+
+export interface DuLieuTaiKhoanHocSinh {
+  hocSinh: HangTaiKhoanHocSinh[];
+  lopDangMo: Array<{ id: string; ten: string; ma: string; giaoVien: string }>;
+}
+
+/**
+ * Every student account, plus the classes an admin can enrol one into.
+ *
+ * Admin-only, and queried BY ROLE — which every other loader in this file is
+ * forbidden from doing. The exception is deliberate and narrow: this is the
+ * account-provisioning view, where the question really is "which accounts
+ * exist?" rather than "which children may this teacher see?". A teacher never
+ * reaches it; `duLieuTaiKhoanHocSinh` returns empty for them and the page requires ADMIN
+ * before it calls this at all.
+ */
+export async function duLieuTaiKhoanHocSinh(actor: Actor): Promise<DuLieuTaiKhoanHocSinh> {
+  if (actor.role !== 'ADMIN') {
+    // Not a redirect: the caller decides how to present a refusal.
+    return { hocSinh: [], lopDangMo: [] };
+  }
+
+  const [students, classes] = await Promise.all([
+    db.user.findMany({
+      where: { role: 'STUDENT' },
+      select: {
+        id: true,
+        username: true,
+        displayName: true,
+        isActive: true,
+        mustChangePassword: true,
+        enrollments: {
+          where: { isActive: true },
+          select: { class: { select: { name: true } } },
+        },
+      },
+      orderBy: { displayName: 'asc' },
+    }),
+    db.class.findMany({
+      where: { isArchived: false },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        teacher: { select: { displayName: true } },
+      },
+      orderBy: { name: 'asc' },
+    }),
+  ]);
+
+  return {
+    hocSinh: students.map((s) => ({
+      id: s.id,
+      username: s.username,
+      displayName: s.displayName,
+      isActive: s.isActive,
+      mustChangePassword: s.mustChangePassword,
+      lop: s.enrollments.map((e) => e.class.name),
+    })),
+    lopDangMo: classes.map((c) => ({
+      id: c.id,
+      ten: c.name,
+      ma: c.code,
+      giaoVien: c.teacher.displayName,
+    })),
+  };
+}

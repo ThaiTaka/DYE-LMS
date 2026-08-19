@@ -17,6 +17,8 @@ import {
   authorize,
   chamTay,
   chuyenGiaoHoSoGiangDay,
+  laVaiTroTaoDuoc,
+  taoTaiKhoan,
   voHieuHoaNhanVien,
   xoaTaiKhoanNhanVien,
   ForbiddenError,
@@ -400,6 +402,69 @@ export async function xoaNhanVien(
     return {
       trangThai: 'thanh-cong',
       thongDiep: `Đã xoá tài khoản ${kq.username}. Nhật ký kiểm toán vẫn giữ lại việc này.`,
+    };
+  });
+}
+
+/**
+ * Provision a new account. Admin-only, enforced inside `taoTaiKhoan`.
+ *
+ * The password is read from the form and handed to core as plain text, which is
+ * the only place it exists in that form: core hashes it with Argon2id before the
+ * row is written, and nothing here logs, echoes or returns it. The success
+ * message deliberately repeats the USERNAME and not the password — an admin
+ * creating twenty students needs to confirm the account name, and a password
+ * rendered back into the page would end up in a screenshot on a staffroom
+ * laptop.
+ */
+export async function taoTaiKhoanMoi(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const vaiTroTho = String(form.get('role') ?? '');
+    if (!laVaiTroTaoDuoc(vaiTroTho)) {
+      return { trangThai: 'loi', thongDiep: 'Vai trò không hợp lệ.' };
+    }
+
+    const ketQua = await taoTaiKhoan(db, actor, {
+      username: String(form.get('username') ?? ''),
+      password: String(form.get('password') ?? ''),
+      displayName: String(form.get('displayName') ?? ''),
+      role: vaiTroTho,
+      avatarUrl: String(form.get('avatarUrl') ?? ''),
+      classIds: form.getAll('classIds').map(String).filter(Boolean),
+      // Absent checkbox means unchecked, and the safe reading of "unchecked" is
+      // still to force a change — so this only turns OFF when asked explicitly.
+      mustChangePassword: form.get('giuMatKhau') !== 'co',
+    });
+
+    if (ketQua.trangThai === 'trung-ten') {
+      return {
+        trangThai: 'loi',
+        thongDiep: `Tên đăng nhập “${ketQua.username}” đã có người dùng. Thầy cô chọn tên khác giúp em nhé.`,
+      };
+    }
+
+    if (ketQua.trangThai === 'khong-hop-le') {
+      return { trangThai: 'loi', thongDiep: ketQua.thongDiep };
+    }
+
+    revalidatePath('/giao-vien/nhan-su');
+    revalidatePath('/giao-vien/hoc-sinh');
+
+    const vaiTro =
+      ketQua.role === 'ADMIN' ? 'quản trị viên' : ketQua.role === 'TEACHER' ? 'giáo viên' : 'học sinh';
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã tạo tài khoản ${vaiTro} “${ketQua.displayName}” với tên đăng nhập ${ketQua.username}` +
+        (ketQua.soLop > 0 ? `, đã xếp vào ${ketQua.soLop} lớp` : '') +
+        '. Lần đăng nhập đầu tiên, tài khoản sẽ được yêu cầu tự đặt lại mật khẩu.',
     };
   });
 }

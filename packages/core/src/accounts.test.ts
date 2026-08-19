@@ -9,14 +9,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+  ACCOUNT_AUDIT,
   anhHuongXoaTaiKhoan,
   chuyenGiaoHoSoGiangDay,
   khoiPhucNhanVien,
   nguoiCoTheNhanBanGiao,
+  taoTaiKhoan,
   voHieuHoaNhanVien,
   xoaTaiKhoanNhanVien,
+  type TaoTaiKhoanInput,
 } from './accounts';
 import { ForbiddenError } from './errors';
+import { verifyPassword } from './password';
 import { createSession, validateSession, type Actor } from './session';
 import { actorFor, createFixture, type Fixture } from './testing/fixtures';
 
@@ -376,5 +380,163 @@ describe('nguoiCoTheNhanBanGiao', () => {
     expect(danhSach.every((n) => n.role !== 'STUDENT')).toBe(true);
     expect(danhSach.some((n) => n.id === fx.teacherB)).toBe(false);
     expect(danhSach.some((n) => n.id === fx.admin)).toBe(true);
+  });
+});
+
+describe('taoTaiKhoan — cấp tài khoản mới', () => {
+  /** Usernames created here, removed after the block so re-runs stay clean. */
+  const daTao: string[] = [];
+
+  async function tao(input: Partial<TaoTaiKhoanInput> & { username: string }, boi = admin) {
+    daTao.push(input.username.trim().toLowerCase());
+    return taoTaiKhoan(fx.db, boi, {
+      password: 'MatKhau#2026',
+      displayName: 'Người Mới',
+      role: 'STUDENT',
+      ...input,
+    });
+  }
+
+  afterAll(async () => {
+    await fx.db.user.deleteMany({ where: { username: { in: daTao } } });
+  });
+
+  it('băm mật khẩu, không bao giờ lưu bản rõ', async () => {
+    const kq = await tao({ username: `${fx.prefix}hs.moi` });
+    expect(kq.trangThai).toBe('thanh-cong');
+
+    const row = await fx.db.user.findUniqueOrThrow({
+      where: { username: `${fx.prefix}hs.moi`.toLowerCase() },
+      select: { passwordHash: true },
+    });
+
+    expect(row.passwordHash).not.toContain('MatKhau#2026');
+    expect(row.passwordHash.startsWith('$argon2id$')).toBe(true);
+    // The hash must verify, or the account is created and unusable.
+    expect(await verifyPassword('MatKhau#2026', row.passwordHash)).toBe(true);
+  });
+
+  it('lưu username chữ thường, nếu không tài khoản không đăng nhập được', async () => {
+    // `xacThucDangNhap` lowercases before the lookup, so a row stored with
+    // capitals could never be matched.
+    const kq = await tao({ username: `${fx.prefix}HS.HOA` });
+    expect(kq.trangThai).toBe('thanh-cong');
+    if (kq.trangThai !== 'thanh-cong') return;
+
+    expect(kq.username).toBe(`${fx.prefix}hs.hoa`.toLowerCase());
+  });
+
+  it('từ chối username đã có, kể cả khi gõ hoa', async () => {
+    await tao({ username: `${fx.prefix}hs.trung` });
+    const lai = await tao({ username: `${fx.prefix}HS.TRUNG` });
+
+    expect(lai.trangThai).toBe('trung-ten');
+  });
+
+  it('mặc định bắt đổi mật khẩu ở lần đăng nhập đầu', async () => {
+    const kq = await tao({ username: `${fx.prefix}hs.doimk` });
+    expect(kq.trangThai).toBe('thanh-cong');
+    if (kq.trangThai !== 'thanh-cong') return;
+
+    const row = await fx.db.user.findUniqueOrThrow({
+      where: { id: kq.id },
+      select: { mustChangePassword: true },
+    });
+    expect(row.mustChangePassword).toBe(true);
+  });
+
+  it('xếp học sinh vào lớp ngay khi tạo', async () => {
+    const kq = await tao({ username: `${fx.prefix}hs.colop`, classIds: [fx.classA] });
+    expect(kq.trangThai).toBe('thanh-cong');
+    if (kq.trangThai !== 'thanh-cong') return;
+
+    const ghiDanh = await fx.db.enrollment.findMany({
+      where: { studentId: kq.id },
+      select: { classId: true, isActive: true },
+    });
+    expect(ghiDanh).toEqual([{ classId: fx.classA, isActive: true }]);
+  });
+
+  it('lớp không tồn tại thì KHÔNG tạo tài khoản mồ côi', async () => {
+    const kq = await tao({ username: `${fx.prefix}hs.lopsai`, classIds: ['lop-khong-co-that'] });
+    expect(kq.trangThai).toBe('khong-hop-le');
+
+    const co = await fx.db.user.count({
+      where: { username: `${fx.prefix}hs.lopsai`.toLowerCase() },
+    });
+    expect(co).toBe(0);
+  });
+
+  it('giáo viên không được cấp tài khoản', async () => {
+    await expect(tao({ username: `${fx.prefix}hs.gvtao` }, teacherAActor)).rejects.toThrow(
+      ForbiddenError,
+    );
+  });
+
+  it('quản trị viên đã bị ngưng cũng không được', async () => {
+    const daNgung: Actor = { ...admin, isActive: false };
+    await expect(tao({ username: `${fx.prefix}hs.ngung` }, daNgung)).rejects.toThrow(
+      ForbiddenError,
+    );
+  });
+
+  it('mật khẩu quản trị phải dài hơn mật khẩu học sinh', async () => {
+    // 8 characters: fine for a twelve-year-old, not for an account that can read
+    // every child's record.
+    const hocSinh = await tao({ username: `${fx.prefix}hs.ngan`, password: 'Matkhau1' });
+    expect(hocSinh.trangThai).toBe('thanh-cong');
+
+    const quanTri = await tao({
+      username: `${fx.prefix}qt.ngan`,
+      password: 'Matkhau1',
+      role: 'ADMIN',
+    });
+    expect(quanTri.trangThai).toBe('khong-hop-le');
+  });
+
+  it('từ chối username có khoảng trắng, @ hoặc dấu tiếng Việt', async () => {
+    for (const xau of ['co khoang trang', 'a@b.com', 'Nguyễn']) {
+      const kq = await tao({ username: `${fx.prefix}${xau}` });
+      expect(kq.trangThai, xau).toBe('khong-hop-le');
+    }
+  });
+
+  it('từ chối username quá ngắn', async () => {
+    // Deliberately unprefixed: `fx.prefix` would pad it past the minimum and the
+    // assertion would pass without testing the length rule at all.
+    const kq = await tao({ username: 'ab' });
+    expect(kq.trangThai).toBe('khong-hop-le');
+  });
+
+  it('từ chối javascript: trong hình đại diện', async () => {
+    // This string is written into an `img` src, so it is a script sink.
+    const kq = await tao({
+      username: `${fx.prefix}hs.avatar`,
+      avatarUrl: 'javascript:alert(1)',
+    });
+    expect(kq.trangThai).toBe('khong-hop-le');
+  });
+
+  it('nhận https và đường dẫn nội bộ cho hình đại diện', async () => {
+    const xa = await tao({
+      username: `${fx.prefix}hs.anhxa`,
+      avatarUrl: 'https://vi.dt/a.png',
+    });
+    expect(xa.trangThai).toBe('thanh-cong');
+
+    const noiBo = await tao({ username: `${fx.prefix}hs.anhnb`, avatarUrl: '/anh/a.png' });
+    expect(noiBo.trangThai).toBe('thanh-cong');
+  });
+
+  it('ghi nhật ký ai đã cấp tài khoản', async () => {
+    const kq = await tao({ username: `${fx.prefix}hs.nhatky` });
+    expect(kq.trangThai).toBe('thanh-cong');
+    if (kq.trangThai !== 'thanh-cong') return;
+
+    const log = await fx.db.auditLog.findFirst({
+      where: { entityType: 'User', entityId: kq.id, action: ACCOUNT_AUDIT.CREATED },
+      select: { actorId: true },
+    });
+    expect(log?.actorId).toBe(fx.admin);
   });
 });

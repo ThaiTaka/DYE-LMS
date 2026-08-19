@@ -31,6 +31,7 @@
  * is the module that can actually destroy data.
  */
 import { ForbiddenError } from './errors';
+import { hashPassword, MIN_PASSWORD_LENGTH } from './password';
 import { revokeAllSessions } from './session';
 
 import type { PrismaClient, Role } from '@prisma/client';
@@ -38,6 +39,7 @@ import type { Actor, SessionContext } from './session';
 
 /** Audit actions for the account lifecycle. */
 export const ACCOUNT_AUDIT = {
+  CREATED: 'account.created',
   DEACTIVATED: 'account.deactivated',
   REACTIVATED: 'account.reactivated',
   RECORD_TRANSFERRED: 'account.record_transferred',
@@ -415,4 +417,235 @@ export async function nguoiCoTheNhanBanGiao(
     select: { id: true, username: true, displayName: true, role: true },
     orderBy: { displayName: 'asc' },
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Provisioning — creating an account
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Roles an admin may mint from the web UI.
+ *
+ * Narrower than `Role` on purpose: a role arriving as a string from a form must
+ * not be able to name something the UI never offered.
+ */
+export type VaiTroTaoDuoc = Extract<Role, 'ADMIN' | 'TEACHER' | 'STUDENT'>;
+
+const VAI_TRO_TAO_DUOC: VaiTroTaoDuoc[] = ['ADMIN', 'TEACHER', 'STUDENT'];
+
+/** Is this a role the provisioning form is allowed to create? */
+export function laVaiTroTaoDuoc(gia: string): gia is VaiTroTaoDuoc {
+  return (VAI_TRO_TAO_DUOC as string[]).includes(gia);
+}
+
+/**
+ * Usernames are stored lowercase, and that is not cosmetic.
+ *
+ * `xacThucDangNhap` normalises the typed username with `.trim().toLowerCase()`
+ * before the lookup, so a row stored with capitals could never be matched: the
+ * account would be created successfully and be permanently impossible to log
+ * into. Everything here lowercases before it validates.
+ *
+ * The character set matches the seeded accounts (`hs.dung`, `co.lan`) and
+ * excludes whitespace and `@`, so a username cannot be mistaken for an email or
+ * carry a look-alike space.
+ */
+const MAU_USERNAME = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+
+/**
+ * Admin passwords are held to 12 characters, everyone else to
+ * MIN_PASSWORD_LENGTH.
+ *
+ * The same split as `prisma/scripts/tao-quan-tri.ts`: the student minimum stays
+ * modest because twelve-year-olds have to type it, while an admin account can
+ * read every child's record.
+ */
+const DO_DAI_MAT_KHAU_QUAN_TRI = 12;
+
+export interface TaoTaiKhoanInput {
+  username: string;
+  password: string;
+  displayName: string;
+  role: VaiTroTaoDuoc;
+  avatarUrl?: string | null;
+  /** Classes to enrol a STUDENT into. Ignored for staff. */
+  classIds?: string[];
+  /**
+   * Make the account choose its own password at first login. Defaults to true.
+   *
+   * `requireSession` in the web layer redirects on this flag, so the password an
+   * admin types into the form never becomes the password a child keeps using.
+   */
+  mustChangePassword?: boolean;
+}
+
+export type KetQuaTaoTaiKhoan =
+  | {
+      trangThai: 'thanh-cong';
+      id: string;
+      username: string;
+      displayName: string;
+      role: Role;
+      soLop: number;
+    }
+  /** Username already taken. Its own case, so the form can point at one field. */
+  | { trangThai: 'trung-ten'; username: string }
+  | { trangThai: 'khong-hop-le'; thongDiep: string };
+
+/** Refuse unless the actor is an active admin. */
+async function requireQuanTriTaoTaiKhoan(actor: Actor): Promise<void> {
+  if (!actor.isActive) throw new ForbiddenError('actor-disabled');
+  if (actor.role !== 'ADMIN') throw new ForbiddenError('only-admin-creates-accounts');
+  await Promise.resolve();
+}
+
+/**
+ * Accept an avatar URL only if a browser will treat it as a plain image source.
+ *
+ * The string is written straight into an `img` src. A `javascript:` URL there is
+ * a script-execution sink, and CSP cannot help on a page already allowed to run
+ * its own scripts. Absolute URLs must be http(s); anything else has to be a
+ * site-relative path, and `//host` is excluded because it is protocol-relative
+ * and leaves this origin.
+ */
+function anhHopLe(url: string): boolean {
+  if (url.startsWith('/') && !url.startsWith('//')) return true;
+  try {
+    return ['http:', 'https:'].includes(new URL(url).protocol);
+  } catch {
+    return false;
+  }
+}
+
+/** Prisma's unique-constraint violation, without importing the error class. */
+function laTrungKhoa(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'code' in error &&
+    (error as { code?: unknown }).code === 'P2002'
+  );
+}
+
+/**
+ * Create a teacher, admin or student account.
+ *
+ * ── Why this lives in core rather than in the server action ──────────────────
+ * This function can mint an ADMIN, which is the most powerful thing the system
+ * can do. Like the deletion paths above, it authorizes itself rather than
+ * trusting its caller to have done so, which means the check cannot be lost by a
+ * later refactor that adds a second call site.
+ *
+ * Refusals a form should explain — a taken username, a password too short — come
+ * back as values. Only "you may not do this at all" throws, because that is not
+ * something the person filling in the form can fix by editing a field.
+ */
+export async function taoTaiKhoan(
+  db: PrismaClient,
+  actor: Actor,
+  input: TaoTaiKhoanInput,
+  context: SessionContext = {},
+): Promise<KetQuaTaoTaiKhoan> {
+  await requireQuanTriTaoTaiKhoan(actor);
+
+  const username = input.username.trim().toLowerCase();
+  const displayName = input.displayName.trim();
+  const avatarUrl = input.avatarUrl?.trim() ?? '';
+  const classIds = input.role === 'STUDENT' ? (input.classIds ?? []) : [];
+
+  if (!MAU_USERNAME.test(username)) {
+    return {
+      trangThai: 'khong-hop-le',
+      thongDiep:
+        'Tên đăng nhập cần 3–32 ký tự, chỉ gồm chữ thường không dấu, số, dấu chấm, ' +
+        'gạch ngang hoặc gạch dưới, và bắt đầu bằng chữ hoặc số.',
+    };
+  }
+
+  if (!displayName) {
+    return { trangThai: 'khong-hop-le', thongDiep: 'Họ và tên không được để trống.' };
+  }
+
+  const toiThieu = input.role === 'ADMIN' ? DO_DAI_MAT_KHAU_QUAN_TRI : MIN_PASSWORD_LENGTH;
+  if (input.password.length < toiThieu) {
+    return {
+      trangThai: 'khong-hop-le',
+      thongDiep:
+        `Mật khẩu phải có ít nhất ${toiThieu} ký tự` +
+        (input.role === 'ADMIN' ? ' với tài khoản quản trị.' : '.'),
+    };
+  }
+
+  if (avatarUrl && !anhHopLe(avatarUrl)) {
+    return {
+      trangThai: 'khong-hop-le',
+      thongDiep: 'Hình đại diện phải là địa chỉ http(s) hoặc đường dẫn bắt đầu bằng dấu gạch chéo.',
+    };
+  }
+
+  // Checked before the insert so a stale class id reads as a sentence rather
+  // than as a foreign-key violation.
+  if (classIds.length > 0) {
+    const co = await db.class.count({ where: { id: { in: classIds }, isArchived: false } });
+    if (co !== classIds.length) {
+      return {
+        trangThai: 'khong-hop-le',
+        thongDiep: 'Có lớp không tồn tại hoặc đã lưu trữ. Thầy cô chọn lại giúp em nhé.',
+      };
+    }
+  }
+
+  const dangCo = await db.user.findUnique({ where: { username }, select: { id: true } });
+  if (dangCo) return { trangThai: 'trung-ten', username };
+
+  const passwordHash = await hashPassword(input.password);
+
+  let user;
+  try {
+    // Enrollments are nested so the account and its class rows land in one
+    // statement. A student created but silently enrolled nowhere would look
+    // correct on this page and be missing from every roster.
+    user = await db.user.create({
+      data: {
+        username,
+        passwordHash,
+        displayName,
+        role: input.role,
+        avatarUrl: avatarUrl || null,
+        isActive: true,
+        mustChangePassword: input.mustChangePassword ?? true,
+        ...(classIds.length > 0
+          ? { enrollments: { create: classIds.map((classId) => ({ classId })) } }
+          : {}),
+      },
+      select: { id: true, username: true, displayName: true, role: true },
+    });
+  } catch (error) {
+    // Two admins submitting the same username between the check above and this
+    // insert. The unique index is the real arbiter; this turns its error into
+    // the message the pre-check would have given.
+    if (laTrungKhoa(error)) return { trangThai: 'trung-ten', username };
+    throw error;
+  }
+
+  await db.auditLog.create({
+    data: {
+      actorId: actor.id,
+      action: ACCOUNT_AUDIT.CREATED,
+      entityType: 'User',
+      entityId: user.id,
+      meta: { username: user.username, role: user.role, soLop: classIds.length },
+      ipAddress: context.ipAddress ?? null,
+      userAgent: context.userAgent ?? null,
+    },
+  });
+
+  return {
+    trangThai: 'thanh-cong',
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    role: user.role,
+    soLop: classIds.length,
+  };
 }

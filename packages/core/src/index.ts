@@ -68,13 +68,18 @@ export {
   anhHuongXoaTaiKhoan,
   chuyenGiaoHoSoGiangDay,
   khoiPhucNhanVien,
+  laVaiTroTaoDuoc,
   nguoiCoTheNhanBanGiao,
+  taoTaiKhoan,
   voHieuHoaNhanVien,
   xoaTaiKhoanNhanVien,
   type AnhHuongXoaTaiKhoan,
   type KetQuaChuyenGiao,
+  type KetQuaTaoTaiKhoan,
   type KetQuaXoaTaiKhoan,
   type RangBuocXoa,
+  type TaoTaiKhoanInput,
+  type VaiTroTaoDuoc,
 } from './accounts';
 
 export { bocMarkdown, rutGon, tenBuoi } from './text';
