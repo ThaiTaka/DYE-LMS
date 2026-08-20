@@ -401,13 +401,59 @@ describe('Khoá Micro:bit Cơ Bản', () => {
     }
   });
 
-  it('mỗi buổi đều có khối MICROBIT_WORKSPACE để em làm bài', () => {
-    for (const l of buoi) {
+  /*
+   * The course runs to 30 sessions, and they are not all the same kind of thing.
+   * Buổi 1–4 are authored from the brief; Buổi 5–30 are planned shells whose
+   * lesson content no teacher has written yet.
+   *
+   * The pair of tests below is what keeps that distinction honest in BOTH
+   * directions — which matters more than either test on its own:
+   *
+   *   • an authored session must carry a task, or it is not authored;
+   *   • a session with no task must be FLAGGED as a shell, or it is a
+   *     half-written lesson masquerading as a finished one.
+   *
+   * Without the second test, "session has no workspace block" would have become
+   * an acceptable state, and the next unfinished lesson would ship silently.
+   */
+  it('mỗi buổi đã biên soạn đều có khối MICROBIT_WORKSPACE để em làm bài', () => {
+    const daBienSoan = buoi.filter((l) => !l.isDerived);
+    expect(daBienSoan.length).toBeGreaterThan(0);
+
+    for (const l of daBienSoan) {
       expect(
         l.blocks.some((b) => b.type === 'MICROBIT_WORKSPACE'),
         `${l.slug} không có khối làm bài`,
       ).toBe(true);
     }
+  });
+
+  it('buổi chưa biên soạn phải tự khai báo là khung, và không tính vào tiến độ bắt buộc', () => {
+    for (const l of buoi) {
+      const coBaiLam = l.blocks.some((b) => b.type === 'MICROBIT_WORKSPACE');
+      if (coBaiLam) continue;
+
+      // Flagged as reconstructed, so the teacher curriculum view can tell the
+      // difference and the real plan can be swapped in later.
+      expect(l.isDerived, `${l.slug} chưa có bài làm nhưng không đánh dấu isDerived`).toBe(true);
+
+      // Never REQUIRED. With the default linear prerequisite chain, a required
+      // empty lesson parks every student in the class behind a page with
+      // nothing on it and reports the whole class as behind.
+      expect(l.status, `${l.slug} là khung nhưng lại đang REQUIRED`).not.toBe('REQUIRED');
+
+      // Still a usable self-study prompt rather than a dead end.
+      expect(l.blocks.length, `${l.slug} không có khối nội dung nào`).toBeGreaterThan(0);
+      expect(l.objectives.length, `${l.slug} không có mục tiêu`).toBeGreaterThan(0);
+    }
+  });
+
+  it('đủ 30 buổi và số buổi khớp với totalSessions', () => {
+    expect(buoi).toHaveLength(30);
+    expect(microbit.totalSessions).toBe(30);
+
+    const soThuTu = buoi.map((l) => l.order).sort((a, b) => a - b);
+    expect(soThuTu).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
   });
 
   it('không dùng ngôn ngữ tiêu cực về học sinh', () => {

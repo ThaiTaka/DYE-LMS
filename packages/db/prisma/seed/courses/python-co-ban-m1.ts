@@ -10,14 +10,18 @@
  */
 import type { ModuleSpec } from '../types.ts';
 import {
+  challenge,
+  dienKhuyet,
   example,
+  fillBlankBlock,
   hidden,
+  mcq,
+  mcqBlock,
   playground,
   quizBlock,
+  reflection,
   sample,
   theory,
-  challenge,
-  reflection,
 } from '../builders.ts';
 
 export const module1: ModuleSpec = {
@@ -51,6 +55,17 @@ export const module1: ModuleSpec = {
         theory(
           'Lập trình là gì và tại sao lại là Python?',
           [
+            /*
+             * App-relative image paths, deliberately not hotlinks.
+             *
+             * A lesson whose illustrations come from a third-party CDN renders
+             * differently depending on whether the school firewall allows that
+             * host — and the room this course was written for is exactly the
+             * room where it will not. The files drop into apps/web/public at
+             * these paths; nothing else has to change.
+             */
+            '![Sơ đồ: người viết chỉ dẫn ở bên trái, máy tính thực hiện ở bên phải](/hinh-anh/python/lap-trinh-la-gi.png)',
+            '',
             'Lập trình là cách em **ra lệnh cho máy tính** bằng một ngôn ngữ mà cả người và máy đều hiểu được.',
             '',
             'Máy tính rất nhanh nhưng không tự nghĩ ra việc. Người lập trình là người nói cho nó biết phải làm gì, theo thứ tự nào.',
@@ -96,6 +111,8 @@ export const module1: ModuleSpec = {
               'Python tự trả lời.',
             '',
             'Dấu `>>>` là lời mời của Python, nghĩa là "mời bạn gõ". Em không gõ lại dấu này.',
+            '',
+            '![Cửa sổ dòng lệnh với dấu nhắc >>> và một phép tính đã cho kết quả](/hinh-anh/python/repl-dau-nhac.png)',
           ].join('\n'),
           [
             '>>> 2 + 3',
@@ -169,6 +186,252 @@ export const module1: ModuleSpec = {
             },
           ],
         }),
+        /*
+         * Two practice banks, and note what is NOT here: coding tasks.
+         *
+         * Teacher note 1 keeps sessions 1–2 free of heavy syntax and of
+         * `print()`, and `assertPythonBasicNotes` fails the build over it. A
+         * graded IO_MATCH task has to write to stdout to be judged, so a coding
+         * ladder is genuinely impossible in this session rather than merely
+         * omitted. The ladder for this module lives in Buổi 3, the first session
+         * where output is on the syllabus.
+         *
+         * What session 1 CAN carry is exactly this: recall and vocabulary, which
+         * is what these twenty questions are.
+         */
+        mcqBlock(
+          {
+            slug: 'tn-b01-tong-quan-python',
+            title: 'Trắc nghiệm: Python và môi trường lập trình',
+            description: 'Mười câu ôn lại buổi đầu tiên. Sai thì làm lại ngay được.',
+            tier: 'CO_BAN',
+            passingScore: 60,
+            questions: [
+              mcq(
+                'Lập trình là gì?',
+                'Là cách ra lệnh cho máy tính theo đúng thứ tự bằng một ngôn ngữ máy hiểu được',
+                [
+                  'Là sửa chữa máy tính khi bị hỏng',
+                  'Là gõ chữ thật nhanh trên bàn phím',
+                  'Là thiết kế vỏ ngoài cho máy tính',
+                ],
+                {
+                  explanation:
+                    'Máy tính rất nhanh nhưng không tự nghĩ ra việc. Người lập trình là người nói cho nó biết làm gì, theo thứ tự nào.',
+                },
+              ),
+              mcq(
+                'Dấu `>>>` trong chế độ tương tác nghĩa là gì?',
+                'Python đang mời em gõ câu lệnh tiếp theo',
+                [
+                  'Chương trình đã bị lỗi',
+                  'Em phải gõ đúng ba dấu lớn hơn trước mỗi câu lệnh',
+                  'Máy tính đang tải dữ liệu về',
+                ],
+                {
+                  explanation: 'Đó là lời mời của Python. Em gõ câu lệnh SAU dấu này, không gõ lại chính nó.',
+                  hint: 'Thử nghĩ xem dấu này xuất hiện lúc nào: trước hay sau khi em gõ?',
+                },
+              ),
+              mcq(
+                'Trong chế độ tương tác, em gõ `7 * 6` rồi nhấn Enter. Chuyện gì xảy ra?',
+                'Python hiện ngay 42 ở dòng dưới',
+                [
+                  'Không có gì xảy ra cho tới khi em lưu tệp',
+                  'Python báo lỗi vì thiếu câu lệnh hiển thị',
+                  'Python hỏi em muốn lưu kết quả vào đâu',
+                ],
+                {
+                  explanation:
+                    'Chế độ tương tác tự hiện giá trị của biểu thức em vừa gõ — đó là điểm khác biệt lớn nhất so với chạy từ tệp.',
+                },
+              ),
+              mcq(
+                'Vì sao khoá học chọn Python làm ngôn ngữ đầu tiên?',
+                'Vì cú pháp gần với tiếng Anh thường ngày và cho kết quả ngay lập tức',
+                [
+                  'Vì Python là ngôn ngữ duy nhất làm được game',
+                  'Vì Python chạy nhanh hơn mọi ngôn ngữ khác',
+                  'Vì Python không bao giờ báo lỗi',
+                ],
+                {
+                  explanation:
+                    'Dễ đọc và chạy ngay là hai lý do khiến Python hợp với người mới. Nó không phải ngôn ngữ nhanh nhất, và nó vẫn báo lỗi như mọi ngôn ngữ khác.',
+                },
+              ),
+              mcq(
+                '"Python là ngôn ngữ thông dịch" nghĩa là gì?',
+                'Máy đọc và chạy từng dòng lệnh, không cần bước biên dịch cả chương trình trước',
+                [
+                  'Python dịch chương trình sang tiếng Việt cho em đọc',
+                  'Python chỉ chạy được khi có kết nối mạng',
+                  'Python phải được dịch sang ngôn ngữ khác trước khi chạy',
+                ],
+                {
+                  explanation:
+                    'Thông dịch nghĩa là gõ tới đâu chạy tới đó. Đó là lý do chế độ tương tác dùng được ngay.',
+                },
+              ),
+              mcq(
+                'Hai cách chạy Python là gì?',
+                'Chế độ tương tác, và chạy từ một tệp `.py`',
+                [
+                  'Chạy trên điện thoại, và chạy trên máy tính',
+                  'Chạy có mạng, và chạy không có mạng',
+                  'Chạy nhanh, và chạy chậm',
+                ],
+                {
+                  explanation:
+                    'Buổi này dùng cách thứ nhất. Cách thứ hai — viết nhiều dòng vào một tệp rồi chạy cả tệp — sẽ học ở các buổi sau.',
+                },
+              ),
+              mcq(
+                'Trong chế độ tương tác, `100 / 8` cho kết quả là bao nhiêu?',
+                '12.5',
+                ['12', '13', '12,5 — Python dùng dấu phẩy'],
+                {
+                  explanation:
+                    'Phép chia `/` luôn cho kết quả có phần thập phân. Python dùng dấu CHẤM để ngăn phần thập phân, không dùng dấu phẩy.',
+                  hint: 'Thử nhẩm 100 chia 8 xem có chia hết không.',
+                },
+              ),
+              mcq(
+                'Khung "Sân chơi Code" trong bài học của DYE LMS thực chất là gì?',
+                'Một chế độ tương tác chạy ngay trong trình duyệt, không cần cài gì cả',
+                [
+                  'Một video hướng dẫn',
+                  'Một bài kiểm tra có tính điểm',
+                  'Một trò chơi để giải lao giữa giờ',
+                ],
+                {
+                  explanation:
+                    'Đó là lý do em bắt đầu học được ngay từ buổi 1 mà chưa cần cài Python ở nhà.',
+                },
+              ),
+              mcq(
+                'Nếu muốn cài Python trên máy ở nhà, em cần tải những gì?',
+                'Bản Python từ python.org, và một trình soạn thảo như VS Code',
+                [
+                  'Chỉ cần một trình duyệt web',
+                  'Một chiếc máy tính mới hoàn toàn',
+                  'Không cài được ở nhà, chỉ dùng được ở trường',
+                ],
+                {
+                  explanation:
+                    'Hai thứ đó là đủ. Thầy cô sẽ hướng dẫn riêng phần cài đặt — buổi này em cứ dùng Sân chơi Code trong trình duyệt.',
+                },
+              ),
+              mcq(
+                'Khoá học Python Cơ Bản kéo dài bao nhiêu buổi?',
+                '30 buổi',
+                ['10 buổi', '15 buổi', '50 buổi'],
+                {
+                  explanation:
+                    'Ba mươi buổi, đi từ những phép tính đơn giản đến chỗ em tự viết được một chương trình hoàn chỉnh.',
+                },
+              ),
+            ],
+          },
+          {
+            title: 'Trắc nghiệm: em nhớ được bao nhiêu?',
+            markdown: [
+              'Mười câu về những gì em vừa đọc.',
+              '',
+              'Sai cũng **không sao cả** — em thấy ngay lời giải thích rồi làm lại câu đó.',
+              'Phần này không tính vào điểm tổng kết; nó ở đây để em tự kiểm tra mình.',
+            ].join('\n'),
+          },
+        ),
+
+        fillBlankBlock(
+          {
+            slug: 'dk-b01-tong-quan-python',
+            title: 'Điền khuyết: từ khoá của buổi 1',
+            description: 'Mười chỗ trống. Gõ không dấu cũng được, hoa thường đều tính là đúng.',
+            tier: 'CO_BAN',
+            passingScore: 60,
+            questions: [
+              dienKhuyet(
+                'Điền ba ký tự.',
+                'Dấu nhắc của chế độ tương tác Python là `___`',
+                ['>>>', '>>> '],
+                { explanation: 'Ba dấu lớn hơn. Em gõ câu lệnh sau nó, không gõ lại chính nó.', matchMode: 'exact' },
+              ),
+              dienKhuyet(
+                'Điền tên ngôn ngữ.',
+                'Ngôn ngữ lập trình em học trong khoá này tên là ___ .',
+                ['Python', 'python'],
+                { explanation: 'Tên này lấy từ nhóm hài Monty Python, không phải từ con trăn.' },
+              ),
+              dienKhuyet(
+                'Điền một từ.',
+                'Python là ngôn ngữ ___ : gõ tới đâu, máy chạy tới đó, không cần biên dịch trước.',
+                ['thông dịch', 'thong dich', 'interpreted'],
+                { explanation: 'Thông dịch — đối lập với biên dịch, nơi cả chương trình phải được dịch trước khi chạy.' },
+              ),
+              dienKhuyet(
+                'Điền số.',
+                'Khoá Python Cơ Bản gồm ___ buổi.',
+                ['30', 'ba mươi', 'ba muoi'],
+                { explanation: 'Ba mươi buổi, trong đó 19 buổi đầu là phần nền tảng bắt buộc.' },
+              ),
+              dienKhuyet(
+                'Điền đuôi tệp.',
+                'Tệp chương trình Python có đuôi là `.___`',
+                ['py', '.py'],
+                { explanation: 'Ví dụ `bai_tap_1.py`. Cách chạy từ tệp sẽ học ở các buổi sau.' },
+              ),
+              dienKhuyet(
+                'Điền kết quả.',
+                'Trong chế độ tương tác, gõ `2 + 3` rồi nhấn Enter sẽ thấy ___ .',
+                ['5', 'năm', 'nam'],
+                { explanation: 'Chế độ tương tác tự hiện giá trị của biểu thức — em không cần ra lệnh gì thêm.' },
+              ),
+              dienKhuyet(
+                'Điền dấu phép tính.',
+                'Muốn nhân hai số trong Python, em dùng dấu `___`',
+                ['*', 'dấu sao', 'dau sao'],
+                { explanation: 'Dấu sao `*`, không phải dấu `x` như trong vở Toán.', matchMode: 'exact' },
+              ),
+              dienKhuyet(
+                'Điền dấu ngăn phần thập phân.',
+                'Python viết mười hai phẩy năm là `12___5`',
+                ['.', 'dấu chấm', 'dau cham'],
+                {
+                  explanation: 'Python dùng dấu CHẤM, không dùng dấu phẩy. `12.5` chứ không phải `12,5`.',
+                  matchMode: 'exact',
+                  hint: 'Khác với cách viết trong vở Toán tiếng Việt.',
+                },
+              ),
+              dienKhuyet(
+                'Điền tên trình soạn thảo.',
+                'Trình soạn thảo phổ biến để viết Python trên máy ở nhà là VS ___ .',
+                ['Code', 'code'],
+                { explanation: 'Visual Studio Code, thường gọi tắt là VS Code.' },
+              ),
+              dienKhuyet(
+                'Điền tên trang web.',
+                'Bản Python để cài trên máy được tải từ trang ___ .',
+                ['python.org', 'python org'],
+                { explanation: 'Đây là trang chính thức. Tránh tải Python từ các trang khác.' },
+              ),
+            ],
+          },
+          {
+            title: 'Điền khuyết: nhớ lại từ khoá',
+            markdown: [
+              'Điền từ còn thiếu vào chỗ trống.',
+              '',
+              'Phần lớn câu **không phân biệt hoa thường** và **gõ không dấu vẫn tính đúng** —',
+              'máy ở trường nhiều khi không gõ được tiếng Việt, và bài này kiểm tra em hiểu gì,',
+              'không kiểm tra bàn phím của em.',
+              '',
+              'Vài câu hỏi về ký hiệu (như `>>>` hay dấu chấm) thì phải gõ chính xác,',
+              'vì trong lập trình những ký hiệu đó không thay thế cho nhau được.',
+            ].join('\n'),
+          },
+        ),
+
         reflection(
           'Ghi lại một câu',
           'Em muốn tự làm được điều gì sau khoá học này? Viết một câu ngắn — cuối khoá chúng ta sẽ đọc lại.',

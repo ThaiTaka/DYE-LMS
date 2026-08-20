@@ -51,6 +51,28 @@ export interface NoiDungTracNghiem {
   markdown: string;
 }
 
+/**
+ * Trắc nghiệm practice bank.
+ *
+ * Carries prose and an optional illustration and NOTHING else — in particular,
+ * no questions and no answers. Those come from the attached `Quiz` rows through
+ * `tracNghiem`, assembled server-side with `Choice.isCorrect` stripped. Keeping
+ * the two apart is what stops an answer key from ever reaching the browser
+ * inside a block's JSON payload.
+ */
+export interface NoiDungTracNghiemNhieuLuaChon {
+  kind: 'mcq';
+  markdown: string;
+  imageUrl: string | null;
+}
+
+/** Điền khuyết practice bank. Same arrangement as `mcq`. */
+export interface NoiDungDienKhuyet {
+  kind: 'fill-blank';
+  markdown: string;
+  imageUrl: string | null;
+}
+
 export interface NoiDungVideo {
   kind: 'video';
   url: string;
@@ -86,6 +108,8 @@ export type NoiDungKhoi =
   | NoiDungThuThach
   | NoiDungMicrobit
   | NoiDungTracNghiem
+  | NoiDungTracNghiemNhieuLuaChon
+  | NoiDungDienKhuyet
   | NoiDungVideo
   | NoiDungSuyNgam
   | NoiDungTaiNguyen
@@ -147,6 +171,20 @@ export function parseNoiDung(raw: unknown): NoiDungKhoi {
 
     case 'quiz':
       return { kind: 'quiz', markdown: str(raw['markdown']) };
+
+    case 'mcq':
+      return {
+        kind: 'mcq',
+        markdown: str(raw['markdown']),
+        imageUrl: SAFE_SCHEME.test(str(raw['imageUrl'])) ? str(raw['imageUrl']) : null,
+      };
+
+    case 'fill-blank':
+      return {
+        kind: 'fill-blank',
+        markdown: str(raw['markdown']),
+        imageUrl: SAFE_SCHEME.test(str(raw['imageUrl'])) ? str(raw['imageUrl']) : null,
+      };
 
     case 'video':
       return {

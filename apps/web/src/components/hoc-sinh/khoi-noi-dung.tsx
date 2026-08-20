@@ -187,9 +187,62 @@ function NoiDungTheoLoai({ khoi }: { khoi: KhoiHienThi }) {
           <VanBan>{nd.markdown}</VanBan>
           {khoi.tracNghiem ? (
             <div className="mt-4">
-              <BaiTracNghiem tracNghiem={khoi.tracNghiem} />
+              <BaiTracNghiem tracNghiem={khoi.tracNghiem} kieu="kiem-tra" />
             </div>
           ) : null}
+        </>
+      );
+
+    /*
+     * Trắc nghiệm and Điền khuyết — the two practice banks.
+     *
+     * They render through the SAME runner as a quiz, because the data is the
+     * same: a Quiz whose Question rows hold the answers server-side. What
+     * changes is `kieu`, which switches the closing message from a score to an
+     * invitation to keep practising. A practice bank that ends with "đúng 6/10"
+     * tells a child they failed at something that was never a test.
+     *
+     * The two cases are written out separately rather than merged, so a future
+     * change to one — say a per-blank input for fill-in-the-blank — has an
+     * obvious place to go.
+     */
+    case 'mcq':
+      return (
+        <>
+          <VanBan>{nd.markdown}</VanBan>
+          {khoi.tracNghiem ? (
+            <div className="mt-4">
+              <BaiTracNghiem
+                tracNghiem={khoi.tracNghiem}
+                kieu="luyen-tap"
+                anhMinhHoa={nd.imageUrl}
+              />
+            </div>
+          ) : (
+            <p className="mt-4 mb-0 rounded-nut border border-vien bg-the-mo p-4 text-sm text-chu-phu">
+              Bộ câu hỏi của phần này đang được cập nhật. Em cứ học tiếp phần sau nhé.
+            </p>
+          )}
+        </>
+      );
+
+    case 'fill-blank':
+      return (
+        <>
+          <VanBan>{nd.markdown}</VanBan>
+          {khoi.tracNghiem ? (
+            <div className="mt-4">
+              <BaiTracNghiem
+                tracNghiem={khoi.tracNghiem}
+                kieu="luyen-tap"
+                anhMinhHoa={nd.imageUrl}
+              />
+            </div>
+          ) : (
+            <p className="mt-4 mb-0 rounded-nut border border-vien bg-the-mo p-4 text-sm text-chu-phu">
+              Bộ câu hỏi của phần này đang được cập nhật. Em cứ học tiếp phần sau nhé.
+            </p>
+          )}
         </>
       );
 

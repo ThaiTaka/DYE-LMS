@@ -265,6 +265,12 @@ export interface CauHoiHienThi {
   points: number;
   /** Choices WITHOUT `isCorrect`. The answer never reaches the browser. */
   choices: Array<{ id: string; text: string }>;
+  /** FILL_BLANK: the sentence to complete, with the gap written as `___`. */
+  template: string | null;
+  /** Illustration for this question. */
+  mediaUrl: string | null;
+  /** Offered before answering, on request. Costs nothing; this is practice. */
+  hint: string | null;
 }
 
 export interface TracNghiemHienThi {
@@ -430,7 +436,18 @@ export async function duLieuBaiHoc(
                 type: true,
                 prompt: true,
                 points: true,
-                // `isCorrect` is intentionally absent.
+                template: true,
+                mediaUrl: true,
+                hint: true,
+                /*
+                 * `isCorrect` and `acceptedAnswers` are intentionally absent.
+                 *
+                 * The first is the answer key for a choice question; the second
+                 * IS the answer for a fill-in-the-blank. Neither may reach a
+                 * browser before the student has answered, or the whole bank is
+                 * readable in the network payload. The only place an answer is
+                 * ever compared is `kiemTraCauTraLoi`, on the server.
+                 */
                 choices: { orderBy: { order: 'asc' }, select: { id: true, text: true } },
               },
             },

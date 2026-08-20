@@ -25,17 +25,28 @@ import {
   anhHuongXoaTaiKhoan,
   authorize,
   bocMarkdown,
+  can,
+  canhBaoTapTrung,
   courseProgress,
+  khoaHocChoLop,
   nguoiCoTheNhanBanGiao,
+  NGUONG_CANH_BAO,
   resolveCourseAccess,
+  soCanhBaoChuaXuLy,
   stageOf,
+  thongKeGiangDay,
   tierRank,
+  tomTatTapTrung,
   visibleStudentIds,
   type Actor,
   type AnhHuongXoaTaiKhoan,
+  type CanhBaoHienThi,
   type CourseProgress,
   type FlowStage,
+  type KhoaHocChonDuoc,
   type LessonAccess,
+  type ThongKeTongQuan,
+  type TomTatTapTrung,
 } from '@dye/core';
 
 import { db } from './db';
@@ -1142,4 +1153,115 @@ export async function duLieuLopHoc(actor: Actor): Promise<DuLieuLopHoc> {
       laToi: n.id === actor.id,
     })),
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Curriculum assignment — the "Gắn khoá học" panel on a class page
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface DuLieuGanKhoaHoc {
+  /** Every published course, flagged with whether this class already has it. */
+  khoaHoc: KhoaHocChonDuoc[];
+  /** False for a teacher looking at a class they do not run. */
+  duocSua: boolean;
+}
+
+/**
+ * What the assign-course panel needs.
+ *
+ * `duocSua` decides whether the panel renders at all, and it is computed with
+ * `can()` — the non-throwing twin of `authorize()` — against exactly the
+ * permission the server action will demand. A hidden button is not access
+ * control, and the action re-checks; what this prevents is offering a control
+ * that would be refused, which reads to a teacher as a broken page.
+ */
+export async function duLieuGanKhoaHoc(
+  actor: Actor,
+  classId: string,
+): Promise<DuLieuGanKhoaHoc> {
+  const duocSua = await can(db, actor, { resource: 'class', action: 'manage', classId });
+  if (!duocSua) return { khoaHoc: [], duocSua: false };
+
+  return { khoaHoc: await khoaHocChoLop(db, classId), duocSua: true };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Focus alerts
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface DuLieuCanhBao {
+  canhBao: CanhBaoHienThi[];
+  soChuaXuLy: number;
+  /** True when this actor is seeing the whole system rather than their classes. */
+  toanHeThong: boolean;
+  nguong: number;
+}
+
+/**
+ * The alert feed.
+ *
+ * Scope comes from `canhBaoTapTrung` in @dye/core, which builds it from
+ * `Class.teacherId → Enrollment → student` — the same relationship
+ * `authorize()` walks. This function adds no filtering of its own, so the feed
+ * and the student detail page cannot disagree about who is visible.
+ */
+export async function duLieuCanhBao(
+  actor: Actor,
+  options: { chiChuaXuLy?: boolean } = {},
+): Promise<DuLieuCanhBao> {
+  const [canhBao, soChuaXuLy] = await Promise.all([
+    canhBaoTapTrung(db, actor, {
+      ...(options.chiChuaXuLy ? { chiChuaXuLy: true } : {}),
+      gioiHan: 200,
+    }),
+    soCanhBaoChuaXuLy(db, actor),
+  ]);
+
+  return {
+    canhBao,
+    soChuaXuLy,
+    toanHeThong: actor.role === 'ADMIN',
+    nguong: NGUONG_CANH_BAO,
+  };
+}
+
+/** Open-alert count for the nav badge. Never throws — a badge must not 500 a page. */
+export async function demCanhBaoChuaXuLy(actor: Actor): Promise<number> {
+  try {
+    return await soCanhBaoChuaXuLy(db, actor);
+  } catch {
+    return 0;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Analytics
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Class analytics, scoped to what this actor may see.
+ *
+ * A thin pass-through to `thongKeGiangDay`, and deliberately thin: the moment
+ * this file started assembling its own aggregates, the teacher/admin scope rule
+ * would exist in two places. It exists in exactly one, in @dye/core, where the
+ * integration tests can reach it without a web server.
+ */
+export async function duLieuThongKe(
+  actor: Actor,
+  options: { classId?: string | undefined; keCaLuuTru?: boolean | undefined } = {},
+): Promise<ThongKeTongQuan> {
+  return thongKeGiangDay(db, actor, options);
+}
+
+/** One student's focus history, for their teacher's detail page. */
+export async function duLieuTapTrungHocSinh(
+  actor: Actor,
+  studentId: string,
+): Promise<TomTatTapTrung | null> {
+  // The same guard the rest of the student detail page runs. A teacher who does
+  // not teach this child is refused here, before a single event row is read.
+  const duocXem = await can(db, actor, { resource: 'student', action: 'read', studentId });
+  if (!duocXem) return null;
+
+  return tomTatTapTrung(db, studentId);
 }

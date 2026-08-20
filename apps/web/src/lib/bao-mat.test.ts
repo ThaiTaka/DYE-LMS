@@ -83,6 +83,17 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   'chuyenGiaoHoSoGiangDay(': 'requireAdminActingOnOther',
   'xoaTaiKhoanNhanVien(': 'requireAdminActingOnOther',
   'khoiPhucNhanVien(': 'requireAdminActingOnOther',
+  'xoaLopHoc(': 'requireQuanTriXoaLop',
+  'luuTruLopHoc(': 'requireQuanTriXoaLop',
+  'ganKhoaHocVaoLop(': 'authorize(',
+  'goKhoaHocKhoiLop(': 'authorize(',
+  'xoaTaiKhoanHocSinh(': 'only-admin-deletes-student',
+  'voHieuHoaHocSinh(': 'authorize(',
+  'khoiPhucHocSinh(': 'authorize(',
+  'goHocSinhKhoiLop(': 'authorize(',
+  // Re-reads the alert through the same scoped feed the teacher sees, so an id
+  // guessed from outside that scope is refused.
+  'xuLyCanhBao(': 'canhBaoTapTrung(',
 };
 
 const CACH_KIEM_QUYEN = [...KIEM_QUYEN_TRUC_TIEP, ...Object.keys(UY_QUYEN_CHO_CORE)];
@@ -109,12 +120,36 @@ interface HanhDong {
   coQuyen: boolean;
 }
 
+/**
+ * Is this file a server-action MODULE?
+ *
+ * The directive has two very different meanings depending on where it sits. At
+ * the top of a file it makes every export a server action — that is the shape
+ * this audit is about. Inside a function body it marks that one function, and
+ * the surrounding file is ordinary component code whose other exports are
+ * components, not actions.
+ *
+ * Matching on `includes` conflated the two, so an async server COMPONENT living
+ * in a file that happens to contain one inline action was audited as though a
+ * browser could invoke it with arbitrary arguments. It cannot: it is rendered by
+ * the server, on a route that has already run `requireRole`.
+ *
+ * Nothing is lost by narrowing this. An inline action is never exported, so the
+ * `export async function` scan below could never see it in the first place.
+ */
+function laModuleHanhDong(src: string): boolean {
+  // Skip a leading block comment / imports-free preamble, then require the
+  // directive to be the first statement.
+  const dau = src.replace(/^\uFEFF/, '').replace(/^\s*\/\*[\s\S]*?\*\/\s*/, '').trimStart();
+  return dau.startsWith("'use server'") || dau.startsWith('"use server"');
+}
+
 function docHanhDong(): HanhDong[] {
   const ket: HanhDong[] = [];
 
   for (const tep of TEP_NGUON) {
     const src = readFileSync(tep, 'utf8');
-    if (!src.includes("'use server'")) continue;
+    if (!laModuleHanhDong(src)) continue;
 
     // Split on each exported async function; the tail of each chunk is its body.
     const phan = src.split(/^export async function /m).slice(1);

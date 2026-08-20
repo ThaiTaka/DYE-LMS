@@ -1,5 +1,4 @@
-import Link from 'next/link';
-
+import { HangHocSinh } from '@/components/giao-vien/hang-hoc-sinh';
 import { TaoTaiKhoan } from '@/components/giao-vien/tao-tai-khoan';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
@@ -44,32 +43,7 @@ export default async function TrangTaiKhoanHocSinh() {
       ) : (
         <ul className="m-0 list-none space-y-3 p-0">
           {data.hocSinh.map((hs) => (
-            <li
-              key={hs.id}
-              className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 rounded-the border border-vien bg-the p-4"
-            >
-              <div className="min-w-0">
-                <h3 className="mt-0 mb-1 flex flex-wrap items-center gap-2 text-base font-semibold">
-                  <Link href={`/giao-vien/hoc-sinh/${hs.id}`} className="hover:underline">
-                    {hs.displayName}
-                  </Link>
-                  {!hs.isActive ? (
-                    <span className="rounded-full bg-the-mo px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
-                      Đã ngưng
-                    </span>
-                  ) : null}
-                  {hs.mustChangePassword ? (
-                    <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh">
-                      Chưa đổi mật khẩu
-                    </span>
-                  ) : null}
-                </h3>
-                <p className="m-0 text-sm text-chu-phu">
-                  {hs.username}
-                  {hs.lop.length > 0 ? ` · ${hs.lop.join(', ')}` : ' · chưa xếp lớp'}
-                </p>
-              </div>
-            </li>
+            <HangHocSinh key={hs.id} hs={hs} laQuanTri={laQuanTri} />
           ))}
         </ul>
       )}

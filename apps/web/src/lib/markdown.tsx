@@ -11,8 +11,8 @@
  * a structural guarantee rather than a filtering one.
  *
  * It supports exactly the constructs the DYE curriculum uses: headings, lists,
- * tables, fenced code, blockquotes, and inline bold / italic / code / links.
- * Anything else degrades to plain text rather than disappearing.
+ * tables, fenced code, blockquotes, images, and inline bold / italic / code /
+ * links. Anything else degrades to plain text rather than disappearing.
  */
 import type { ReactNode } from 'react';
 
@@ -31,8 +31,14 @@ const SAFE_SCHEME = /^(https?:\/\/|mailto:|\/|#)/i;
  */
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
   const nodes: ReactNode[] = [];
+  /*
+   * The image alternative comes FIRST, and its `!` is what distinguishes it
+   * from a link. Put it after the link branch and `![alt](src)` matches as a
+   * literal `!` followed by a link, which renders the illustration as a
+   * clickable "alt" — silently, on every lesson that has one.
+   */
   const pattern =
-    /(`[^`]+`)|(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(\[[^\]]+\]\([^)\s]+\))/g;
+    /(`[^`]+`)|(!\[[^\]]*\]\([^)\s]+\))|(\*\*[^*]+\*\*)|(\*[^*\n]+\*)|(\[[^\]]+\]\([^)\s]+\))/g;
 
   let lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -49,6 +55,33 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 
     if (token.startsWith('`')) {
       nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
+    } else if (token.startsWith('![')) {
+      const m = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(token);
+      const alt = m?.[1] ?? '';
+      const src = m?.[2] ?? '';
+
+      /*
+       * An illustration that has not been dropped in yet must not become a
+       * broken-image icon in the middle of a lesson. `onError` is not available
+       * here (this renders on the server), so the fallback is structural: the
+       * alt text is rendered as a visible caption underneath, which reads as a
+       * description of the missing picture rather than as a fault.
+       *
+       * Plain <img>, not next/image: these are lesson illustrations of unknown
+       * intrinsic size authored as markdown, and next/image needs dimensions or
+       * a fill container it cannot have inside flowing prose.
+       */
+      if (SAFE_SCHEME.test(src)) {
+        nodes.push(
+          <figure key={key} className="hinh-bai-hoc">
+            <img src={src} alt={alt} loading="lazy" decoding="async" />
+            {alt ? <figcaption>{alt}</figcaption> : null}
+          </figure>,
+        );
+      } else {
+        // Unsafe scheme: keep the description, drop the image.
+        nodes.push(alt);
+      }
     } else if (token.startsWith('**')) {
       nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
     } else if (token.startsWith('[')) {

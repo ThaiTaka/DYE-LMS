@@ -63,6 +63,20 @@ enum BlockType {
   /// Renders a different workspace to CODING, so the lesson player can carry
   /// both Python and hardware lessons without either knowing about the other.
   MICROBIT_WORKSPACE
+  /// Trắc nghiệm — a standalone multiple-choice exercise set.
+  ///
+  /// Distinct from QUIZ on purpose. QUIZ is the end-of-section check a lesson
+  /// has one of; MULTIPLE_CHOICE is a practice bank a lesson may carry several
+  /// of, and it sits in the EXERCISE stage of the mandated flow rather than
+  /// after it. Both hang off the same Quiz/Question/Choice rows — only the
+  /// pedagogical slot differs.
+  MULTIPLE_CHOICE
+  /// Điền khuyết — fill-in-the-blank practice.
+  ///
+  /// Backed by Question.type = FILL_BLANK, whose `template` carries the sentence
+  /// with the gap marked and whose `acceptedAnswers` carry every spelling a
+  /// student could reasonably type.
+  FILL_IN_BLANK
 }
 
 enum JudgeMode {
@@ -158,6 +172,9 @@ enum NotificationType {
   BADGE_EARNED
   ANNOUNCEMENT
   PROJECT_REVIEWED
+  /// A student left the lesson tab repeatedly. Goes to the class teacher and to
+  /// admins — never to the student.
+  FOCUS_ALERT
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -203,6 +220,9 @@ model User {
   notifications     Notification[]
   announcements     Announcement[]    @relation("AnnouncementAuthor")
   problemsAuthored  Problem[]         @relation("ProblemAuthor")
+  focusEvents       FocusEvent[]
+  focusAlerts       FocusAlert[]      @relation("FocusAlertStudent")
+  focusAlertsSeen   FocusAlert[]      @relation("FocusAlertReviewer")
 
   @@index([role, isActive])
 }
@@ -269,6 +289,7 @@ model Class {
   enrollments   Enrollment[]
   overrides     LessonOverride[]
   announcements Announcement[]
+  focusAlerts   FocusAlert[]
 
   @@index([teacherId, isArchived])
 }
@@ -330,7 +351,7 @@ model Course {
 }
 
 model Module {
-  id          String  @id @default(cuid())
+  id          String @id @default(cuid())
   courseId    String
   order       Int
   slug        String
@@ -348,16 +369,16 @@ model Module {
 }
 
 model Lesson {
-  id       String @id @default(cuid())
+  id               String       @id @default(cuid())
   /// Denormalised from Module so (course, session number) can be uniquely
   /// constrained and so course-wide progress queries avoid a join.
-  courseId String
-  moduleId String
+  courseId         String
+  moduleId         String
   /// Global session number within the course: 1..30.
-  order    Int
-  slug     String
-  title    String
-  summary  String
+  order            Int
+  slug             String
+  title            String
+  summary          String
   /// Rendered as the "What did I learn?" checklist.
   objectives       String[]
   /// 1..5. Teacher planning aid. NEVER surfaced to students as a label.
@@ -382,6 +403,8 @@ model Lesson {
   overrides     LessonOverride[]
   progress      LessonProgress[]
   submissions   Submission[]
+  focusEvents   FocusEvent[]
+  focusAlerts   FocusAlert[]
 
   @@unique([courseId, order])
   @@unique([courseId, slug])
@@ -405,20 +428,20 @@ model LessonPrerequisite {
 /// The mandated pedagogical flow lives here. A lesson is a SEQUENCE of blocks,
 /// not a PDF followed by a quiz.
 model LessonBlock {
-  id         String    @id @default(cuid())
-  lessonId   String
-  order      Int
-  type       BlockType
+  id               String    @id @default(cuid())
+  lessonId         String
+  order            Int
+  type             BlockType
   /// One lesson serves four audiences from one URL. A CO_BAN student never sees
   /// the NANG_CAO blocks; there is no separate "remedial" page to be seen entering.
-  tier       Tier      @default(CO_BAN)
-  title      String
+  tier             Tier      @default(CO_BAN)
+  title            String
   /// JSONB, validated by a discriminated-union zod schema per `type` in @dye/core.
-  content    Json
-  isOptional Boolean   @default(false)
-  estimatedMinutes Int @default(10)
-  problemId  String?
-  quizId     String?
+  content          Json
+  isOptional       Boolean   @default(false)
+  estimatedMinutes Int       @default(10)
+  problemId        String?
+  quizId           String?
 
   lesson    Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   problem   Problem?        @relation(fields: [problemId], references: [id])
@@ -604,10 +627,10 @@ model Submission {
   judgedAt     DateTime?
   createdAt    DateTime  @default(now())
 
-  student User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  problem Problem    @relation(fields: [problemId], references: [id], onDelete: Cascade)
-  lesson  Lesson?    @relation(fields: [lessonId], references: [id])
-  results SubmissionTestResult[]
+  student  User                   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  problem  Problem                @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  lesson   Lesson?                @relation(fields: [lessonId], references: [id])
+  results  SubmissionTestResult[]
   feedback Feedback[]
 
   @@index([studentId, problemId, createdAt])
@@ -630,15 +653,15 @@ enum SnapshotReason {
 /// problem attached and must survive a closed tab just as much as a graded
 /// challenge does. One row per student per block; autosave overwrites it.
 model CodeDraft {
-  id        String   @id @default(cuid())
-  studentId String
-  blockId   String
-  code      String
+  id          String   @id @default(cuid())
+  studentId   String
+  blockId     String
+  code        String
   /// SHA-256 of `code`. An autosave whose hash matches skips the write entirely,
   /// so holding a key down does not turn into a write per keystroke.
   contentHash String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   student User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   block   LessonBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
@@ -673,15 +696,15 @@ model CodeSnapshot {
 }
 
 model SubmissionTestResult {
-  submissionId String
-  testCaseId   String
-  verdict      Verdict
-  timeMs       Int     @default(0)
-  memoryKb     Int     @default(0)
+  submissionId  String
+  testCaseId    String
+  verdict       Verdict
+  timeMs        Int     @default(0)
+  memoryKb      Int     @default(0)
   /// Truncated to 4 KB, and only retained for non-hidden tests.
-  stdout       String?
+  stdout        String?
   /// Sanitised: container paths and runner internals stripped before storage.
-  stderr       String?
+  stderr        String?
   /// Friendly Vietnamese explanation mapped from the raw exception.
   friendlyError String?
 
@@ -698,13 +721,13 @@ model SubmissionTestResult {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Quiz {
-  id            String  @id @default(cuid())
-  slug          String  @unique
-  title         String
-  description   String?
-  tier          Tier    @default(CO_BAN)
-  passingScore  Int     @default(60)
-  maxAttempts   Int?
+  id               String  @id @default(cuid())
+  slug             String  @unique
+  title            String
+  description      String?
+  tier             Tier    @default(CO_BAN)
+  passingScore     Int     @default(60)
+  maxAttempts      Int?
   shuffleQuestions Boolean @default(false)
 
   questions Question[]
@@ -713,19 +736,27 @@ model Quiz {
 }
 
 model Question {
-  id          String       @id @default(cuid())
-  quizId      String
-  order       Int
-  type        QuestionType
-  prompt      String
+  id              String       @id @default(cuid())
+  quizId          String
+  order           Int
+  type            QuestionType
+  prompt          String
   /// Shown after answering, right or wrong. Teaching, not gatekeeping.
-  explanation String?
-  points      Int          @default(10)
-  tier        Tier         @default(CO_BAN)
+  explanation     String?
+  points          Int          @default(10)
+  tier            Tier         @default(CO_BAN)
   /// FILL_BLANK / SHORT_ANSWER.
   acceptedAnswers String[]
   /// "exact" | "insensitive" | "normalised"
-  matchMode   String       @default("insensitive")
+  matchMode       String       @default("insensitive")
+  /// FILL_BLANK: the sentence as the student reads it, with the gap written as
+  /// `___`. Kept separate from `prompt` so the prompt stays an instruction
+  /// ("Điền từ còn thiếu") while the template is the thing being completed.
+  template        String?
+  /// Illustration for the question. A URL only — nothing here renders HTML.
+  mediaUrl        String?
+  /// Offered BEFORE answering, on request. Costs nothing: this is practice.
+  hint            String?
 
   quiz    Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
   choices Choice[]
@@ -766,13 +797,13 @@ model QuizAttempt {
 }
 
 model Answer {
-  id            String  @id @default(cuid())
+  id            String    @id @default(cuid())
   attemptId     String
   questionId    String
   /// Shape depends on Question.type: string | string[] | boolean.
   response      Json
-  isCorrect     Boolean @default(false)
-  pointsAwarded Int     @default(0)
+  isCorrect     Boolean   @default(false)
+  pointsAwarded Int       @default(0)
   /// SHORT_ANSWER is teacher-graded; null until reviewed.
   gradedAt      DateTime?
 
@@ -861,9 +892,9 @@ model StudentBadge {
 }
 
 model Streak {
-  studentId      String   @id
-  current        Int      @default(0)
-  longest        Int      @default(0)
+  studentId      String    @id
+  current        Int       @default(0)
+  longest        Int       @default(0)
   lastActiveDate DateTime?
 
   student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
@@ -1014,4 +1045,93 @@ model Announcement {
   author User  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
 
   @@index([classId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FOCUS TRACKING
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// What the browser reported.
+///
+/// Deliberately descriptive rather than accusatory. This records that a tab was
+/// hidden — it does not, and cannot, record that a child cheated. The difference
+/// matters: the data is read by a teacher deciding whether to walk over and ask
+/// how it is going.
+enum FocusEventType {
+  /// document.visibilityState became "hidden" — tab switch, minimise, screen lock.
+  TAB_HIDDEN
+  /// The window lost focus while still visible — a second window on top.
+  WINDOW_BLUR
+  /// Came back. Carries the away duration, which is what makes the log readable.
+  RETURNED
+  /// A paste larger than the client's threshold landed in a code editor.
+  PASTE_BURST
+}
+
+enum FocusAlertState {
+  OPEN
+  ACKNOWLEDGED
+  DISMISSED
+}
+
+/// One reported focus change, append-only.
+///
+/// `studentId` always comes from the server session, never from the request
+/// body, so a student cannot log events against a classmate. The row carries no
+/// page URL, no window title and no clipboard content: knowing WHERE a student
+/// went is neither needed in order to support them, nor ours to collect.
+model FocusEvent {
+  id          String         @id @default(cuid())
+  studentId   String
+  lessonId    String
+  /// The block being worked on, when the tracker knew it.
+  blockId     String?
+  type        FocusEventType
+  /// Seconds away. Only meaningful on RETURNED; 0 elsewhere.
+  awaySeconds Int            @default(0)
+  createdAt   DateTime       @default(now())
+
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson  Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([studentId, lessonId, createdAt])
+  @@index([lessonId, createdAt])
+  @@index([createdAt])
+}
+
+/// A raised alert: this student left this lesson more often than the threshold.
+///
+/// Materialised rather than derived on every page load, for two reasons. It is
+/// what makes "notify once per crossing" possible — the unique key on
+/// (student, lesson, threshold) means a student on their fifth tab-out does not
+/// re-notify the teacher — and it gives the teacher somewhere to record that
+/// they have dealt with it.
+///
+/// `classId` is denormalised at raise time so the teacher feed can be scoped by
+/// the SAME `Class.teacherId` relationship everything else uses, without
+/// re-deriving enrolment for every alert on the page.
+model FocusAlert {
+  id               String          @id @default(cuid())
+  studentId        String
+  lessonId         String
+  classId          String?
+  /// Tab-outs counted when the alert was raised.
+  soLan            Int
+  /// The threshold this crossing represents: 3, 6, 9, …
+  nguong           Int
+  totalAwaySeconds Int             @default(0)
+  state            FocusAlertState @default(OPEN)
+  reviewedById     String?
+  reviewedAt       DateTime?
+  createdAt        DateTime        @default(now())
+
+  student    User   @relation("FocusAlertStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  lesson     Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  class      Class? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  reviewedBy User?  @relation("FocusAlertReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, lessonId, nguong])
+  @@index([classId, state, createdAt])
+  @@index([state, createdAt])
+  @@index([studentId, createdAt])
 }

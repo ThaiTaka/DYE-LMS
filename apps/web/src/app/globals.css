@@ -226,3 +226,33 @@ body {
   background: var(--color-the-mo);
   font-weight: 600;
 }
+
+/*
+ * Lesson illustrations.
+ *
+ * Styled at the wrapper rather than on the <img> so a picture that has not been
+ * dropped in yet still renders as a bordered box with its caption, which reads
+ * as "a diagram belongs here" instead of as a broken page. Curriculum images are
+ * authored as markdown with no intrinsic size declared, so the height is left to
+ * the file and only the width is constrained.
+ */
+.hinh-bai-hoc {
+  margin: 1.4em 0;
+}
+
+.hinh-bai-hoc img {
+  display: block;
+  width: 100%;
+  max-width: 40rem;
+  height: auto;
+  border: 1px solid var(--color-vien);
+  border-radius: var(--radius-the, 0.75rem);
+  background: var(--color-the-mo);
+}
+
+.hinh-bai-hoc figcaption {
+  margin-top: 0.5rem;
+  color: var(--color-chu-nhat);
+  font-size: var(--text-sm);
+  line-height: 1.5;
+}

@@ -87,6 +87,25 @@ export type BlockContent =
       khoiLenh?: string[];
     }
   | { kind: 'quiz'; markdown: string }
+  | {
+      /**
+       * Trắc nghiệm — a multiple-choice practice bank.
+       *
+       * Carries no answers of its own: the questions live in the attached
+       * `quiz`, so `Choice.isCorrect` stays server-side and the block content
+       * that ships to the browser holds only the framing prose.
+       */
+      kind: 'mcq';
+      markdown: string;
+      /** Illustration shown above the questions. */
+      imageUrl?: string;
+    }
+  | {
+      /** Điền khuyết — fill-in-the-blank practice. Same arrangement as `mcq`. */
+      kind: 'fill-blank';
+      markdown: string;
+      imageUrl?: string;
+    }
   | { kind: 'video'; url: string; durationSec: number; markdown?: string }
   | { kind: 'reflection'; prompt: string }
   | { kind: 'resource'; links: Array<{ label: string; url: string }> }
@@ -162,4 +181,14 @@ export interface QuestionSpec {
   /** FILL_BLANK / SHORT_ANSWER */
   acceptedAnswers?: string[];
   matchMode?: 'exact' | 'insensitive' | 'normalised';
+  /**
+   * FILL_BLANK: the sentence the student completes, with the gap written `___`.
+   * Kept apart from `prompt` so the prompt can stay an instruction while the
+   * template is the thing being filled in.
+   */
+  template?: string;
+  /** Illustration for this question. A URL — never markup. */
+  mediaUrl?: string;
+  /** Offered before answering. Costs nothing; this is practice, not an exam. */
+  hint?: string;
 }

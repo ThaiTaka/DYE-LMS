@@ -6,7 +6,7 @@ import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireRole, xemDuoc } from '@/lib/guard';
-import { duLieuHocSinh } from '@/lib/teacher-data';
+import { duLieuHocSinh, duLieuTapTrungHocSinh } from '@/lib/teacher-data';
 
 export default async function TrangHocSinh({
   params,
@@ -28,6 +28,10 @@ export default async function TrangHocSinh({
   if (!hs) notFound();
 
   const coCanThiep = new Set(hs.canThiep.map((c) => c.lessonId));
+
+  // Loaded only after `duLieuHocSinh` has proved this actor may see this child,
+  // and guarded again inside on the same permission.
+  const tapTrung = await duLieuTapTrungHocSinh(actor, id);
 
   return (
     <VoGiaoVien tenHienThi={actor.displayName} vaiTro={actor.role === 'ADMIN' ? 'ADMIN' : 'TEACHER'}>
@@ -108,6 +112,56 @@ export default async function TrangHocSinh({
                 {c.reason ? <span className="text-chu-nhat">— “{c.reason}”</span> : null}
                 <span className="text-chu-nhat">
                   ({c.authorName}, {c.createdAt.toLocaleDateString('vi-VN')})
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {/*
+        Focus history.
+
+        Rendered only when there is something to say — a permanent "0 lần rời
+        tab" panel on every student invites a teacher to read the absence of a
+        signal as a positive one, and to start comparing children by it.
+
+        The framing repeats the limit deliberately: this counts departures from
+        the tab and nothing else. A teacher reading it at the end of a long day
+        will fill in the missing half themselves otherwise.
+      */}
+      {tapTrung && tapTrung.soLanRoi > 0 ? (
+        <section
+          aria-labelledby="tap-trung"
+          className="mb-6 rounded-the border border-vien bg-the p-5"
+        >
+          <h2 id="tap-trung" className="mt-0 mb-1 text-xl font-bold">
+            Mức độ tập trung
+          </h2>
+          <p className="mt-0 mb-4 text-sm text-chu-phu">
+            Em này đã rời khỏi tab bài học{' '}
+            <strong className="text-chu">{tapTrung.soLanRoi} lần</strong>
+            {tapTrung.tongVangGiay > 0
+              ? `, tổng cộng khoảng ${Math.max(1, Math.round(tapTrung.tongVangGiay / 60))} phút ở ngoài`
+              : ''}
+            . Hệ thống <strong className="text-chu">không biết em đã mở gì</strong> — con số này
+            thường có nghĩa là em đang bí ở đâu đó, và đáng để thầy cô hỏi thăm một câu.
+          </p>
+
+          <ul className="m-0 list-none space-y-2 p-0">
+            {tapTrung.theoBai.slice(0, 8).map((b) => (
+              <li
+                key={b.lessonId}
+                className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 rounded-nut border border-vien p-3 text-sm"
+              >
+                <span>
+                  Buổi {b.buoi} · {b.tenBai}
+                </span>
+                <span className="text-chu-phu tabular-nums">
+                  {b.soLanRoi} lần
+                  {b.tongVangGiay > 0
+                    ? ` · ${Math.max(1, Math.round(b.tongVangGiay / 60))} phút`
+                    : ''}
                 </span>
               </li>
             ))}

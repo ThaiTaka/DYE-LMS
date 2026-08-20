@@ -2,15 +2,22 @@
  * Lập trình Micro:bit Cơ Bản.
  *
  * ── Scope ────────────────────────────────────────────────────────────────────
- * The brief specifies Module 1 — Khởi lệnh BASIC — in full: five blocks
- * (`forever`, `show string`, `show icon`, `pause`, `clearScreen`) and two named
- * challenges. That is what this file contains, and `totalSessions` reflects the
- * sessions actually written rather than a placeholder count.
+ * The course runs to 30 sessions, and the sessions are NOT all equal:
  *
- * Later modules are NOT invented here. The three Python courses are seeded from
- * real lesson plans; a fabricated Module 2 would look identical in the database
- * and be indistinguishable to a teacher browsing the curriculum. When the
- * Micro:bit plan for the remaining modules arrives, it gets added the same way.
+ *   Buổi 1       authored in full, in ./microbit-buoi-01.ts — deep theory,
+ *                illustrations, 10 trắc nghiệm, 10 điền khuyết and a ten-rung
+ *                ladder of kéo-thả tasks. This is the reference shape.
+ *   Buổi 2–4     the rest of Module 1, written from the brief: five Basic
+ *                blocks and the two named challenges.
+ *   Buổi 5–30    PLANNED shells from ./microbit-khung.ts. The topic order is
+ *                real; the lesson content has not been written by a teacher yet.
+ *
+ * That distinction is load-bearing and is stated in the data, not just in this
+ * comment. A shell ships `isDerived: true` and `status: 'OPTIONAL'`, so it never
+ * enters a student's required denominator and a teacher browsing the curriculum
+ * can see at a glance which sessions are real. Fabricating plausible content for
+ * Buổi 17 would look identical in the database to an authored session and be
+ * indistinguishable until someone had to teach it.
  *
  * ── Why nothing here is auto-judged ──────────────────────────────────────────
  * Every task is `judgeMode: MAKECODE`. The output of this program is light on a
@@ -19,13 +26,15 @@
  * row — the submission, review and progress pipelines then work unchanged.
  */
 import { microbitTask, theory, example, quizBlock, reflection } from '../builders.ts';
+import { microbitBuoi01 } from './microbit-buoi-01.ts';
+import { microbitModuleSapMo } from './microbit-khung.ts';
 
 import type { CourseSpec } from '../types.ts';
 
 export const microbitCoBan: CourseSpec = {
   slug: 'microbit-co-ban',
   title: 'Lập trình Micro:bit Cơ Bản',
-  subtitle: '4 buổi · Từ khối lệnh đầu tiên đến board mạch nhấp nháy trong tay em',
+  subtitle: '30 buổi · Từ khối lệnh đầu tiên đến board mạch nhấp nháy trong tay em',
   description: [
     'Khoá học đưa em từ màn hình máy tính ra một board mạch thật cầm được trên tay.',
     '',
@@ -35,8 +44,12 @@ export const microbitCoBan: CourseSpec = {
     '',
     'Module 1 dạy năm khối lệnh nền tảng: `forever`, `show string`, `show icon`,',
     '`pause` và `clearScreen`. Chỉ với năm khối này em đã làm được hoạt ảnh chạy mãi.',
+    '',
+    'Sau đó khoá học đi tiếp qua nút bấm và cảm biến, biến và phép tính, điều kiện và vòng lặp,',
+    'âm thanh và vẽ hình, sóng radio để hai board nói chuyện với nhau, rồi kết thúc bằng',
+    'một dự án của riêng em.',
   ].join('\n'),
-  totalSessions: 4,
+  totalSessions: 30,
   order: 4,
   colorToken: 'teal',
   iconEmoji: '🤖',
@@ -48,133 +61,7 @@ export const microbitCoBan: CourseSpec = {
         'Năm khối lệnh nền tảng trong nhóm Basic: forever, show string, show icon, pause, clearScreen.',
       lessons: [
         // ═══════════════════════════════════════════════════════════════════
-        {
-          order: 1,
-          slug: 'mb-b01-lam-quen-microbit',
-          title: 'Buổi 1 · Làm quen Micro:bit và MakeCode',
-          summary:
-            'Em nhìn thấy board mạch, hiểu 25 đèn LED làm được gì, và chạy chương trình đầu tiên.',
-          objectives: [
-            'Chỉ được các bộ phận chính trên board Micro:bit',
-            'Mở được MakeCode và nhận ra khu vực kéo thả khối lệnh',
-            'Dùng `show string` để hiện tên mình ra màn hình LED',
-            'Tải tệp .hex về và nạp vào board mạch',
-          ],
-          difficulty: 1,
-          estimatedMinutes: 90,
-          status: 'REQUIRED',
-          teacherNotes: [
-            'Buổi này KHÔNG dạy cú pháp. Học sinh chỉ kéo thả.',
-            'Nếu lớp chưa có đủ board, cho học sinh dùng trình mô phỏng trong MakeCode —',
-            'mô phỏng chạy đúng như board thật cho các lệnh của Module 1.',
-            'Dành ít nhất 15 phút cuối cho thao tác nạp .hex: đây là bước học sinh hay vướng nhất,',
-            'và cảm giác thấy board sáng lên là thứ giữ các em ở lại với môn học.',
-          ].join(' '),
-          blocks: [
-            theory(
-              'Micro:bit là gì?',
-              [
-                'Micro:bit là một **máy tính nhỏ bằng nửa tấm thẻ ATM**. Nó không có màn hình như',
-                'điện thoại, mà có **25 bóng đèn LED** xếp thành lưới 5×5.',
-                '',
-                'Trên board còn có:',
-                '',
-                '- **Nút A và nút B** — hai nút bấm ở hai bên',
-                '- **Cổng USB** — để nối với máy tính và nạp chương trình',
-                '- **Cảm biến** — biết được board đang nghiêng, đang bị lắc, sáng hay tối',
-                '',
-                'Em viết chương trình trên máy tính, rồi **chuyển nó sang board** qua dây USB.',
-                'Từ lúc đó board chạy chương trình của em, kể cả khi đã rút dây ra và lắp pin.',
-              ],
-              [
-                'Micro:bit có 25 đèn LED xếp thành lưới 5×5',
-                'Chương trình viết trên máy tính, sau đó nạp sang board qua USB',
-                'Nạp xong, board chạy độc lập — không cần nối máy tính nữa',
-              ],
-            ),
-
-            theory(
-              'MakeCode — nơi em kéo thả khối lệnh',
-              [
-                'MakeCode là công cụ lập trình Micro:bit của Microsoft. Điểm hay nhất của nó:',
-                'em **không gõ chữ**, mà **kéo các khối lệnh** ghép lại với nhau như xếp Lego.',
-                '',
-                'Màn hình MakeCode có ba phần:',
-                '',
-                '| Phần | Nằm ở đâu | Dùng để làm gì |',
-                '|---|---|---|',
-                '| Trình mô phỏng | Bên trái | Xem thử chương trình chạy ra sao mà chưa cần board |',
-                '| Hộp khối lệnh | Ở giữa | Nơi lấy các khối: Basic, Input, Music… |',
-                '| Vùng làm việc | Bên phải | Nơi em ghép các khối thành chương trình |',
-                '',
-                'Khối lệnh **không ghép sai được**. Nếu hai khối không khớp nhau, MakeCode sẽ',
-                'không cho dính vào — nên em cứ thử thoải mái, không sợ hỏng.',
-              ],
-              [
-                'Kéo thả khối lệnh, không cần gõ cú pháp',
-                'Trình mô phỏng cho xem trước khi có board thật',
-                'Khối không khớp thì không dính — thử sai không sao cả',
-              ],
-            ),
-
-            example(
-              'Khối `show string` — hiện chữ ra màn hình LED',
-              [
-                'Khối `show string` cho phép hiện một dòng chữ. Vì màn hình chỉ có 5 cột,',
-                'chữ sẽ **chạy ngang từ phải sang trái** cho hết câu.',
-                '',
-                'Kéo khối `show string` từ nhóm **Basic**, rồi sửa chữ `Hello!` thành tên của em.',
-              ],
-              [
-                'basic.showString("An")',
-              ].join('\n'),
-              {
-                output: 'Màn hình LED sáng lần lượt từng chữ cái: A → n',
-                notes: [
-                  'Chữ tiếng Việt có dấu KHÔNG hiện được — màn hình LED chỉ có 5×5 điểm.',
-                  'Em viết tên không dấu nhé: "Dũng" viết thành "Dung".',
-                  'Câu càng dài thì chạy càng lâu. Nên để dưới 10 chữ cái.',
-                ],
-              },
-            ),
-
-            microbitTask(
-              {
-                slug: 'mb-p-b01-hien-ten',
-                title: 'Hiện tên của em',
-                statement: [
-                  'Viết chương trình hiện **tên của em** ra màn hình LED.',
-                  '',
-                  '**Yêu cầu:**',
-                  '',
-                  '1. Dùng khối `show string`',
-                  '2. Nội dung là tên em, viết **không dấu**',
-                  '3. Chạy thử trong trình mô phỏng để xem chữ chạy ngang',
-                  '',
-                  'Xong rồi, nếu lớp có board, em tải `.hex` về và nạp vào Micro:bit nhé.',
-                ].join('\n'),
-                hints: [
-                  'Khối `show string` nằm trong nhóm **Basic** (màu xanh dương).',
-                  'Bấm vào chữ "Hello!" trong khối để sửa thành tên em.',
-                  'Tên có dấu sẽ không hiện được — bỏ dấu đi nhé.',
-                ],
-                solutionCode: 'basic.showString("An")',
-                totalPoints: 100,
-              },
-              {
-                goal: 'Màn hình LED chạy ngang tên của em.',
-                khoiLenh: ['show string'],
-                markdown:
-                  'Đây là chương trình đầu tiên của em. Cứ thử, sai cũng không sao — kéo khối ra rồi kéo lại là được.',
-              },
-            ),
-
-            reflection(
-              'Em nghĩ sao?',
-              'Lúc thấy tên mình chạy trên board mạch, em cảm thấy thế nào? Em muốn làm gì tiếp theo với 25 đèn LED này?',
-            ),
-          ],
-        },
+        microbitBuoi01,
 
         // ═══════════════════════════════════════════════════════════════════
         {
@@ -603,5 +490,9 @@ export const microbitCoBan: CourseSpec = {
         },
       ],
     },
+
+    // Buổi 5–30. Planned, not yet authored — see ./microbit-khung.ts for what
+    // that means and why the distinction is written into the rows themselves.
+    ...microbitModuleSapMo,
   ],
 };

@@ -181,6 +181,11 @@ function assertPedagogicalFlow(course: CourseSpec): void {
     'MINI_CHALLENGE',
     'CODING',
     'MICROBIT_WORKSPACE',
+    // Trắc nghiệm and Điền khuyết are practice rather than a graded exam, but
+    // they are still the moment a student is asked to produce an answer — so
+    // "no theory straight to assessment" covers them too.
+    'MULTIPLE_CHOICE',
+    'FILL_IN_BLANK',
   ]);
   const HANDS_ON: ReadonlySet<string> = new Set(['INTERACTIVE_EXAMPLE', 'PLAYGROUND', 'PROJECT']);
 

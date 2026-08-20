@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { HangLop } from '@/components/giao-vien/hang-lop';
 import { TaoLop } from '@/components/giao-vien/tao-lop';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
@@ -44,27 +45,7 @@ export default async function TrangLopHoc() {
       ) : (
         <ul className="m-0 list-none space-y-3 p-0">
           {data.lop.map((l) => (
-            <li
-              key={l.id}
-              className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 rounded-the border border-vien bg-the p-4"
-            >
-              <div className="min-w-0">
-                <h3 className="mt-0 mb-1 flex flex-wrap items-center gap-2 text-base font-semibold">
-                  <Link href={`/giao-vien/lop/${l.id}`} className="hover:underline">
-                    {l.ten}
-                  </Link>
-                  {l.daLuuTru ? (
-                    <span className="rounded-full bg-the-mo px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
-                      Đã lưu trữ
-                    </span>
-                  ) : null}
-                </h3>
-                <p className="m-0 text-sm text-chu-phu">
-                  {l.ma} · {l.giaoVien} · {l.soHocSinh} học sinh
-                  {l.term ? ` · ${l.term}` : ''}
-                </p>
-              </div>
-            </li>
+            <HangLop key={l.id} lop={l} />
           ))}
         </ul>
       )}

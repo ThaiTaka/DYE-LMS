@@ -17,12 +17,20 @@ import {
   authorize,
   chamTay,
   chuyenGiaoHoSoGiangDay,
+  ganKhoaHocVaoLop,
+  goKhoaHocKhoiLop,
+  khoiPhucHocSinh,
   laVaiTroTaoDuoc,
+  luuTruLopHoc,
   phanCongLopHoc,
   taoLopHoc,
   taoTaiKhoan,
+  voHieuHoaHocSinh,
   voHieuHoaNhanVien,
+  xoaLopHoc,
+  xoaTaiKhoanHocSinh,
   xoaTaiKhoanNhanVien,
+  xuLyCanhBao,
   ForbiddenError,
 } from '@dye/core';
 import { revalidatePath } from 'next/cache';
@@ -590,6 +598,329 @@ export async function taoLop(
       thongDiep:
         `Đã tạo lớp “${kq.ten}” (mã ${kq.ma}), do ${kq.giaoVien} phụ trách. ` +
         'Lớp này đã sẵn sàng để thêm học sinh và để phân công lại cho thầy cô khác.',
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Class lifecycle — delete, archive, attach curriculum
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Delete a class. Admin-only, enforced in `xoaLopHoc`.
+ *
+ * Two-step by design. The first call comes back `can-xac-nhan` whenever the
+ * class still holds active students, carrying the counts; the form re-submits
+ * with `xacNhan` to go through. The counts are the whole point: `Enrollment`
+ * cascades, so an admin clearing out a typo and an admin clearing out the class
+ * thirty children are sitting in would otherwise issue the identical click.
+ *
+ * The success message says out loud that the student ACCOUNTS survive, because
+ * "xoá lớp" reads like it might take the children with it, and an admin who
+ * believes that will not use the feature at all.
+ */
+export async function xoaLop(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const classId = String(form.get('classId') ?? '');
+    if (!classId) return { trangThai: 'loi', thongDiep: 'Thiếu lớp cần xoá.' };
+
+    const kq = await xoaLopHoc(db, actor, classId, { xacNhan: form.get('xacNhan') === 'co' });
+
+    if (kq.trangThai === 'can-xac-nhan') {
+      const a = kq.anhHuong;
+      return {
+        trangThai: 'tu-choi',
+        thongDiep:
+          `Lớp “${a.ten}” đang có ${a.hocSinhDangHoc} học sinh theo học. ` +
+          `Xoá lớp sẽ gỡ các em ra khỏi lớp và xoá ${a.khoaHoc} khoá học đã gắn, ` +
+          `${a.canThiepBaiHoc} can thiệp bài học và ${a.thongBao} thông báo của lớp. ` +
+          'Tài khoản và bài làm của từng em thì vẫn giữ nguyên. ' +
+          'Nếu lớp chỉ vừa học xong, thầy cô nên “Lưu trữ” thay vì xoá. ' +
+          'Muốn xoá thật thì tích vào ô xác nhận rồi bấm lại.',
+      };
+    }
+
+    revalidatePath('/giao-vien/lop');
+    revalidatePath('/giao-vien/nhan-su');
+    revalidatePath('/giao-vien/hoc-sinh');
+    revalidatePath('/giao-vien/thong-ke');
+    revalidatePath('/giao-vien');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã xoá lớp “${kq.ten}” (mã ${kq.ma}).` +
+        (kq.hocSinhGoRa > 0
+          ? ` ${kq.hocSinhGoRa} em đã được gỡ khỏi lớp — tài khoản và toàn bộ bài làm của các em vẫn còn nguyên, chỉ cần xếp vào lớp khác.`
+          : ' Lớp này chưa có học sinh nào.'),
+    };
+  });
+}
+
+/** Archive or un-archive a class. The reversible alternative to deleting one. */
+export async function doiLuuTruLop(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const classId = String(form.get('classId') ?? '');
+    if (!classId) return { trangThai: 'loi', thongDiep: 'Thiếu lớp cần xử lý.' };
+
+    const kq = await luuTruLopHoc(db, actor, classId, form.get('luuTru') === 'co');
+
+    revalidatePath('/giao-vien/lop');
+    revalidatePath('/giao-vien/thong-ke');
+    revalidatePath('/giao-vien');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep: kq.daLuuTru
+        ? `Đã lưu trữ lớp “${kq.ten}”. Danh sách, tiến độ và thông báo giữ nguyên; mở lại lúc nào cũng được.`
+        : `Đã mở lại lớp “${kq.ten}”.`,
+    };
+  });
+}
+
+/**
+ * Attach a course to a class — the "Gắn khoá học" button.
+ *
+ * Admin OR the class's own teacher. That is decided inside `ganKhoaHocVaoLop`
+ * by `authorize({ resource: 'class', action: 'manage' })`, not here: choosing
+ * what a class studies is ordinary teaching work, unlike creating or deleting
+ * the class itself.
+ */
+export async function ganKhoaHoc(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const classId = String(form.get('classId') ?? '');
+    const courseId = String(form.get('courseId') ?? '');
+    if (!classId) return { trangThai: 'loi', thongDiep: 'Thiếu lớp.' };
+    if (!courseId) {
+      return { trangThai: 'loi', thongDiep: 'Thầy cô chọn giúp em một khoá học nhé.' };
+    }
+
+    const kq = await ganKhoaHocVaoLop(db, actor, classId, courseId);
+
+    if (kq.trangThai === 'khong-thay-khoa') {
+      return {
+        trangThai: 'loi',
+        thongDiep: 'Không tìm thấy khoá học này, hoặc khoá chưa được xuất bản.',
+      };
+    }
+
+    revalidatePath(`/giao-vien/lop/${classId}`);
+    revalidatePath('/giao-vien/lop');
+    revalidatePath('/giao-vien/thong-ke');
+    revalidatePath('/giao-vien');
+    // Every student in the class now has a course map where they had none.
+    revalidatePath('/bang-dieu-khien');
+
+    if (kq.trangThai === 'da-co') {
+      return {
+        trangThai: 'thanh-cong',
+        thongDiep: `Lớp này vốn đã học “${kq.tenKhoa}” rồi, nên không có gì thay đổi.`,
+      };
+    }
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã gắn khoá “${kq.tenKhoa}” (${kq.soBuoi} buổi) vào lớp. ` +
+        'Từ bây giờ các em trong lớp mở trang chính là thấy bản đồ khoá học này, ' +
+        'và buổi 1 đã mở sẵn.',
+    };
+  });
+}
+
+/** Detach a course from a class. Student work survives — it is keyed on lessons. */
+export async function goKhoaHoc(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const classId = String(form.get('classId') ?? '');
+    const courseId = String(form.get('courseId') ?? '');
+    if (!classId || !courseId) return { trangThai: 'loi', thongDiep: 'Thiếu lớp hoặc khoá học.' };
+
+    const kq = await goKhoaHocKhoiLop(db, actor, classId, courseId);
+    if (!kq) return { trangThai: 'loi', thongDiep: 'Lớp này không có khoá học đó.' };
+
+    revalidatePath(`/giao-vien/lop/${classId}`);
+    revalidatePath('/giao-vien/lop');
+    revalidatePath('/giao-vien/thong-ke');
+    revalidatePath('/giao-vien');
+    revalidatePath('/bang-dieu-khien');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã gỡ khoá “${kq.tenKhoa}” khỏi lớp. ` +
+        'Bài làm, bản nháp và tiến độ của các em vẫn được giữ nguyên — gắn lại khoá này ' +
+        'lúc nào thì các em thấy lại đúng chỗ đã dừng.',
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Student accounts
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Delete a student account. Admin-only, and two-step whenever they have work.
+ *
+ * Unlike a teacher, nothing about a student BLOCKS the delete: every row
+ * pointing at them cascades. That is precisely why the confirmation exists —
+ * the statement is quiet, and it destroys a term of a child's submissions,
+ * drafts, snapshots, badges and progress in one go.
+ */
+export async function xoaHocSinh(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const studentId = String(form.get('studentId') ?? '');
+    if (!studentId) return { trangThai: 'loi', thongDiep: 'Thiếu học sinh cần xoá.' };
+
+    const kq = await xoaTaiKhoanHocSinh(db, actor, studentId, {
+      xacNhan: form.get('xacNhan') === 'co',
+    });
+
+    if (kq.trangThai === 'can-xac-nhan') {
+      const a = kq.anhHuong;
+      const con = [
+        a.baiNop > 0 ? `${a.baiNop} bài nộp` : '',
+        a.tienDoBaiHoc > 0 ? `${a.tienDoBaiHoc} bản ghi tiến độ` : '',
+        a.banNhapCode > 0 ? `${a.banNhapCode} bản nháp code` : '',
+        a.lamTracNghiem > 0 ? `${a.lamTracNghiem} lượt làm trắc nghiệm` : '',
+        a.duAn > 0 ? `${a.duAn} dự án` : '',
+        a.huyHieu > 0 ? `${a.huyHieu} huy hiệu` : '',
+      ]
+        .filter(Boolean)
+        .join(', ');
+
+      return {
+        trangThai: 'tu-choi',
+        thongDiep:
+          `Tài khoản “${a.displayName}” đang có ${con}. Xoá là mất hẳn, không khôi phục được. ` +
+          (a.lop > 0 ? `Em này đang học ở: ${a.tenLop.join(', ')}. ` : '') +
+          'Nếu chỉ cần chặn em đăng nhập, thầy cô dùng “Ngưng truy cập” — dữ liệu giữ nguyên và bật lại được. ' +
+          'Muốn xoá thật thì tích vào ô xác nhận rồi bấm lại.',
+      };
+    }
+
+    revalidatePath('/giao-vien/hoc-sinh');
+    revalidatePath('/giao-vien/thong-ke');
+    revalidatePath('/giao-vien');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã xoá tài khoản “${kq.displayName}” (${kq.username})` +
+        (kq.daXoaBanGhi > 0 ? ` cùng ${kq.daXoaBanGhi} bản ghi liên quan` : '') +
+        '. Nhật ký kiểm toán vẫn giữ lại việc này.',
+    };
+  });
+}
+
+/** Stop a student signing in, or let them back in. Nothing they made is touched. */
+export async function doiTruyCapHocSinh(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const studentId = String(form.get('studentId') ?? '');
+    if (!studentId) return { trangThai: 'loi', thongDiep: 'Thiếu học sinh cần xử lý.' };
+
+    if (form.get('bat') === 'co') {
+      const mo = await khoiPhucHocSinh(db, actor, studentId);
+      revalidatePath('/giao-vien/hoc-sinh');
+      return {
+        trangThai: 'thanh-cong',
+        thongDiep: `Đã mở lại truy cập cho ${mo.displayName}. Em đăng nhập được ngay.`,
+      };
+    }
+
+    const kq = await voHieuHoaHocSinh(db, actor, studentId);
+    revalidatePath('/giao-vien/hoc-sinh');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã ngưng truy cập của ${kq.displayName}. Toàn bộ bài làm giữ nguyên và bật lại được bất cứ lúc nào.` +
+        (kq.sessionsRevoked > 0 ? ` Đã đăng xuất ${kq.sessionsRevoked} phiên đang mở.` : ''),
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Focus alerts
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Mark a focus alert dealt with.
+ *
+ * "Đã hỏi thăm" (acknowledged) and "Bỏ qua" (dismissed) are both recorded with
+ * a name and a time. An alert about a child that was silently cleared is worse
+ * than one nobody looked at, so there is no path here that removes a row.
+ *
+ * The visibility check lives in `xuLyCanhBao`, which re-reads the alert through
+ * the same relational scope the feed is built from — a teacher cannot clear an
+ * alert about a class they do not run by guessing its id.
+ */
+export async function xuLyCanhBaoTapTrung(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const alertId = String(form.get('alertId') ?? '');
+    const hanhDong = String(form.get('hanhDong') ?? '');
+    if (!alertId) return { trangThai: 'loi', thongDiep: 'Thiếu cảnh báo cần xử lý.' };
+    if (hanhDong !== 'da-hoi-tham' && hanhDong !== 'bo-qua') {
+      return { trangThai: 'loi', thongDiep: 'Hành động không hợp lệ.' };
+    }
+
+    const kq = await xuLyCanhBao(
+      db,
+      actor,
+      alertId,
+      hanhDong === 'da-hoi-tham' ? 'ACKNOWLEDGED' : 'DISMISSED',
+    );
+
+    revalidatePath('/giao-vien/canh-bao');
+    revalidatePath('/giao-vien');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        hanhDong === 'da-hoi-tham'
+          ? `Đã ghi nhận thầy cô đã hỏi thăm ${kq.tenHocSinh}.`
+          : `Đã bỏ qua cảnh báo về ${kq.tenHocSinh}.`,
     };
   });
 }

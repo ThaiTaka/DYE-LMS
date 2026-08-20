@@ -88,6 +88,57 @@ export {
   type VaiTroTaoDuoc,
 } from './accounts';
 
+export {
+  anhHuongXoaLop,
+  CLASS_AUDIT,
+  ganKhoaHocVaoLop,
+  goKhoaHocKhoiLop,
+  khoaHocChoLop,
+  luuTruLopHoc,
+  xoaLopHoc,
+  type AnhHuongXoaLop,
+  type KetQuaGanKhoaHoc,
+  type KetQuaXoaLop,
+  type KhoaHocChonDuoc,
+} from './lop';
+
+export {
+  anhHuongXoaHocSinh,
+  goHocSinhKhoiLop,
+  khoiPhucHocSinh,
+  STUDENT_AUDIT,
+  voHieuHoaHocSinh,
+  xoaTaiKhoanHocSinh,
+  type AnhHuongXoaHocSinh,
+  type KetQuaXoaHocSinh,
+} from './hoc-sinh';
+
+// ── Focus tracking ───────────────────────────────────────────────────────────
+export {
+  CAP_AWAY_SECONDS,
+  canhBaoTapTrung,
+  DEDUP_MS,
+  ghiNhanSuKienTapTrung,
+  NGUONG_CANH_BAO,
+  soCanhBaoChuaXuLy,
+  tomTatTapTrung,
+  TRAN_MOI_LAN,
+  xuLyCanhBao,
+  type CanhBaoHienThi,
+  type KetQuaGhiNhan,
+  type SuKienTapTrung,
+  type TomTatTapTrung,
+} from './giam-sat';
+
+// ── Teaching analytics ───────────────────────────────────────────────────────
+export {
+  thongKeGiangDay,
+  type ThongKeHocSinh,
+  type ThongKeKhoaTrongLop,
+  type ThongKeLop,
+  type ThongKeTongQuan,
+} from './thong-ke';
+
 export { bocMarkdown, rutGon, tenBuoi } from './text';
 
 export {

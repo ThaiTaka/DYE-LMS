@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 
 import { currentActor, signOut } from '@/auth';
 import { db } from '@/lib/db';
+import { demCanhBaoChuaXuLy } from '@/lib/teacher-data';
 
 async function dangXuat(): Promise<void> {
   'use server';
@@ -31,7 +32,7 @@ async function dangXuat(): Promise<void> {
  * What does NOT change between the two shells is the accessibility floor:
  * same skip link, same 44px targets, same focus ring, same 18px base type.
  */
-export function VoGiaoVien({
+export async function VoGiaoVien({
   tenHienThi,
   vaiTro,
   children,
@@ -40,6 +41,17 @@ export function VoGiaoVien({
   vaiTro: 'TEACHER' | 'ADMIN';
   children: ReactNode;
 }) {
+  /*
+   * The alert count is read here rather than passed in by every page.
+   *
+   * A badge that only appears on the pages that remembered to fetch it is worse
+   * than no badge: a teacher learns it means "no alerts" and then misses one.
+   * `demCanhBaoChuaXuLy` swallows its own errors and answers 0, so a failure in
+   * a decorative count can never take down the page it decorates.
+   */
+  const actor = await currentActor();
+  const soCanhBao = actor ? await demCanhBaoChuaXuLy(actor) : 0;
+
   return (
     <>
       <a href="#noi-dung-chinh" className="bo-qua">
@@ -65,6 +77,10 @@ export function VoGiaoVien({
             <MucDieuHuong href="/giao-vien/microbit">Micro:bit</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/giao-trinh">Giáo trình</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/hoc-sinh">Học sinh</MucDieuHuong>
+            <MucDieuHuong href="/giao-vien/thong-ke">Thống kê</MucDieuHuong>
+            <MucDieuHuong href="/giao-vien/canh-bao" huy={soCanhBao}>
+              Cảnh báo
+            </MucDieuHuong>
             {vaiTro === 'ADMIN' ? (
               <>
                 <MucDieuHuong href="/giao-vien/lop">Lớp học</MucDieuHuong>
@@ -98,13 +114,28 @@ export function VoGiaoVien({
   );
 }
 
-function MucDieuHuong({ href, children }: { href: string; children: ReactNode }) {
+function MucDieuHuong({
+  href,
+  children,
+  huy = 0,
+}: {
+  href: string;
+  children: ReactNode;
+  /** Count badge. Rendered only when non-zero — a "0" is noise, not information. */
+  huy?: number;
+}) {
   return (
     <Link
       href={href}
-      className="flex min-h-cham items-center rounded-nut px-3 py-2 text-sm font-medium text-chu-phu hover:bg-the-mo hover:text-chu"
+      className="flex min-h-cham items-center gap-1.5 rounded-nut px-3 py-2 text-sm font-medium text-chu-phu hover:bg-the-mo hover:text-chu"
     >
       {children}
+      {huy > 0 ? (
+        <span className="rounded-full bg-thu-lai px-2 py-0.5 text-xs font-bold text-white tabular-nums">
+          {huy}
+          <span className="sr-only"> cảnh báo chưa xử lý</span>
+        </span>
+      ) : null}
     </Link>
   );
 }

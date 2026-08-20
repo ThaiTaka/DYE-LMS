@@ -17,6 +17,11 @@ const ASSESSMENT: ReadonlySet<BlockType> = new Set<BlockType>([
   'QUIZ',
   'MINI_CHALLENGE',
   'CODING',
+  // Trắc nghiệm and Điền khuyết are practice, but they are still the moment a
+  // student is asked to produce an answer — so the "no theory straight to
+  // assessment" rule covers them exactly as it covers a coding challenge.
+  'MULTIPLE_CHOICE',
+  'FILL_IN_BLANK',
 ]);
 
 /** Blocks where a student does something rather than reads something. */
@@ -131,6 +136,8 @@ export function stageOf(type: BlockType): FlowStage {
     case 'MINI_CHALLENGE':
     case 'CODING':
     case 'QUIZ':
+    case 'MULTIPLE_CHOICE':
+    case 'FILL_IN_BLANK':
     case 'PROJECT':
     case 'MICROBIT_WORKSPACE':
       return 'THU_THACH';

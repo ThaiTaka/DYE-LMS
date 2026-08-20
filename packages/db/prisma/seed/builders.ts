@@ -5,7 +5,7 @@
  * Mini Challenge. These helpers make that the path of least resistance;
  * assertions.ts makes any other ordering a build failure.
  */
-import type { BlockSpec, ProblemSpec, QuizSpec, TestCaseSpec } from './types.ts';
+import type { BlockSpec, ProblemSpec, QuestionSpec, QuizSpec, TestCaseSpec } from './types.ts';
 
 /**
  * Curriculum prose is authored as an array of lines so the source files stay
@@ -224,4 +224,124 @@ export function sample(
 /** Shorthand for a hidden assessment test. */
 export function hidden(input: string, expectedOutput: string, points = 10): TestCaseSpec {
   return { input, expectedOutput, isSample: false, isHidden: true, points };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Trắc nghiệm & Điền khuyết — the two practice-bank block types
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Why these are separate block types rather than more `quizBlock`s.
+ *
+ * `QUIZ` is the end-of-section check a lesson has ONE of, and the student UI
+ * frames it as such — a score, a pass mark, a "🎉 em đã làm hết". A practice
+ * bank of ten questions is a different thing: a lesson may carry several, they
+ * belong in the exercise stage alongside the coding ladder rather than after it,
+ * and a wrong answer there is a step rather than a mark.
+ *
+ * The DATA is identical — both attach a `Quiz` whose `Question` rows hold the
+ * answers server-side — so nothing downstream had to learn a new shape. Only
+ * the pedagogical slot differs, and that is exactly what `BlockType` is for.
+ */
+export function mcqBlock(
+  quiz: QuizSpec,
+  opts: { title?: string; markdown?: Markdown; imageUrl?: string; minutes?: number; isOptional?: boolean } = {},
+): BlockSpec {
+  return {
+    type: 'MULTIPLE_CHOICE',
+    title: opts.title ?? quiz.title,
+    tier: quiz.tier ?? 'CO_BAN',
+    estimatedMinutes: opts.minutes ?? 15,
+    isOptional: opts.isOptional ?? false,
+    content: {
+      kind: 'mcq',
+      markdown: opts.markdown
+        ? md(opts.markdown)
+        : 'Chọn đáp án em cho là đúng. Sai cũng không sao — em làm lại được ngay.',
+      ...(opts.imageUrl ? { imageUrl: opts.imageUrl } : {}),
+    },
+    quiz,
+  };
+}
+
+/**
+ * Fill-in-the-blank practice.
+ *
+ * Every question here should ship `matchMode: 'normalised'` unless the answer is
+ * genuinely case- or accent-sensitive code. School machines frequently have no
+ * Vietnamese IME, and marking "hoc sinh" wrong against "học sinh" punishes a
+ * student for their keyboard rather than for their understanding.
+ */
+export function fillBlankBlock(
+  quiz: QuizSpec,
+  opts: { title?: string; markdown?: Markdown; imageUrl?: string; minutes?: number; isOptional?: boolean } = {},
+): BlockSpec {
+  return {
+    type: 'FILL_IN_BLANK',
+    title: opts.title ?? quiz.title,
+    tier: quiz.tier ?? 'CO_BAN',
+    estimatedMinutes: opts.minutes ?? 15,
+    isOptional: opts.isOptional ?? false,
+    content: {
+      kind: 'fill-blank',
+      markdown: opts.markdown
+        ? md(opts.markdown)
+        : 'Điền từ còn thiếu vào chỗ trống. Không phân biệt hoa thường, và em gõ không dấu cũng được.',
+      ...(opts.imageUrl ? { imageUrl: opts.imageUrl } : {}),
+    },
+    quiz,
+  };
+}
+
+/** One multiple-choice question. The first choice listed is the correct one. */
+export function mcq(
+  prompt: string,
+  dapAnDung: string,
+  dapAnSai: string[],
+  opts: { explanation?: string; hint?: string; mediaUrl?: string; points?: number; tier?: QuestionSpec['tier'] } = {},
+): QuestionSpec {
+  return {
+    type: 'MULTIPLE_CHOICE',
+    prompt,
+    choices: [{ text: dapAnDung, isCorrect: true }, ...dapAnSai.map((text) => ({ text }))],
+    points: opts.points ?? 10,
+    ...(opts.tier !== undefined ? { tier: opts.tier } : {}),
+    ...(opts.explanation !== undefined ? { explanation: opts.explanation } : {}),
+    ...(opts.hint !== undefined ? { hint: opts.hint } : {}),
+    ...(opts.mediaUrl !== undefined ? { mediaUrl: opts.mediaUrl } : {}),
+  };
+}
+
+/**
+ * One fill-in-the-blank question.
+ *
+ * `template` is the sentence with the gap; `dapAn` lists every spelling that
+ * should be accepted, most canonical first — the first entry is what a student
+ * is shown after a wrong attempt.
+ */
+export function dienKhuyet(
+  prompt: string,
+  template: string,
+  dapAn: string[],
+  opts: {
+    explanation?: string;
+    hint?: string;
+    mediaUrl?: string;
+    points?: number;
+    matchMode?: QuestionSpec['matchMode'];
+    tier?: QuestionSpec['tier'];
+  } = {},
+): QuestionSpec {
+  return {
+    type: 'FILL_BLANK',
+    prompt,
+    template,
+    acceptedAnswers: dapAn,
+    matchMode: opts.matchMode ?? 'normalised',
+    points: opts.points ?? 10,
+    ...(opts.tier !== undefined ? { tier: opts.tier } : {}),
+    ...(opts.explanation !== undefined ? { explanation: opts.explanation } : {}),
+    ...(opts.hint !== undefined ? { hint: opts.hint } : {}),
+    ...(opts.mediaUrl !== undefined ? { mediaUrl: opts.mediaUrl } : {}),
+  };
 }

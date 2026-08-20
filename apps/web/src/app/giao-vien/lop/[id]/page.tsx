@@ -1,12 +1,13 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
+import { GanKhoaHoc } from '@/components/giao-vien/gan-khoa-hoc';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireRole, xemDuoc } from '@/lib/guard';
-import { duLieuLop } from '@/lib/teacher-data';
+import { duLieuGanKhoaHoc, duLieuLop } from '@/lib/teacher-data';
 
 export default async function TrangLop({
   params,
@@ -28,6 +29,12 @@ export default async function TrangLop({
   const lop = kq.du;
   if (!lop) notFound();
 
+  // Loaded after the class is known to be visible, so an unauthorised id never
+  // reaches a second query. `duocSua` is computed with `can()` against exactly
+  // the permission the server action will demand, so the panel is never offered
+  // where it would be refused.
+  const gan = await duLieuGanKhoaHoc(actor, lop.classId);
+
   return (
     <VoGiaoVien tenHienThi={actor.displayName} vaiTro={actor.role === 'ADMIN' ? 'ADMIN' : 'TEACHER'}>
       <DuongDan
@@ -42,6 +49,8 @@ export default async function TrangLop({
           <strong className="text-chu">{lop.tiLeTrungBinh}%</strong>
         </p>
       </header>
+
+      {gan.duocSua ? <GanKhoaHoc classId={lop.classId} khoaHoc={gan.khoaHoc} /> : null}
 
       {lop.courses.length > 1 ? (
         <nav aria-label="Chọn khoá học" className="mb-6 flex flex-wrap gap-2">
@@ -68,7 +77,10 @@ export default async function TrangLop({
 
       {lop.khoaHienTai === null ? (
         <p className="rounded-the border border-vien bg-the p-6 text-chu-phu">
-          Lớp này chưa được gắn khoá học nào.
+          Lớp này chưa được gắn khoá học nào, nên các em mở trang chính ra là thấy trống.
+          {gan.duocSua
+            ? ' Bấm “Gắn khoá học” ở trên để chọn chương trình cho lớp.'
+            : ' Nhờ quản trị viên hoặc thầy cô phụ trách lớp gắn khoá học giúp nhé.'}
         </p>
       ) : lop.hocSinh.length === 0 ? (
         <p className="rounded-the border border-vien bg-the p-6 text-chu-phu">

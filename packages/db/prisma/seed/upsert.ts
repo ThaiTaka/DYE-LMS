@@ -110,6 +110,9 @@ async function upsertQuiz(db: PrismaClient, spec: QuizSpec): Promise<string> {
       tier: question.tier ?? spec.tier ?? 'CO_BAN',
       acceptedAnswers: question.acceptedAnswers ?? [],
       matchMode: question.matchMode ?? 'insensitive',
+      template: question.template ?? null,
+      mediaUrl: question.mediaUrl ?? null,
+      hint: question.hint ?? null,
     };
     const row = await db.question.upsert({
       where: { quizId_order: { quizId: quiz.id, order: index } },

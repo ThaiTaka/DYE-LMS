@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { KhoiNoiDung } from '@/components/hoc-sinh/khoi-noi-dung';
 import { ThanhChang } from '@/components/hoc-sinh/thanh-chang';
+import { TheoDoiTapTrung } from '@/components/hoc-sinh/theo-doi-tap-trung';
 import { VoHocSinh } from '@/components/hoc-sinh/vo';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireSession } from '@/lib/guard';
@@ -91,6 +92,22 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
           </ul>
         </section>
       ) : null}
+
+      {/*
+        Focus tracking, students only.
+
+        Mounted here rather than in the layout so it is scoped to a real lesson
+        and carries the lesson id — the alert a teacher eventually reads says
+        "Buổi 5", and a tracker that did not know which lesson it was on could
+        only say "somewhere in the app".
+
+        Teachers and admins previewing the lesson pass `bat={false}`: they
+        alt-tab constantly by the nature of the job, and logging that would fill
+        the feed with alerts about the person the feed is for.
+      */}
+      <div className="mb-6">
+        <TheoDoiTapTrung lessonId={bai.lessonId} bat={actor.role === 'STUDENT'} />
+      </div>
 
       <div className="mb-6">
         <ThanhChang blocks={bai.blocks} />
