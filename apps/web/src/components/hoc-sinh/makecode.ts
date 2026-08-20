@@ -122,3 +122,81 @@ export function docWorkspace(data: TinNhanTuEditor): { xml: string; json: string
 
 /** Largest workspace we will accept back from the editor. */
 export const GIOI_HAN_WORKSPACE = 512 * 1024;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// One live editor per page
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Why a page may hold only ONE MakeCode editor.
+ *
+ * The editor is loaded with `ws=browser`, which keeps a student's projects in
+ * their own browser rather than in MakeCode's cloud. That storage carries a
+ * session, and the editor claims it on boot. A second editor booting on the
+ * same page claims the same session, and every earlier instance then fails its
+ * next storage read with:
+ *
+ *     pxtapp.js: Uncaught (in promise) Error: trying to access outdated session
+ *
+ * which the editor surfaces as its own crash screen — "Rất tiếc, chúng tôi phát
+ * hiện có lỗi" — sitting inside our lesson page.
+ *
+ * This became reachable the moment a lesson carried more than one hardware
+ * task. Micro:bit Buổi 1 now ships ten, so ten editors booted at once and nine
+ * of them were guaranteed to break. It is not a re-render problem and `memo`
+ * cannot fix it: the instances are all legitimately mounted.
+ *
+ * The fix is a single-owner registry. At most one component holds the editor;
+ * the others render a placeholder and can take it over. Ten iframes also meant
+ * ten copies of a ~10 MB third-party app on a school laptop, so this is a large
+ * win for a machine that has to survive a whole lesson.
+ *
+ * Module scope, not React state, on purpose: ownership is a property of the
+ * PAGE, and the components competing for it are siblings with no shared parent
+ * that could hold it.
+ */
+let chuSoHuu: string | null = null;
+
+const nguoiTheoDoi = new Set<(chu: string | null) => void>();
+
+function baoMoiNguoi(): void {
+  for (const fn of nguoiTheoDoi) fn(chuSoHuu);
+}
+
+/** Subscribe to ownership changes. Returns its own unsubscribe. */
+export function theoDoiChuEditor(fn: (chu: string | null) => void): () => void {
+  nguoiTheoDoi.add(fn);
+  return () => {
+    nguoiTheoDoi.delete(fn);
+  };
+}
+
+export function dangGiuEditor(): string | null {
+  return chuSoHuu;
+}
+
+/**
+ * Claim the editor for `id`, displacing whoever holds it.
+ *
+ * Idempotent: claiming twice with the same id is a no-op and notifies nobody,
+ * which matters because React Strict Mode runs mount effects twice in
+ * development and would otherwise produce a claim/release/claim flicker.
+ */
+export function giuEditor(id: string): void {
+  if (chuSoHuu === id) return;
+  chuSoHuu = id;
+  baoMoiNguoi();
+}
+
+/**
+ * Release the editor — but only if `id` still holds it.
+ *
+ * The guard is what makes Strict Mode's double-invoked cleanup safe: by the
+ * time a displaced component runs its teardown, someone else may already own
+ * the editor, and an unguarded release would tear down the NEW owner's frame.
+ */
+export function traEditor(id: string): void {
+  if (chuSoHuu !== id) return;
+  chuSoHuu = null;
+  baoMoiNguoi();
+}

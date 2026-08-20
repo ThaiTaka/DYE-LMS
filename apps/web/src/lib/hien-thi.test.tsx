@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
 import { parseNoiDung } from './block-content';
@@ -79,6 +79,128 @@ describe('Hiển thị Markdown', () => {
     const link = screen.getByRole('link', { name: 'Tài liệu' });
     expect(link).toHaveAttribute('href', 'https://docs.python.org');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Hình minh hoạ — lồng thẻ hợp lệ và ảnh hỏng
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Flow content that a `<p>` may never contain. */
+const CAM_TRONG_P = ['figure', 'figcaption', 'div', 'p', 'ul', 'ol', 'table', 'pre', 'blockquote'];
+
+describe('Hình minh hoạ trong bài học', () => {
+  it('ảnh đứng riêng một dòng KHÔNG nằm trong thẻ p', () => {
+    /*
+     * The hydration bug this guards.
+     *
+     * `<figure>` is flow content and `<p>` may only hold phrasing content, so a
+     * browser silently closes the paragraph and reparents the figure. The client
+     * DOM then differs from the server HTML and React throws a hydration
+     * mismatch on a page a child is reading.
+     */
+    const { container } = render(
+      <VanBan>{'Đoạn văn trước.\n\n![Sơ đồ mạch](/hinh-anh/a.png)\n\nĐoạn văn sau.'}</VanBan>,
+    );
+
+    expect(container.querySelector('figure')).toBeTruthy();
+    expect(container.querySelectorAll('p figure')).toHaveLength(0);
+  });
+
+  it('không thẻ p nào chứa nội dung khối — bất biến chống lỗi hydrate', () => {
+    // Stated as a general invariant rather than one case, so a future construct
+    // that lands inside <p> fails here instead of in a browser console.
+    const { container } = render(
+      <VanBan>
+        {[
+          '![Ảnh đầu](/hinh-anh/a.png)',
+          '',
+          'Chữ có ![ảnh giữa câu](/hinh-anh/b.png) nằm lẫn vào.',
+          '',
+          '- mục có ![ảnh](/hinh-anh/c.png)',
+          '',
+          '| cột | ảnh |',
+          '|---|---|',
+          '| 1 | ![trong bảng](/hinh-anh/d.png) |',
+        ].join('\n')}
+      </VanBan>,
+    );
+
+    for (const p of Array.from(container.querySelectorAll('p'))) {
+      for (const the of CAM_TRONG_P) {
+        expect(p.querySelector(the), `<p> chứa <${the}>`).toBeNull();
+      }
+    }
+  });
+
+  it('ảnh nằm giữa câu vẫn hiện, dưới dạng img nội dòng', () => {
+    // Must not be dropped just because it cannot be a figure there.
+    const { container } = render(
+      <VanBan>{'Nhìn ![board](/hinh-anh/board.png) rồi làm theo.'}</VanBan>,
+    );
+
+    const img = container.querySelector('p img');
+    expect(img).toBeTruthy();
+    expect(img).toHaveAttribute('src', '/hinh-anh/board.png');
+    expect(container.textContent).toContain('rồi làm theo');
+  });
+
+  it('dòng có chữ kèm ảnh KHÔNG bị nuốt mất chữ', () => {
+    const { container } = render(<VanBan>{'Xem hình: ![sơ đồ](/hinh-anh/a.png)'}</VanBan>);
+    expect(container.textContent).toContain('Xem hình:');
+  });
+
+  it('từ chối ảnh có scheme nguy hiểm nhưng giữ lại phần mô tả', () => {
+    const { container } = render(
+      <VanBan>{'![mô tả ảnh](javascript:alert(1))'}</VanBan>,
+    );
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.textContent).toContain('mô tả ảnh');
+  });
+
+  it('nhiều ảnh trên cùng một dòng đều thành figure riêng', () => {
+    const { container } = render(
+      <VanBan>{'![một](/hinh-anh/1.png) ![hai](/hinh-anh/2.png)'}</VanBan>,
+    );
+
+    expect(container.querySelectorAll('figure')).toHaveLength(2);
+    expect(container.querySelectorAll('p figure')).toHaveLength(0);
+  });
+
+  it('ảnh 404 hiện ô thay thế kèm mô tả, không phải biểu tượng ảnh vỡ', async () => {
+    /*
+     * The curriculum ships image paths ahead of the files, so a missing picture
+     * is a normal authoring state. The browser's broken-image glyph reads to a
+     * 12-year-old as "this page is broken".
+     */
+    const { container } = render(
+      <VanBan>{'![Board Micro:bit nhìn từ mặt trước](/hinh-anh/chua-co.png)'}</VanBan>,
+    );
+
+    const img = container.querySelector('img');
+    expect(img).toBeTruthy();
+
+    fireEvent.error(img!);
+
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByText(/hình minh hoạ đang được vẽ/i)).toBeInTheDocument();
+    // The alt text is genuinely useful on its own, so it is kept.
+    expect(screen.getByText(/board micro:bit nhìn từ mặt trước/i)).toBeInTheDocument();
+  });
+
+  it('ảnh nội dòng hỏng thì thay bằng thẻ span, không phá cấu trúc p', () => {
+    const { container } = render(
+      <VanBan>{'Nhìn ![cái board](/hinh-anh/chua-co.png) nhé.'}</VanBan>,
+    );
+
+    fireEvent.error(container.querySelector('img')!);
+
+    // Still phrasing content, so the paragraph stays valid.
+    for (const the of CAM_TRONG_P) {
+      expect(container.querySelector(`p ${the}`)).toBeNull();
+    }
+    expect(container.textContent).toContain('cái board');
   });
 });
 

@@ -5,6 +5,8 @@ import { useId, useState } from 'react';
 import { kiemTraCauTraLoi, type KetQuaTraLoi } from '@/app/bai-hoc/[slug]/actions';
 import type { CauHoiHienThi, TracNghiemHienThi } from '@/lib/student-data';
 
+import { HinhBaiHoc } from './hinh-bai-hoc';
+
 /**
  * Quiz runner — used by all three question surfaces.
  *
@@ -55,10 +57,16 @@ export function BaiTracNghiem({
         <p className="mt-0 mb-4 text-sm text-chu-phu">{tracNghiem.description}</p>
       ) : null}
 
+      {/*
+        Empty alt: the illustration repeats what the prose already says, so a
+        screen reader announcing it again would be noise. `HinhBaiHoc` renders
+        no caption for an empty alt, and its missing-file placeholder degrades
+        to the generic wording rather than an empty box.
+      */}
       {anhMinhHoa ? (
-        <figure className="hinh-bai-hoc mb-4">
-          <img src={anhMinhHoa} alt="" loading="lazy" decoding="async" />
-        </figure>
+        <div className="mb-4">
+          <HinhBaiHoc src={anhMinhHoa} alt="" />
+        </div>
       ) : null}
 
       <ol className="m-0 list-none space-y-5 p-0">
@@ -161,9 +169,9 @@ function CauHoi({
       </legend>
 
       {cau.mediaUrl ? (
-        <figure className="hinh-bai-hoc mb-3">
-          <img src={cau.mediaUrl} alt="" loading="lazy" decoding="async" />
-        </figure>
+        <div className="mb-3">
+          <HinhBaiHoc src={cau.mediaUrl} alt="" />
+        </div>
       ) : null}
 
       {cau.template ? <CauVoiChoTrong template={cau.template} /> : null}

@@ -12,10 +12,14 @@ import axe from 'axe-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  dangGiuEditor,
   docWorkspace,
+  giuEditor,
   GOC_MAKECODE,
   idYeuCau,
   laTinNhanHopLe,
+  theoDoiChuEditor,
+  traEditor,
   urlMakeCode,
   yeuCau,
 } from './makecode';
@@ -133,13 +137,87 @@ describe('Mã yêu cầu', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Sổ đăng ký "một trình soạn cho cả trang"
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('Chỉ một trình soạn được giữ cùng lúc', () => {
+  beforeEach(() => {
+    // Module-level state: reset so order between tests cannot matter.
+    traEditor(dangGiuEditor() ?? '');
+  });
+
+  it('người giữ sau thay thế người giữ trước', () => {
+    giuEditor('a');
+    expect(dangGiuEditor()).toBe('a');
+
+    giuEditor('b');
+    expect(dangGiuEditor()).toBe('b');
+  });
+
+  it('giữ lại chính mình là việc không làm gì — an toàn với Strict Mode', () => {
+    /*
+     * React Strict Mode runs mount effects twice in development. Without this,
+     * a claim/release/claim cycle would tear the iframe down and rebuild it,
+     * which is precisely how MakeCode ends up with an outdated session.
+     */
+    const thay = vi.fn();
+    const bo = theoDoiChuEditor(thay);
+
+    giuEditor('a');
+    expect(thay).toHaveBeenCalledTimes(1);
+
+    giuEditor('a');
+    expect(thay).toHaveBeenCalledTimes(1);
+
+    bo();
+  });
+
+  it('trả lại chỉ có tác dụng với người ĐANG giữ', () => {
+    // A displaced component runs its cleanup after someone else already took
+    // over. An unguarded release would tear down the NEW owner's frame.
+    giuEditor('a');
+    giuEditor('b');
+
+    traEditor('a');
+    expect(dangGiuEditor()).toBe('b');
+
+    traEditor('b');
+    expect(dangGiuEditor()).toBeNull();
+  });
+
+  it('báo cho mọi người theo dõi, và huỷ theo dõi được', () => {
+    const thay = vi.fn();
+    const bo = theoDoiChuEditor(thay);
+
+    giuEditor('a');
+    expect(thay).toHaveBeenLastCalledWith('a');
+
+    traEditor('a');
+    expect(thay).toHaveBeenLastCalledWith(null);
+
+    bo();
+    giuEditor('c');
+    expect(thay).toHaveBeenCalledTimes(2);
+
+    traEditor('c');
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Giao diện
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('Khu làm việc Micro:bit', () => {
-  async function dung(props?: Partial<Record<string, unknown>>) {
+  /**
+   * Render the card and, by default, open the editor.
+   *
+   * A lesson may hold many hardware tasks and MakeCode breaks when several of
+   * its editors boot at once, so the frame is lazy now. Opening it is part of
+   * the normal path, which is why it happens here rather than in each test.
+   */
+  async function dung(props?: Partial<Record<string, unknown>>, opts: { mo?: boolean } = {}) {
     const { KhuMicrobit } = await import('./khu-microbit');
-    return render(
+    const ket = render(
       <KhuMicrobit
         blockId="b1"
         goal="Mặt cười 0,5 giây rồi mặt khóc."
@@ -150,6 +228,11 @@ describe('Khu làm việc Micro:bit', () => {
         {...props}
       />,
     );
+
+    if (opts.mo !== false) {
+      await userEvent.setup().click(screen.getByRole('button', { name: /mở trình soạn/i }));
+    }
+    return ket;
   }
 
   it('nhúng trình soạn thảo từ đúng nguồn makecode.microbit.org', async () => {
@@ -218,6 +301,88 @@ describe('Khu làm việc Micro:bit', () => {
   it('không có nút nộp khi bài không chấm điểm', async () => {
     await dung({ coBaiTap: false });
     expect(screen.queryByRole('button', { name: /nộp bài/i })).not.toBeInTheDocument();
+  });
+
+  // ── Một trình soạn cho cả trang ───────────────────────────────────────────
+
+  it('CHƯA mở trình soạn khi vừa vào bài — nhiều khung cùng lúc làm MakeCode hỏng phiên', async () => {
+    const { container } = await dung(undefined, { mo: false });
+
+    expect(container.querySelector('iframe')).toBeNull();
+    expect(screen.getByRole('button', { name: /mở trình soạn/i })).toBeInTheDocument();
+  });
+
+  it('mở rồi thì mới có khung, và đóng lại được', async () => {
+    const nguoiDung = userEvent.setup();
+    const { container } = await dung(undefined, { mo: false });
+
+    await nguoiDung.click(screen.getByRole('button', { name: /mở trình soạn/i }));
+    expect(container.querySelector('iframe')).toBeTruthy();
+
+    await nguoiDung.click(screen.getByRole('button', { name: /đóng trình soạn/i }));
+    expect(container.querySelector('iframe')).toBeNull();
+  });
+
+  it('nhiều bài trên một trang chỉ dựng ĐÚNG MỘT khung nhúng', async () => {
+    /*
+     * The regression this whole change exists for. Buổi 1 carries ten hardware
+     * tasks; ten editors booting together made nine of them fail with
+     * "trying to access outdated session" and show MakeCode's crash screen
+     * inside the lesson.
+     */
+    const { KhuMicrobit } = await import('./khu-microbit');
+    const nguoiDung = userEvent.setup();
+
+    const { container } = render(
+      <>
+        <KhuMicrobit
+          blockId="b1"
+          goal="Bài 1"
+          khoiLenh={[]}
+          blocksXmlBanDau=""
+          blocksXmlDaLuu=""
+          coBaiTap
+        />
+        <KhuMicrobit
+          blockId="b2"
+          goal="Bài 2"
+          khoiLenh={[]}
+          blocksXmlBanDau=""
+          blocksXmlDaLuu=""
+          coBaiTap
+        />
+      </>,
+    );
+
+    // Nothing opens by itself.
+    expect(container.querySelectorAll('iframe')).toHaveLength(0);
+
+    const nut = screen.getAllByRole('button', { name: /mở trình soạn/i });
+    await nguoiDung.click(nut[0]!);
+    expect(container.querySelectorAll('iframe')).toHaveLength(1);
+
+    // Handing over swaps the frame rather than adding a second one.
+    await nguoiDung.click(screen.getByRole('button', { name: /chuyển trình soạn sang bài này/i }));
+    expect(container.querySelectorAll('iframe')).toHaveLength(1);
+  });
+
+  it('nói rõ vì sao chỉ mở được một trình soạn, và trấn an là không mất bài', async () => {
+    // A student whose task-1 editor collapses when they open task 3 must be
+    // told that was deliberate, and that nothing was thrown away.
+    const { KhuMicrobit } = await import('./khu-microbit');
+    const nguoiDung = userEvent.setup();
+
+    render(
+      <>
+        <KhuMicrobit blockId="b1" goal="Bài 1" khoiLenh={[]} blocksXmlBanDau="" blocksXmlDaLuu="" coBaiTap />
+        <KhuMicrobit blockId="b2" goal="Bài 2" khoiLenh={[]} blocksXmlBanDau="" blocksXmlDaLuu="" coBaiTap />
+      </>,
+    );
+
+    await nguoiDung.click(screen.getAllByRole('button', { name: /mở trình soạn/i })[0]!);
+
+    expect(screen.getByText(/chỉ mở được một trình soạn/i)).toBeInTheDocument();
+    expect(screen.getByText(/KHÔNG mất gì cả/i)).toBeInTheDocument();
   });
 
   it('bỏ qua tin nhắn từ nguồn lạ', async () => {

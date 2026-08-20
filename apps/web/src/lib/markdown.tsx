@@ -13,8 +13,25 @@
  * It supports exactly the constructs the DYE curriculum uses: headings, lists,
  * tables, fenced code, blockquotes, images, and inline bold / italic / code /
  * links. Anything else degrades to plain text rather than disappearing.
+ *
+ * ── One rule that is not cosmetic: images and `<p>` ──────────────────────────
+ * A `<figure>` is FLOW content and a `<p>` may only contain PHRASING content, so
+ * `<p><figure>…</figure></p>` is invalid HTML. The browser does not complain — it
+ * silently closes the paragraph before the figure and reparents it. That gives
+ * the client a different DOM from the one the server serialised, and React
+ * reports a hydration mismatch on a page a child is trying to read.
+ *
+ * So images are handled at TWO levels, deliberately:
+ *
+ *   • A paragraph whose entire content is images becomes `<figure>` siblings,
+ *     emitted OUTSIDE any `<p>` — the common case, and how every illustration in
+ *     the curriculum is authored.
+ *   • An image mixed into a sentence stays inline and renders as a bare `<img>`,
+ *     which is phrasing content and therefore legal exactly where it sits.
  */
 import type { ReactNode } from 'react';
+
+import { HinhBaiHoc, HinhTrongDong } from '@/components/hoc-sinh/hinh-bai-hoc';
 
 /** Only these link schemes are rendered as links. `javascript:` is not one. */
 const SAFE_SCHEME = /^(https?:\/\/|mailto:|\/|#)/i;
@@ -56,31 +73,22 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
     if (token.startsWith('`')) {
       nodes.push(<code key={key}>{token.slice(1, -1)}</code>);
     } else if (token.startsWith('![')) {
-      const m = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(token);
-      const alt = m?.[1] ?? '';
-      const src = m?.[2] ?? '';
+      const anh = docAnh(token);
 
       /*
-       * An illustration that has not been dropped in yet must not become a
-       * broken-image icon in the middle of a lesson. `onError` is not available
-       * here (this renders on the server), so the fallback is structural: the
-       * alt text is rendered as a visible caption underneath, which reads as a
-       * description of the missing picture rather than as a fault.
+       * Inline position — this node can land inside a <p>, an <li> or a table
+       * cell, so it must be PHRASING content. `HinhTrongDong` renders an <img>
+       * and falls back to a <span>; it never emits a <figure> or a <div>.
        *
        * Plain <img>, not next/image: these are lesson illustrations of unknown
        * intrinsic size authored as markdown, and next/image needs dimensions or
        * a fill container it cannot have inside flowing prose.
        */
-      if (SAFE_SCHEME.test(src)) {
-        nodes.push(
-          <figure key={key} className="hinh-bai-hoc">
-            <img src={src} alt={alt} loading="lazy" decoding="async" />
-            {alt ? <figcaption>{alt}</figcaption> : null}
-          </figure>,
-        );
+      if (anh) {
+        nodes.push(<HinhTrongDong key={key} src={anh.src} alt={anh.alt} />);
       } else {
-        // Unsafe scheme: keep the description, drop the image.
-        nodes.push(alt);
+        // Unsafe or malformed target: keep the description, drop the image.
+        nodes.push(altCuaAnh(token));
       }
     } else if (token.startsWith('**')) {
       nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>);
@@ -119,6 +127,44 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 // ═══════════════════════════════════════════════════════════════════════════
 // Block
 // ═══════════════════════════════════════════════════════════════════════════
+
+/** `![alt](src)` → its parts, or null when the target is unsafe/malformed. */
+function docAnh(token: string): { alt: string; src: string } | null {
+  const m = /^!\[([^\]]*)\]\(([^)\s]+)\)$/.exec(token.trim());
+  if (!m) return null;
+
+  const src = m[2] ?? '';
+  if (!SAFE_SCHEME.test(src)) return null;
+
+  return { alt: m[1] ?? '', src };
+}
+
+/** The description, for when the image itself cannot be rendered. */
+function altCuaAnh(token: string): string {
+  return /^!\[([^\]]*)\]/.exec(token.trim())?.[1] ?? token;
+}
+
+/**
+ * Is this line nothing but images?
+ *
+ * The test is deliberately strict — remove every image token and require what
+ * is left to be blank. A line reading "Xem hình: ![…](…)" is NOT image-only and
+ * must stay a paragraph, or the words disappear from the lesson.
+ */
+function laDongChiCoAnh(line: string): { alt: string; src: string }[] | null {
+  const t = line.trim();
+  if (!t.startsWith('!')) return null;
+
+  const tokens = t.match(/!\[[^\]]*\]\([^)\s]+\)/g);
+  if (!tokens || tokens.length === 0) return null;
+
+  let conLai = t;
+  for (const tk of tokens) conLai = conLai.replace(tk, '');
+  if (conLai.trim() !== '') return null;
+
+  const anh = tokens.map(docAnh).filter((a): a is { alt: string; src: string } => a !== null);
+  return anh.length === tokens.length ? anh : null;
+}
 
 function isTableRow(line: string): boolean {
   return line.trimStart().startsWith('|') && line.trimEnd().endsWith('|');
@@ -266,6 +312,22 @@ export function renderMarkdown(source: string): ReactNode[] {
       continue;
     }
 
+    /*
+     * Image-only line → figures at BLOCK level, never inside the <p> below.
+     *
+     * This branch is what actually prevents the hydration mismatch. Every
+     * illustration in the curriculum is authored on its own line, so this is
+     * the path they all take.
+     */
+    const chiAnh = laDongChiCoAnh(line);
+    if (chiAnh) {
+      for (const a of chiAnh) {
+        out.push(<HinhBaiHoc key={nextKey()} src={a.src} alt={a.alt} />);
+      }
+      i += 1;
+      continue;
+    }
+
     // Paragraph — consume until a blank line or a construct that starts a block.
     const para: string[] = [];
     while (i < lines.length) {
@@ -277,7 +339,11 @@ export function renderMarkdown(source: string): ReactNode[] {
         /^(#{1,4})\s+/.test(cur) ||
         bullet.test(cur) ||
         numbered.test(cur) ||
-        isTableRow(cur)
+        isTableRow(cur) ||
+        // An illustration on its own line ENDS the paragraph rather than being
+        // swallowed into it — otherwise it would be rendered inline and the
+        // block-level branch above would never see it.
+        laDongChiCoAnh(cur) !== null
       ) {
         break;
       }
