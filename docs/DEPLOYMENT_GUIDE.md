@@ -24,6 +24,7 @@ từng triển khai một ứng dụng Node.js nào.
 8. [Nginx reverse proxy](#8-nginx-reverse-proxy)
 9. [Chứng chỉ SSL (HTTPS)](#9-chứng-chỉ-ssl-https)
 10. [Bộ chấm bài và hộp cát Docker](#10-bộ-chấm-bài-và-hộp-cát-docker)
+10b. [Chạy trực tiếp trên VPS, không qua Docker Compose](#10b-chạy-trực-tiếp-trên-vps-không-qua-docker-compose)
 11. [Sao lưu và phục hồi](#11-sao-lưu-và-phục-hồi)
 12. [Cập nhật phiên bản mới](#12-cập-nhật-phiên-bản-mới)
 13. [Khắc phục sự cố](#13-khắc-phục-sự-cố)
@@ -456,6 +457,110 @@ qua socket đó, đặt tệp thành chỉ đọc không làm API thành chỉ �
 
 Nếu VPS còn chạy dịch vụ nào khác không thuộc dự án này, hãy tách bộ chấm bài
 sang một máy riêng.
+
+---
+
+## 10b. Chạy trực tiếp trên VPS, không qua Docker Compose
+
+Mục 1–10 mô tả cách triển khai bằng `docker compose`, và đó vẫn là cách được
+khuyến nghị. Nhưng nhiều người chạy thẳng `npm` trên VPS cho nhanh, và đường đi
+đó có ba chỗ vướng riêng. Ghi lại ở đây vì cả ba đều đã từng làm hệ thống chết.
+
+### Biến môi trường: mọi tiến trình đọc từ MỘT tệp ở gốc kho
+
+Từng công cụ trong kho tìm `.env` trong thư mục làm việc CỦA NÓ, mà trong
+monorepo thư mục đó không bao giờ là gốc kho:
+
+| Lệnh | Thư mục làm việc | Tự tìm thấy `.env` ở gốc? |
+|---|---|---|
+| `next dev` | `apps/web` | không |
+| `tsx src/index.ts` | `apps/judge-worker` | không |
+| `prisma migrate` | `packages/db` | không |
+
+Vì vậy mọi thứ đều đi qua `scripts/moi-truong.mjs`:
+
+```bash
+npm run dev          # = node scripts/moi-truong.mjs turbo run dev
+npm run build
+npm start            # dựng web rồi chạy cả web lẫn bộ chấm bài
+npm run judge:start  # chỉ chạy bộ chấm bài
+```
+
+Thứ tự ưu tiên: **biến đã có trong môi trường thật luôn thắng**, rồi tới
+`.env.production`, rồi tới `.env`. Nghĩa là systemd, pm2 hay Docker đặt biến gì
+thì tệp trên đĩa không ghi đè được.
+
+`NODE_ENV` là ngoại lệ: **không bao giờ** được nạp từ tệp. Giá trị đó thuộc về
+công cụ đang chạy — `next build` tự đặt `production`. Xem chú thích trong
+`scripts/moi-truong.mjs`.
+
+Bộ chấm bài còn tự nạp `.env` ngay trong `src/env.ts`, nên nó chạy đúng kể cả khi
+systemd gọi thẳng `tsx` mà không qua npm.
+
+### Prisma client phải được sinh ra trước khi chạy
+
+`npm install` ở gốc đã tự chạy `prisma generate` qua `postinstall`. Nếu vì lý do
+gì đó bước ấy bị bỏ qua, bộ chấm bài sẽ chết ngay khi khởi động vì
+`@prisma/client` chưa được cấu hình:
+
+```bash
+npm run db:generate
+```
+
+### Mở cổng ra ngoài
+
+`next dev` và `next start` đều đã gắn cờ `-H 0.0.0.0`, nên tiến trình nghe trên
+mọi giao diện mạng. Cổng lấy từ biến `PORT` (mặc định 3000).
+
+> **Đừng mở thẳng cổng 3000 ra Internet.** Vẫn nên đặt Nginx ở phía trước như
+> mục 8, rồi chỉ cho tường lửa mở 80/443. Nginx là chỗ có HTTPS, giới hạn tốc độ
+> và nhật ký truy cập.
+
+Nếu bạn thực sự chạy `npm run dev` trên VPS và mở bằng IP công khai, hãy khai báo
+origin đó, nếu không Next 15 sẽ chặn `/_next/*` và trang hiện ra không có CSS:
+
+```bash
+# trong .env
+DEV_ORIGINS=203.0.113.10:3000,lms.truong-cua-ban.vn
+```
+
+### Dịch vụ systemd cho bộ chấm bài
+
+```ini
+# /etc/systemd/system/dye-judge.service
+[Unit]
+Description=DYE LMS judge worker
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=dye
+WorkingDirectory=/opt/dye-lms
+ExecStart=/usr/bin/npm run judge:start
+Restart=always
+RestartSec=5
+# Bộ chấm bài cần thời gian kết thúc công việc đang chấm dở.
+TimeoutStopSec=60
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now dye-judge
+sudo journalctl -u dye-judge -f
+```
+
+Khởi động thành công thì nhật ký hiện đúng một dòng:
+
+```
+[judge] san sang · 4 viec song song · hang "dye-cham-bai"
+```
+
+Nếu thay vào đó là `✗ Thiếu biến môi trường: DATABASE_URL`, thông báo sẽ nói rõ
+nó đã tìm ở thư mục nào và đọc được tệp nào — sửa theo đúng dòng đó.
 
 ---
 

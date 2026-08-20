@@ -15,6 +15,9 @@
  *
  * Exits non-zero when any solution fails, so CI can use it directly.
  */
+// MUST be first — see apps/judge-worker/src/env.ts.
+import './env';
+
 import { PrismaClient } from '@prisma/client';
 
 import { chamBai } from './judge';

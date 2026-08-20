@@ -15,44 +15,23 @@
  * flat scalar upsert. It reads exactly like a malformed query and is not one.
  * Nothing was wrong with the seed; it simply had no database to talk to.
  *
- * Loading here rather than in each script means the Prisma CLI *and* the seed
- * process it spawns both inherit the variables, which a loader inside
- * `seed.ts` could never do for `migrate` or `studio`.
+ * ── Why this file is now a two-line shim ─────────────────────────────────────
+ * The loader that used to live here was one of two independent copies in the
+ * repo; the other was inside `apps/web/next.config.mjs`. They had already
+ * drifted — this one honoured `.env.production` and the web one did not — and
+ * `apps/judge-worker`, which never got a copy at all, crashed on startup for
+ * exactly that reason.
+ *
+ * The implementation now lives in `scripts/moi-truong.mjs` and is shared by all
+ * three. This file stays because every `db:*` script in package.json names it,
+ * and because this is where the Prisma-specific explanation belongs.
  *
  *   node prisma/chay-voi-env.mjs prisma migrate deploy
  */
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { doiBienMoiTruong, napEnv } from '../../../scripts/moi-truong.mjs';
 
-const goc = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
-
-/**
- * `.env.production` first, then `.env`.
- *
- * First writer wins and real process env always beats both, so a value already
- * exported by the caller — or by Docker — is never overwritten.
- */
-function napEnv() {
-  for (const ten of ['.env.production', '.env']) {
-    const duongDan = resolve(goc, ten);
-    if (!existsSync(duongDan)) continue;
-
-    for (const dong of readFileSync(duongDan, 'utf8').split('\n')) {
-      const sach = dong.trim();
-      if (!sach || sach.startsWith('#')) continue;
-
-      const bang = sach.indexOf('=');
-      if (bang === -1) continue;
-
-      const khoa = sach.slice(0, bang).trim();
-      if (process.env[khoa] === undefined) process.env[khoa] = sach.slice(bang + 1).trim();
-    }
-  }
-}
-
-napEnv();
+const ketQua = napEnv();
 
 /*
  * Leading `--dat KEY=VALUE` pairs set variables for the child.
@@ -62,7 +41,7 @@ napEnv();
  * an assignment. Passing it as a flag keeps one script definition working on both
  * platforms without pulling in cross-env.
  *
- * These are set unconditionally, unlike the file-loaded values above: the caller
+ * These are set unconditionally, unlike the file-loaded values: the caller
  * asked for them on the command line, which is more specific than a `.env`.
  */
 const argv = process.argv.slice(2);
@@ -83,14 +62,7 @@ if (!lenh) {
   process.exit(1);
 }
 
-if (!process.env['DATABASE_URL']) {
-  console.error('');
-  console.error('  ✗ Không tìm thấy DATABASE_URL.');
-  console.error(`    Đã tìm trong ${resolve(goc, '.env')} và .env.production.`);
-  console.error('    Sao chép .env.example thành .env rồi điền DATABASE_URL.');
-  console.error('');
-  process.exit(1);
-}
+doiBienMoiTruong(['DATABASE_URL'], ketQua);
 
 // shell: true so the npm-provided node_modules/.bin is on PATH for `prisma`
 // and `tsx`, on Windows as well as Linux.

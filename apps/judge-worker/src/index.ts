@@ -16,6 +16,10 @@
  * grace period. The database is what says work exists; Redis only says it is
  * urgent.
  */
+// MUST be first: config.ts and PrismaClient both read process.env at import
+// time, so the root .env has to be loaded before either is evaluated.
+import './env';
+
 import { CHINH_SACH_THU_LAI, HANG_CHAM_BAI, VIEC_CHAM_BAI, type ViecChamBai } from '@dye/core';
 import { PrismaClient } from '@prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';

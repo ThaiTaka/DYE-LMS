@@ -1,6 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { napEnv } from '../../scripts/moi-truong.mjs';
 
 /**
  * Load the monorepo-root `.env`.
@@ -9,27 +7,16 @@ import { fileURLToPath } from 'node:url';
  * root file is invisible to it — AUTH_SECRET and DATABASE_URL would simply be
  * missing and Auth.js would fail at runtime with `MissingSecret`.
  *
- * Copying the file into apps/web would duplicate secrets across the repo, so we
- * read the single root copy here instead. Existing process env always wins, so
- * real deployment variables are never overwritten by a stray dev file.
+ * Copying the file into apps/web would duplicate secrets across the repo, so the
+ * single root copy is read instead.
+ *
+ * The implementation moved to `scripts/moi-truong.mjs` because this file used to
+ * hold one of TWO independent copies of it, and the copies had drifted: this one
+ * read only `.env`, while the database wrapper also read `.env.production`. On a
+ * VPS that meant the same variable could hold different values in the web
+ * process and in a migration — a difference that would surface as data going to
+ * the wrong database rather than as an error.
  */
-function loadRootEnv() {
-  const here = dirname(fileURLToPath(import.meta.url));
-  const envPath = resolve(here, '../../.env');
-  if (!existsSync(envPath)) return;
-
-  for (const line of readFileSync(envPath, 'utf8').split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-
-    const eq = trimmed.indexOf('=');
-    if (eq === -1) continue;
-
-    const key = trimmed.slice(0, eq).trim();
-    const value = trimmed.slice(eq + 1).trim();
-    if (process.env[key] === undefined) process.env[key] = value;
-  }
-}
 
 /**
  * Is this the dev server?
@@ -50,11 +37,30 @@ function loadRootEnv() {
  */
 const laMoiTruongPhatTrien = process.env.NODE_ENV === 'development';
 
-loadRootEnv();
+napEnv();
+
+/**
+ * Origins allowed to reach the DEV server's internal endpoints.
+ *
+ * Next 15 rejects cross-origin requests to `/_next/*` from an origin it was not
+ * told about. On a laptop that never fires, because the origin is always
+ * `localhost`. On a VPS reached by public IP or domain it blocks the dev
+ * server's own assets, and the page loads without styles or Fast Refresh while
+ * the terminal shows nothing obviously wrong.
+ *
+ * Comma-separated, so a deployment sets `DEV_ORIGINS=1.2.3.4:3000,lms.truong.vn`
+ * without editing this file. Dev-only by definition — `next start` ignores it.
+ */
+const nguonDev = (process.env.DEV_ORIGINS ?? '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+
+  ...(nguonDev.length > 0 ? { allowedDevOrigins: nguonDev } : {}),
 
   // Workspace packages ship TypeScript source, not a build artefact.
   transpilePackages: ['@dye/core', '@dye/db'],

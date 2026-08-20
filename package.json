@@ -13,11 +13,11 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "turbo run typecheck",
+    "typecheck": "node scripts/moi-truong.mjs turbo run typecheck",
     "lint": "turbo run lint",
-    "test": "turbo run test",
-    "build": "turbo run build",
-    "dev": "turbo run dev",
+    "test": "node scripts/moi-truong.mjs turbo run test",
+    "build": "node scripts/moi-truong.mjs turbo run build",
+    "dev": "node scripts/moi-truong.mjs turbo run dev",
     "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,css}\"",
     "db:generate": "npm run db:generate --workspace @dye/db",
@@ -27,14 +27,17 @@
     "db:admin": "npm run db:admin --workspace @dye/db",
     "db:reset": "npm run db:reset --workspace @dye/db",
     "db:studio": "npm run db:studio --workspace @dye/db",
-    "judge:dev": "npm run dev --workspace @dye/judge-worker",
+    "judge:dev": "node scripts/moi-truong.mjs npm run dev --workspace @dye/judge-worker",
     "judge:images": "npm run images --workspace @dye/judge-worker",
-    "judge:verify": "npm run verify-seed --workspace @dye/judge-worker",
+    "judge:verify": "node scripts/moi-truong.mjs npm run verify-seed --workspace @dye/judge-worker",
     "infra:up": "docker compose up -d postgres redis minio minio-init",
     "infra:down": "docker compose down",
     "infra:nuke": "docker compose down -v",
-    "e2e": "npm run e2e --workspace @dye/web",
-    "db:demo": "npm run db:demo --workspace @dye/db"
+    "e2e": "node scripts/moi-truong.mjs npm run e2e --workspace @dye/web",
+    "db:demo": "npm run db:demo --workspace @dye/db",
+    "start": "node scripts/moi-truong.mjs turbo run start",
+    "judge:start": "node scripts/moi-truong.mjs npm run start --workspace @dye/judge-worker",
+    "postinstall": "node scripts/moi-truong.mjs --bo-qua-loi npm run db:generate"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

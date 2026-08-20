@@ -1,15 +1,60 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "ui": "stream",
+/*
+   * Every variable a task may see.
+   *
+   * Turborepo 2 runs tasks in STRICT env mode: a child process receives only
+   * the variables named here (plus globalPassThroughEnv). Anything missing from
+   * this list is invisible to the task even when it is set in the parent shell,
+   * which is a silent failure — the process starts and then cannot find its
+   * database.
+   *
+   * This list was previously missing DIRECT_URL, AUTH_URL, AUTH_TRUST_HOST, the
+   * ADMIN_* group, the *_DOCKER variants and every JUDGE_* tuning knob, so the
+   * judge worker could not have seen its own configuration even once the root
+   * .env was being loaded. Wildcards are used for the families that grow.
+   *
+   * Naming a variable here also enrols it in the cache key, which is what we
+   * want: a build that ran against a different DATABASE_URL is not a cache hit.
+   */
   "globalEnv": [
     "NODE_ENV",
+    "CI",
+    "PORT",
+    "HOSTNAME",
+    "WEB_PORT",
+    "DEV_ORIGINS",
+
     "DATABASE_URL",
+    "DATABASE_URL_DOCKER",
+    "DIRECT_URL",
     "REDIS_URL",
+    "REDIS_URL_DOCKER",
+
     "AUTH_SECRET",
+    "AUTH_URL",
+    "AUTH_TRUST_HOST",
+    "NEXTAUTH_URL",
+
+    "ADMIN_USERNAME",
+    "ADMIN_PASSWORD",
+    "ADMIN_DISPLAY_NAME",
+
     "S3_ENDPOINT",
+    "S3_ENDPOINT_DOCKER",
     "S3_ACCESS_KEY",
     "S3_SECRET_KEY",
     "S3_BUCKET",
+    "S3_REGION",
+
+    "POSTGRES_*",
+    "MINIO_*",
+    "JUDGE_*",
+    "FEATURE_*",
+    "NEXT_PUBLIC_*",
+
+    "SEED_DEMO",
     "SEED_ALLOW_PRODUCTION",
     "SEED_DEMO_PASSWORD"
   ],
@@ -45,6 +90,20 @@
     "dev": {
       "cache": false,
       "persistent": true
+    },
+
+    /*
+     * Long-running production processes.
+     *
+     * "dependsOn": ["build"] names the package's OWN build, so `turbo run start`
+     * on a fresh VPS builds the web app before serving it, and skips straight to
+     * the judge worker — which runs from source with tsx and has no build script
+     * at all. Both are cached, so restarting does not rebuild.
+     */
+    "start": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["build"]
     }
   }
 }
