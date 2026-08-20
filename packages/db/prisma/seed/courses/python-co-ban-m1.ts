@@ -7,8 +7,15 @@
  *     value, so students see results without meeting a function call first.
  *   • Note 2 — `complex` is excluded from the numeric types entirely.
  *   • Note 3 — session 6 makes f-strings the centrepiece.
+ *
+ * Session 6 also carries the ten-rung auto-graded ladder, in
+ * ./python-co-ban-b06-thang.ts. It is placed there rather than earlier because
+ * an IO_MATCH task is judged on stdout, and stdout requires `print()` — which
+ * this course deliberately withholds until session 6, the first session where a
+ * program runs from a file rather than in the REPL.
  */
 import type { ModuleSpec } from '../types.ts';
+import { thangBaiTapB06 } from './python-co-ban-b06-thang.ts';
 import {
   challenge,
   dienKhuyet,
@@ -1056,13 +1063,22 @@ export const module2: ModuleSpec = {
         'Nhận dữ liệu từ người dùng bằng `input()` và ép về đúng kiểu',
         'Viết được f-string để ghép chữ và giá trị biến',
         'Định dạng số thực với f-string, ví dụ `{diem:.2f}`',
+        'Định dạng số nguyên có đủ chữ số, ví dụ `{gio:02d}`',
+        'Giải được bài tập có chấm điểm tự động, khớp đúng từng ký tự đầu ra',
       ],
       difficulty: 2,
       estimatedMinutes: 90,
       status: 'REQUIRED',
       teacherNotes:
         'Lesson 3, phần print/input. GHI CHÚ QUAN TRỌNG: lồng ghép bài tập về format-string ở buổi này. ' +
-        'Đây cũng là buổi đầu tiên học sinh viết chương trình chạy từ tệp thay vì REPL.',
+        'Đây cũng là buổi đầu tiên học sinh viết chương trình chạy từ tệp thay vì REPL. ' +
+        'THANG 10 BÀI CHẤM TỰ ĐỘNG: đây là buổi sớm nhất có thể chấm tự động, vì trước buổi 6 ' +
+        'chương trình chưa in ra gì để so sánh. Không kỳ vọng em nào làm hết 10 bậc trong 90 phút — ' +
+        'bậc 1–5 là CƠ BẢN và đủ để đạt buổi này; bậc 6–7 THỬ THÁCH, bậc 8–9 NÂNG CAO, bậc 10 MỞ RỘNG, ' +
+        'nên với em đang ở nhánh Cơ bản thì bậc 6 trở lên hiện ra dưới dạng khám phá thêm và KHÔNG ' +
+        'tính vào tiến độ. Bậc 9 và 10 cố ý không dùng if/for (buổi 8 và 12 mới học): bậc 9 tách số ' +
+        'bằng // và %, bậc 10 thay if bằng biểu thức lôgic cộng với int(True) = 1. ' +
+        'Lỗi hay gặp nhất ở bậc 5 là quên int() nên "3" + "5" ra "35".',
       blocks: [
         theory(
           'Nói và nghe: `print()` và `input()`',
@@ -1236,6 +1252,17 @@ export const module2: ModuleSpec = {
           },
           { markdown: 'Bài đầu tiên có chấm điểm tự động. Hãy đọc kỹ mẫu đầu ra trước khi viết.' },
         ),
+
+        /*
+         * The ten-rung ladder, spread in at the END of the block list.
+         *
+         * Order matters for the pedagogical-flow rule: theory → example →
+         * playground → challenge already sits above, so the mandated sequence is
+         * satisfied before any of these appear. Rungs climb CO_BAN → MO_RONG, so
+         * a student on Cơ bản has 1–5 as required work and meets 6–10 as
+         * exploration rather than as a wall.
+         */
+        ...thangBaiTapB06,
       ],
     },
 
