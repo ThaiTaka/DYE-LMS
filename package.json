@@ -37,7 +37,8 @@
     "db:demo": "npm run db:demo --workspace @dye/db",
     "start": "node scripts/moi-truong.mjs turbo run start",
     "judge:start": "node scripts/moi-truong.mjs npm run start --workspace @dye/judge-worker",
-    "postinstall": "node scripts/moi-truong.mjs --bo-qua-loi npm run db:generate"
+    "postinstall": "node scripts/moi-truong.mjs --bo-qua-loi npm run db:generate",
+    "doctor": "node scripts/kiem-tra.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

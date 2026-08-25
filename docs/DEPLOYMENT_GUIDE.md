@@ -497,6 +497,48 @@ công cụ đang chạy — `next build` tự đặt `production`. Xem chú thí
 Bộ chấm bài còn tự nạp `.env` ngay trong `src/env.ts`, nên nó chạy đúng kể cả khi
 systemd gọi thẳng `tsx` mà không qua npm.
 
+### Kiểm tra cổng trước khi chạy: `npm run doctor`
+
+Lỗi hay gặp nhất khi triển khai là **cổng không khớp**. Prisma báo:
+
+```
+P1001: Can't reach database server at `localhost:5432`
+```
+
+Câu đó đúng nhưng vô dụng, vì ba nguyên nhân hoàn toàn khác nhau đều cho ra nó:
+
+1. Container chưa chạy.
+2. `DATABASE_URL` ghi sai cổng.
+3. `POSTGRES_PORT` đã đổi trong `.env` nhưng **chưa dựng lại stack**, nên container
+   vẫn công bố cổng cũ. Trường hợp này khó nhất: `.env` và `docker-compose.yml`
+   khớp nhau hoàn hảo, và container thì đang chạy thật.
+
+`npm run doctor` phân biệt được cả ba:
+
+```bash
+npm run doctor
+```
+
+```
+  PostgreSQL
+    HỎNG  POSTGRES_PORT=5442 nhưng DATABASE_URL trỏ tới cổng 5432.
+           Docker công bố cổng 5442, còn ứng dụng gọi vào cổng 5432 — không gặp nhau.
+           Sửa trong .env: đổi cổng trong DATABASE_URL thành 5442, hoặc đặt POSTGRES_PORT=5432.
+```
+
+Nó đối chiếu ba thứ: cổng khai báo trong `.env`, cổng mà Docker **đang thật sự**
+công bố (`docker ps`), và có ai trả lời ở cổng đó không.
+
+> **Vì sao cổng bị ghi hai lần?** `docker compose` cần một con số trần
+> (`POSTGRES_PORT=5442`), còn Prisma cần một URL đầy đủ
+> (`…@localhost:5442/dye_lms`). Không suy ra được cái này từ cái kia nếu không
+> thêm một bước dựng, nên cả hai đều được viết ra. Người đổi một trong hai —
+> vì cổng 5442 đã bị chiếm — không có lý do gì để đoán rằng còn chỗ thứ hai.
+>
+> `.env.example` được một bài kiểm thử canh cho luôn nhất quán
+> (`packages/db/src/cong-ket-noi.test.ts`), nên `cp .env.example .env` luôn ra một
+> cấu hình chạy được. `npm run doctor` lo phần `.env` đã lệch sẵn.
+
 ### Prisma client phải được sinh ra trước khi chạy
 
 `npm install` ở gốc đã tự chạy `prisma generate` qua `postinstall`. Nếu vì lý do
