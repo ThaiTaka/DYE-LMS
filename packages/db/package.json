@@ -24,7 +24,8 @@
     "lint": "eslint src prisma --max-warnings 0",
     "test": "vitest run",
     "db:admin": "node prisma/chay-voi-env.mjs tsx prisma/scripts/tao-quan-tri.ts",
-    "db:demo": "node prisma/chay-voi-env.mjs --dat SEED_DEMO=yes prisma db seed"
+    "db:demo": "node prisma/chay-voi-env.mjs --dat SEED_DEMO=yes prisma db seed",
+    "db:status": "node prisma/chay-voi-env.mjs prisma migrate status"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

@@ -111,6 +111,30 @@ function docDong(dong) {
     gia = gia.slice(1, -1);
   }
 
+  /*
+   * A markdown link pasted as a value: [https://x](https://x)
+   *
+   * This is what an operator gets when they copy a tunnel URL out of a chat
+   * window, and it is repaired rather than merely rejected because the failure
+   * it causes is total and the diagnosis is misleading: Auth.js calls
+   * `new URL(AUTH_URL)`, so EVERY page answers 500 with `TypeError: Invalid URL`
+   * and a stack pointing at `auth.ts`. The offending value never appears, so the
+   * trail leads to the consumer and stops there.
+   *
+   * Repaired ONLY when the label and the target are identical. That is the shape
+   * a paste produces, and it discards nothing — there is no second piece of
+   * information to lose. A link whose halves differ is left alone and reported,
+   * because guessing which half was meant would be inventing configuration.
+   *
+   * The repair is recorded in `daSua` so `npm run doctor` still tells the
+   * operator to fix the file. Silently correcting config and never mentioning it
+   * is how a machine ends up being the only thing that knows the truth.
+   */
+  const md = /^\[(\S+)\]\((\S+)\)$/.exec(gia);
+  if (md && md[1] === md[2] && md[2] !== undefined) {
+    return { khoa, gia: md[2], daSua: { kieu: 'markdown', truoc: gia } };
+  }
+
   return { khoa, gia };
 }
 
@@ -123,6 +147,8 @@ function docDong(dong) {
 export function napEnv(goc = GOC_KHO) {
   const tepDaDoc = [];
   const bienDaDat = [];
+  /** Values that were repaired on the way in. Reported by `npm run doctor`. */
+  const daSua = [];
 
   for (const ten of TEP_ENV) {
     const duongDan = resolve(goc, ten);
@@ -138,10 +164,14 @@ export function napEnv(goc = GOC_KHO) {
 
       process.env[cap.khoa] = cap.gia;
       bienDaDat.push(cap.khoa);
+
+      if (cap.daSua) {
+        daSua.push({ khoa: cap.khoa, tep: ten, kieu: cap.daSua.kieu, sau: cap.gia });
+      }
     }
   }
 
-  return { tepDaDoc, bienDaDat, soBien: bienDaDat.length };
+  return { tepDaDoc, bienDaDat, daSua, soBien: bienDaDat.length };
 }
 
 /**

@@ -32,9 +32,9 @@
  * already taken has no reason to suspect the other exists.
  */
 import { createConnection } from 'node:net';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 
-import { napEnv } from './moi-truong.mjs';
+import { GOC_KHO, napEnv } from './moi-truong.mjs';
 
 const ketQua = napEnv();
 
@@ -224,6 +224,122 @@ function kiemTraUrl() {
   return loi;
 }
 
+/**
+ * Values the loader had to repair on the way in.
+ *
+ * A warning rather than an error: the process WILL run, because the value was
+ * fixed in memory. But the file on disk is still wrong, and the next tool that
+ * reads it without going through this loader — `docker compose`, for one, which
+ * parses `.env` itself — will still get the broken version.
+ */
+function baoCaoDaSua() {
+  const sua = ketQua.daSua ?? [];
+  if (sua.length === 0) return 0;
+
+  console.log('  Giá trị đã được sửa tạm khi nạp');
+  for (const s of sua) {
+    const viSao =
+      s.kieu === 'markdown' ? 'giá trị đang ở dạng liên kết Markdown' : 'giá trị có dạng lạ';
+    console.log(`    ${CANH} ${s.khoa} trong ${s.tep}: ${viSao}.`);
+    console.log(`           Đang chạy tạm với: ${s.khoa}=${s.sau}`);
+    console.log(`           Hãy sửa hẳn trong ${s.tep} — docker compose đọc tệp đó trực tiếp,`);
+    console.log('           không đi qua bộ nạp này, nên vẫn nhận giá trị hỏng.');
+  }
+  console.log('');
+  return sua.length;
+}
+
+/**
+ * Are there migrations the database has not had applied?
+ *
+ * A schema one migration behind fails at QUERY time, on whichever page happens
+ * to touch the new column first, as "column does not exist" — a message that
+ * reads like a code bug rather than a deploy step that was skipped. Asking
+ * before anything starts is far cheaper than finding out from a student.
+ *
+ * `migrate status` exits non-zero for "pending", so the exit code carries the
+ * answer and stdout carries the detail.
+ */
+function kiemTraMigration(dbKetNoiDuoc) {
+  if (!process.env['DATABASE_URL']) return 0;
+
+  console.log('  Migration cơ sở dữ liệu');
+
+  /*
+   * Skipped rather than guessed when the port probe already failed.
+   *
+   * Running it anyway would spend 30 seconds timing out and then print a second
+   * scary message about the same single fault — and an operator who is told two
+   * things are broken starts fixing the wrong one.
+   */
+  if (!dbKetNoiDuoc) {
+    console.log(`    ${CANH} Bỏ qua — chưa kết nối được cơ sở dữ liệu (xem phần trên).`);
+    console.log('');
+    return 0;
+  }
+
+  let ra = '';
+  let ma = 0;
+  try {
+    // execSync, not execFileSync: on Windows `npm` is `npm.cmd` and needs a
+    // shell to resolve. Passing the command as ONE string avoids the
+    // DEP0190 warning Node emits for execFileSync with `shell: true` — which
+    // would otherwise print inside this report and read as a fault of its own.
+    //
+    // Without a shell at all it threw ENOENT with EMPTY stdout, which this
+    // function read as "migrations pending" and sent the operator to run a
+    // migration that was not needed.
+    ra = execSync('npm run --silent db:status', {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      timeout: 60_000,
+      cwd: GOC_KHO,
+    });
+  } catch (e) {
+    ra = `${e.stdout ?? ''}${e.stderr ?? ''}`;
+    ma = e.status ?? 1;
+  }
+
+  if (/Database schema is up to date/i.test(ra)) {
+    console.log(`    ${OK}    Lược đồ đã cập nhật, không còn migration nào chờ.`);
+    console.log('');
+    return 0;
+  }
+
+  const cho = ra.match(/(\d+)\s+migrations?\s+have not yet been applied/i);
+  if (cho) {
+    console.log(`    ${HONG}  Còn ${cho[1]} migration chưa chạy.`);
+    console.log('           Chạy: npm run db:migrate');
+    console.log('');
+    return 1;
+  }
+
+  if (/P1001|Can't reach database/i.test(ra)) {
+    console.log(`    ${CANH} Không kết nối được để kiểm tra — xem phần cổng ở trên.`);
+    console.log('');
+    return 0;
+  }
+
+  if (/have not yet been applied|following migration/i.test(ra)) {
+    console.log(`    ${HONG}  Có migration chưa chạy.`);
+    console.log('           Chạy: npm run db:migrate');
+    console.log('');
+    return 1;
+  }
+
+  if (/drift|schema is not in sync/i.test(ra)) {
+    console.log(`    ${HONG}  Lược đồ trong cơ sở dữ liệu lệch so với thư mục migrations.`);
+    console.log('           Xem chi tiết: npm run db:status');
+    console.log('');
+    return 1;
+  }
+
+  console.log(`    ${CANH} Không đọc được trạng thái migration (mã thoát ${ma}).`);
+  console.log('           Xem chi tiết: npm run db:status');
+  console.log('');
+  return 0;
+}
+
 async function main() {
   console.log('');
   console.log('  DYE LMS — kiểm tra môi trường');
@@ -239,8 +355,9 @@ async function main() {
     console.log('');
   }
 
+  let dbKetNoiDuoc = false;
   let loi = kiemTraUrl();
-  let canhBao = 0;
+  let canhBao = baoCaoDaSua();
 
   for (const d of DICH_VU) {
     const congKhaiBao = process.env[d.bienCong] ?? d.congMacDinh;
@@ -308,6 +425,7 @@ async function main() {
 
     // ── 3. Is anything actually answering? ──────────────────────────────────
     const song = await dangNghe(host, congUrl ?? congKhaiBao);
+    if (d.bienUrl === 'DATABASE_URL') dbKetNoiDuoc = song;
     if (song) {
       console.log(`    ${OK}    ${host}:${congUrl} có phản hồi.`);
     } else {
@@ -317,6 +435,8 @@ async function main() {
 
     console.log('');
   }
+
+  loi += kiemTraMigration(dbKetNoiDuoc);
 
   console.log('  ' + '─'.repeat(64));
   if (loi === 0 && canhBao === 0) {

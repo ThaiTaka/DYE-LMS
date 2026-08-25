@@ -11,11 +11,24 @@
 /** Absolute path to the monorepo root. */
 export declare const GOC_KHO: string;
 
+/** A value the loader had to repair on the way in. */
+export interface SuaGiaTri {
+  khoa: string;
+  /** Which env file it came from. */
+  tep: string;
+  /** What kind of damage was repaired. */
+  kieu: 'markdown';
+  /** The value actually placed into process.env. */
+  sau: string;
+}
+
 export interface KetQuaNapEnv {
   /** Env files actually found and read, in precedence order. */
   tepDaDoc: string[];
   /** Variables this call set. Excludes any that were already defined. */
   bienDaDat: string[];
+  /** Repairs made while loading. Reported by `npm run doctor`. */
+  daSua: SuaGiaTri[];
   soBien: number;
 }
 

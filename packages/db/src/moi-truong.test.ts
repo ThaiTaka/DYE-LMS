@@ -129,6 +129,51 @@ describe('Nạp .env từ gốc kho', () => {
     expect(process.env['KEY_WITH_EQ']).toBe('abc=def=ghi');
   });
 
+  it('sửa được liên kết Markdown dán nhầm, và ghi nhận đã sửa', () => {
+    /*
+     * `AUTH_URL=[https://x](https://x)` is what a pasted tunnel URL looks like.
+     * Auth.js calls `new URL()` on it, so leaving it broken takes every page in
+     * the app down with `TypeError: Invalid URL` pointing at auth.ts — a stack
+     * that never shows the offending value.
+     */
+    viet('.env', 'AUTH_URL=[https://abc.trycloudflare.com](https://abc.trycloudflare.com)\n');
+    delete process.env['AUTH_URL'];
+
+    const kq = napEnv(thuMuc);
+
+    expect(process.env['AUTH_URL']).toBe('https://abc.trycloudflare.com');
+    expect(() => new URL(process.env['AUTH_URL'] ?? '')).not.toThrow();
+
+    // Repaired in memory, but the file is still wrong and must be reported.
+    expect(kq.daSua).toHaveLength(1);
+    expect(kq.daSua[0]).toMatchObject({ khoa: 'AUTH_URL', kieu: 'markdown', tep: '.env' });
+  });
+
+  it('KHÔNG đoán khi nhãn và đích của liên kết khác nhau', () => {
+    // Picking one half would be inventing configuration. Left alone, and
+    // `npm run doctor` reports it as unparseable.
+    const tho = '[bấm vào đây](https://that.example.com)';
+    viet('.env', `AUTH_URL=${tho}\n`);
+    delete process.env['AUTH_URL'];
+
+    const kq = napEnv(thuMuc);
+
+    expect(process.env['AUTH_URL']).toBe(tho);
+    expect(kq.daSua).toHaveLength(0);
+  });
+
+  it('URL bình thường không bị đụng tới', () => {
+    viet('.env', 'AUTH_URL=http://203.0.113.10:3000\nDB_X=postgresql://u:p@10.0.0.5:5442/d\n');
+    delete process.env['AUTH_URL'];
+    delete process.env['DB_X'];
+
+    const kq = napEnv(thuMuc);
+
+    expect(process.env['AUTH_URL']).toBe('http://203.0.113.10:3000');
+    expect(process.env['DB_X']).toBe('postgresql://u:p@10.0.0.5:5442/d');
+    expect(kq.daSua).toHaveLength(0);
+  });
+
   it('không có tệp nào thì không hỏng, chỉ báo là chưa đọc gì', () => {
     const kq = napEnv(thuMuc);
 
