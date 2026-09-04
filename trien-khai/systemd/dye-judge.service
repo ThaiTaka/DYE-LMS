@@ -1,0 +1,38 @@
+# Dịch vụ chấm bài của DYE LMS.
+#
+# Bản mẫu — xem ghi chú đầu dye-web.service. Cài bằng
+# `sudo trien-khai/cai-dat-systemd.sh`.
+[Unit]
+Description=DYE LMS judge worker
+Documentation=file://__THU_MUC_GOC__/HUONG_DAN_DEPLOY_VPS.md
+# Bộ chấm bài gọi `docker run` cho từng bài nộp, nên Docker phải sẵn sàng trước.
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=__NGUOI_DUNG__
+WorkingDirectory=__THU_MUC_GOC__
+ExecStart=__NPM__ run judge:start
+Restart=always
+RestartSec=5
+
+# apps/judge-worker/src/sandbox.ts gọi spawn('docker', …) bằng TÊN TRẦN, tức là
+# tra trong PATH. PATH mặc định của systemd không chắc có docker, và cũng không
+# có thư mục bin của Node khi Node cài bằng nvm.
+Environment=PATH=__DUONG_DAN__
+Environment=NODE_ENV=production
+
+# apps/judge-worker/src/index.ts bắt SIGTERM rồi `await worker.close()`, tức là
+# đợi bài đang chấm dở xong hẳn. Mặc định systemd chỉ chờ 90 giây rồi SIGKILL;
+# đặt rõ 60 giây để mỗi lần triển khai không bỏ rơi bài của học sinh giữa chừng.
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dye-judge
+
+[Install]
+WantedBy=multi-user.target

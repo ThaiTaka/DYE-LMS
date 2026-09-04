@@ -1,0 +1,6 @@
+# Tệp chạy trên Linux phải giữ nguyên xuống dòng LF, kể cả khi được checkout
+# trên Windows (kho này có core.autocrlf=true). Một script .sh bị CRLF sẽ chết
+# trên VPS với thông báo `bad interpreter: /usr/bin/env bash^M` — không hề nhắc
+# gì tới xuống dòng, nên rất mất thời gian mới lần ra.
+*.sh        text eol=lf
+*.service   text eol=lf

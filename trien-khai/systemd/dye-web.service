@@ -1,0 +1,44 @@
+# Dịch vụ web (Next.js) của DYE LMS.
+#
+# ĐỪNG sửa tệp này rồi chép tay vào /etc/systemd/system. Đây là BẢN MẪU: các ô
+# __VIET_HOA__ được `trien-khai/cai-dat-systemd.sh` thay bằng giá trị thật của
+# máy chủ (thư mục kho, tài khoản chạy, đường dẫn npm). Chép tay là cách chắc
+# chắn nhất để đường dẫn npm sai và dịch vụ chết ngay khi khởi động.
+[Unit]
+Description=DYE LMS web (Next.js)
+Documentation=file://__THU_MUC_GOC__/HUONG_DAN_DEPLOY_VPS.md
+# Postgres, Redis và MinIO chạy bằng docker compose (npm run infra:up), nên web
+# cũng phụ thuộc Docker chứ không chỉ bộ chấm bài — thiếu dòng này thì sau mỗi
+# lần khởi động lại máy, web lên trước Postgres và quay vòng lỗi một lúc.
+# Dùng network-online.target thay cho network.target: network.target lên xong
+# trước khi máy thật sự có IP.
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=__NGUOI_DUNG__
+WorkingDirectory=__THU_MUC_GOC__
+ExecStart=__NPM__ run web:start
+Restart=always
+RestartSec=5
+
+# PATH của systemd KHÔNG có thư mục bin của Node khi Node cài bằng nvm hay vào
+# /usr/local. Thiếu dòng này thì npm chạy được nhưng mọi lệnh nó gọi tiếp
+# (next, turbo) lại "command not found".
+Environment=PATH=__DUONG_DAN__
+
+# NODE_ENV phải đặt Ở ĐÂY chứ không phải trong .env: scripts/moi-truong.mjs cố ý
+# từ chối nạp NODE_ENV từ tệp, vì apps/web/next.config.mjs chọn
+# Content-Security-Policy theo đúng biến này — rò rỉ "development" là ship
+# unsafe-eval cho người dùng thật.
+Environment=NODE_ENV=production
+Environment=PORT=3000
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=dye-web
+
+[Install]
+WantedBy=multi-user.target

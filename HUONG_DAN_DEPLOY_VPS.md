@@ -551,6 +551,46 @@ Nhấn `Ctrl+C` để dừng, rồi sang mục 11 để chạy nền cho đàng 
 Chạy bằng `npm start` trong terminal sẽ tắt ngay khi bạn thoát SSH. Dùng systemd
 để hai tiến trình tự khởi động cùng máy và tự bật lại khi lỗi.
 
+### 11.0. Cách nhanh (khuyến nghị)
+
+Kho có sẵn script làm hết mục 11 này:
+
+```bash
+sudo bash trien-khai/cai-dat-systemd.sh
+```
+
+Script tự dò ba giá trị mà chép tay hay sai — thư mục kho, tài khoản chạy, và
+**đường dẫn thật của `npm`** — rồi ghi hai tệp `.service`, `daemon-reload`,
+`enable --now` và in trạng thái. Chạy lại bao nhiêu lần cũng được.
+
+Trước khi ghi, script cảnh báo bốn thứ khiến dịch vụ "chạy" mà vô dụng: tài
+khoản chưa ở nhóm `docker`, chưa có bản build, thiếu ảnh `dye-judge-pytest:3.12`,
+hoặc không có `.env`.
+
+Xem trước mà không cài gì:
+
+```bash
+bash trien-khai/cai-dat-systemd.sh --chi-in
+```
+
+Đổi cổng hoặc tài khoản:
+
+```bash
+sudo bash trien-khai/cai-dat-systemd.sh --cong 8080 --nguoi-dung dye
+```
+
+Bản mẫu nằm ở [`trien-khai/systemd/`](trien-khai/systemd/). Phần 11.1–11.3 dưới
+đây giải thích từng dòng trong đó, dùng khi bạn muốn tự tay dựng hoặc cần sửa
+một dịch vụ đang chạy.
+
+> ⚠️ **`ExecStart=/usr/bin/npm` chỉ đúng khi Node cài bằng apt/NodeSource.** Cài
+> bằng nvm thì npm nằm trong `~/.nvm/versions/node/*/bin/npm`, và systemd sẽ báo
+> `status=203/EXEC` — một lỗi không hề nhắc gì tới Node. Kiểm tra bằng
+> `command -v npm` rồi điền đúng đường dẫn đó. Vì lý do này, hai bản mẫu còn đặt
+> `Environment=PATH=…` kèm thư mục `bin` của Node: systemd không đọc hồ sơ đăng
+> nhập, nên `npm` chạy được nhưng `next`/`turbo`/`docker` nó gọi tiếp lại
+> "command not found".
+
 ### 11.1. Dịch vụ web
 
 ```bash
@@ -560,7 +600,11 @@ sudo nano /etc/systemd/system/dye-web.service
 ```ini
 [Unit]
 Description=DYE LMS web (Next.js)
-After=network.target docker.service
+# Postgres/Redis/MinIO chạy bằng docker compose, nên web cũng phụ thuộc Docker.
+# network-online.target chứ không phải network.target: cái sau lên xong trước
+# khi máy thật sự có IP.
+Wants=network-online.target
+After=network-online.target docker.service
 Requires=docker.service
 
 [Service]
@@ -570,6 +614,13 @@ WorkingDirectory=/opt/dye-lms
 ExecStart=/usr/bin/npm run web:start
 Restart=always
 RestartSec=5
+# systemd không đọc hồ sơ đăng nhập. Thiếu dòng này thì npm chạy được nhưng
+# next/turbo mà nó gọi tiếp lại "command not found". Đặt thư mục chứa npm THẬT
+# của máy bạn (`command -v npm`) lên đầu.
+Environment=PATH=/usr/bin:/usr/local/bin:/bin
+# NODE_ENV đặt ở ĐÂY, không đặt trong .env: scripts/moi-truong.mjs cố ý từ chối
+# nạp NODE_ENV từ tệp, vì Content-Security-Policy chọn theo đúng biến này.
+Environment=NODE_ENV=production
 Environment=PORT=3000
 
 [Install]
@@ -585,7 +636,8 @@ sudo nano /etc/systemd/system/dye-judge.service
 ```ini
 [Unit]
 Description=DYE LMS judge worker
-After=network.target docker.service
+Wants=network-online.target
+After=network-online.target docker.service
 Requires=docker.service
 
 [Service]
@@ -595,6 +647,11 @@ WorkingDirectory=/opt/dye-lms
 ExecStart=/usr/bin/npm run judge:start
 Restart=always
 RestartSec=5
+# apps/judge-worker/src/sandbox.ts gọi spawn('docker', …) bằng tên trần, tra
+# trong PATH — mà PATH của systemd không đọc hồ sơ đăng nhập.
+Environment=PATH=/usr/bin:/usr/local/bin:/bin
+Environment=NODE_ENV=production
+KillSignal=SIGTERM
 # Bộ chấm bài cần thời gian kết thúc bài đang chấm dở. Mặc định 10 giây sẽ
 # SIGKILL giữa chừng và bỏ rơi bài của học sinh mỗi lần triển khai.
 TimeoutStopSec=60
