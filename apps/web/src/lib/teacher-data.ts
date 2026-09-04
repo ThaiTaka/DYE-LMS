@@ -525,6 +525,82 @@ export async function duLieuHocSinh(
   };
 }
 
+/**
+ * Why `duLieuHocSinh` could not build a page for this child.
+ *
+ * That function returns `null` for three unrelated situations, and a page that
+ * treats all three as `notFound()` tells the teacher the same untrue thing in
+ * every one of them:
+ *
+ *   1. no such user            → genuinely not found
+ *   2. in no class we can see  → ordinary setup state, fixable in a minute
+ *   3. class carries no course → ordinary setup state, fixable in a minute
+ *
+ * Only (1) is a 404. Cases (2) and (3) happen the moment a teacher creates an
+ * account and clicks the child's name before assigning a class — the list page
+ * links every student it shows, including the ones it labels "chưa xếp lớp".
+ * Answering that click with "This page could not be found" sends the teacher
+ * hunting for a broken link, when the child is fine and one field is unset.
+ *
+ * Returns `null` only for case (1), so the caller can still produce a real 404.
+ */
+export type LyDoChuaXem =
+  | { loai: 'chua-xep-lop' }
+  | { loai: 'lop-chua-co-khoa-hoc'; lop: string[] };
+
+export interface HocSinhChuaSanSang {
+  studentId: string;
+  displayName: string;
+  username: string;
+  isActive: boolean;
+  lyDo: LyDoChuaXem;
+}
+
+export async function duLieuHocSinhChuaSanSang(
+  actor: Actor,
+  studentId: string,
+): Promise<HocSinhChuaSanSang | null> {
+  // Same relational check as the full loader. A teacher who does not teach this
+  // child is refused here too, so the fallback page cannot become a way to
+  // confirm that a given id exists.
+  await authorize(db, actor, { resource: 'student', action: 'read', studentId });
+
+  const student = await db.user.findUnique({
+    where: { id: studentId },
+    select: {
+      id: true,
+      role: true,
+      displayName: true,
+      username: true,
+      isActive: true,
+      enrollments: {
+        where: {
+          isActive: true,
+          ...(actor.role === 'ADMIN' ? {} : { class: { teacherId: actor.id } }),
+        },
+        select: { class: { select: { name: true, classCourses: { select: { courseId: true } } } } },
+      },
+    },
+  });
+
+  // A teacher id typed into the student URL is "not found" here, not a partial
+  // page about a colleague.
+  if (!student || student.role !== 'STUDENT') return null;
+
+  const lyDo: LyDoChuaXem =
+    student.enrollments.length === 0
+      ? { loai: 'chua-xep-lop' }
+      : { loai: 'lop-chua-co-khoa-hoc', lop: student.enrollments.map((e) => e.class.name) };
+
+  return {
+    studentId: student.id,
+    displayName: student.displayName,
+    username: student.username,
+    isActive: student.isActive,
+    lyDo,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // Curriculum viewer — the teacher's read of the lesson plan
 // ═══════════════════════════════════════════════════════════════════════════

@@ -6,7 +6,14 @@ import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireRole, xemDuoc } from '@/lib/guard';
-import { duLieuHocSinh, duLieuTapTrungHocSinh } from '@/lib/teacher-data';
+import {
+  duLieuHocSinh,
+  duLieuHocSinhChuaSanSang,
+  duLieuTapTrungHocSinh,
+  type HocSinhChuaSanSang,
+} from '@/lib/teacher-data';
+
+import type { Actor } from '@dye/core';
 
 export default async function TrangHocSinh({
   params,
@@ -25,7 +32,13 @@ export default async function TrangHocSinh({
   if (!kq.ok) redirect('/khong-co-quyen');
 
   const hs = kq.du;
-  if (!hs) notFound();
+  // `null` here is not necessarily "no such child" — see `duLieuHocSinhChuaSanSang`.
+  if (!hs) {
+    const chua = await xemDuoc(duLieuHocSinhChuaSanSang(actor, id));
+    if (!chua.ok) redirect('/khong-co-quyen');
+    if (!chua.du) notFound();
+    return <ChuaSanSang actor={actor} chua={chua.du} />;
+  }
 
   const coCanThiep = new Set(hs.canThiep.map((c) => c.lessonId));
 
@@ -187,6 +200,88 @@ export default async function TrangHocSinh({
             />
           ))}
         </ul>
+      </section>
+    </VoGiaoVien>
+  );
+}
+
+/**
+ * The student exists and this actor may see them, but there is no course to
+ * render a path through yet.
+ *
+ * This page deliberately does NOT reuse the 404. A teacher who has just created
+ * an account and clicked the name is not looking at a broken link, and telling
+ * them so costs them the ten minutes it takes to prove the link is fine. What
+ * they need is the one sentence naming the field that is unset.
+ */
+function ChuaSanSang({ actor, chua }: { actor: Actor; chua: HocSinhChuaSanSang }) {
+  const chuaXepLop = chua.lyDo.loai === 'chua-xep-lop';
+
+  return (
+    <VoGiaoVien tenHienThi={actor.displayName} vaiTro={actor.role === 'ADMIN' ? 'ADMIN' : 'TEACHER'}>
+      <DuongDan
+        muc={[
+          { nhan: 'Tổng quan', href: '/giao-vien' },
+          { nhan: 'Học sinh', href: '/giao-vien/hoc-sinh' },
+          { nhan: chua.displayName },
+        ]}
+      />
+
+      <header className="mb-6">
+        <h1 className="mt-0 mb-2 text-3xl font-bold">{chua.displayName}</h1>
+        <p className="m-0 text-chu-phu">
+          {chua.username}
+          {!chua.isActive ? (
+            <span className="ms-2 rounded-full bg-the-mo px-2.5 py-0.5 text-sm font-semibold">
+              Tài khoản đã ngưng hoạt động
+            </span>
+          ) : null}
+        </p>
+      </header>
+
+      <section
+        aria-labelledby="chua-san-sang"
+        className="rounded-the border border-mo-rong bg-mo-rong-nen p-5"
+      >
+        <h2 id="chua-san-sang" className="mt-0 mb-2 text-xl font-bold">
+          {chuaXepLop ? 'Em này chưa được xếp vào lớp nào' : 'Lớp của em này chưa có khoá học'}
+        </h2>
+
+        {chuaXepLop ? (
+          <>
+            <p className="mt-0 mb-3 text-chu-phu">
+              Tài khoản của em vẫn bình thường — chỉ là chưa gắn với lớp nào. Tiến độ và lộ trình
+              đều tính theo khoá học <strong className="text-chu">của lớp</strong>, nên khi chưa có
+              lớp thì chưa có gì để hiển thị ở đây.
+            </p>
+            <p className="m-0 text-chu-phu">
+              Hiện lớp chỉ được chọn <strong className="text-chu">lúc tạo tài khoản</strong>, ở
+              trang{' '}
+              <a href="/giao-vien/hoc-sinh" className="font-semibold text-chinh hover:underline">
+                Tài khoản học sinh
+              </a>
+              . Nếu em đã được tạo mà thiếu lớp, thầy cô báo quản trị viên giúp em nhé.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-0 mb-3 text-chu-phu">
+              Em đang ở lớp{' '}
+              <strong className="text-chu">
+                {chua.lyDo.loai === 'lop-chua-co-khoa-hoc' ? chua.lyDo.lop.join(', ') : ''}
+              </strong>
+              , nhưng lớp đó chưa được gán khoá học nào. Lộ trình của em được dựng từ khoá học của
+              lớp, nên chưa có buổi nào để hiện.
+            </p>
+            <p className="m-0 text-chu-phu">
+              Gán một khoá học cho lớp ở trang{' '}
+              <a href="/giao-vien/lop" className="font-semibold text-chinh hover:underline">
+                Lớp học
+              </a>
+              , rồi quay lại trang này.
+            </p>
+          </>
+        )}
       </section>
     </VoGiaoVien>
   );
