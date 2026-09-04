@@ -91,6 +91,7 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   'voHieuHoaHocSinh(': 'authorize(',
   'khoiPhucHocSinh(': 'authorize(',
   'goHocSinhKhoiLop(': 'authorize(',
+  'xepHocSinhVaoLop(': 'authorize(',
   // Re-reads the alert through the same scoped feed the teacher sees, so an id
   // guessed from outside that scope is refused.
   'xuLyCanhBao(': 'canhBaoTapTrung(',

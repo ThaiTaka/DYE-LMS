@@ -554,6 +554,14 @@ export interface HocSinhChuaSanSang {
   username: string;
   isActive: boolean;
   lyDo: LyDoChuaXem;
+  /**
+   * Classes this actor may actually put the child into.
+   *
+   * Scoped the same way the provisioning page scopes its picker: an admin sees
+   * every open class, a teacher only their own. An affordance, not the
+   * boundary — `xepHocSinhVaoLop` re-checks `class:manage` on whatever arrives.
+   */
+  lopXepDuoc: Array<{ id: string; ten: string; ma: string }>;
 }
 
 export async function duLieuHocSinhChuaSanSang(
@@ -565,23 +573,35 @@ export async function duLieuHocSinhChuaSanSang(
   // confirm that a given id exists.
   await authorize(db, actor, { resource: 'student', action: 'read', studentId });
 
-  const student = await db.user.findUnique({
-    where: { id: studentId },
-    select: {
-      id: true,
-      role: true,
-      displayName: true,
-      username: true,
-      isActive: true,
-      enrollments: {
-        where: {
-          isActive: true,
-          ...(actor.role === 'ADMIN' ? {} : { class: { teacherId: actor.id } }),
+  const [student, lop] = await Promise.all([
+    db.user.findUnique({
+      where: { id: studentId },
+      select: {
+        id: true,
+        role: true,
+        displayName: true,
+        username: true,
+        isActive: true,
+        enrollments: {
+          where: {
+            isActive: true,
+            ...(actor.role === 'ADMIN' ? {} : { class: { teacherId: actor.id } }),
+          },
+          select: {
+            class: { select: { name: true, classCourses: { select: { courseId: true } } } },
+          },
         },
-        select: { class: { select: { name: true, classCourses: { select: { courseId: true } } } } },
       },
-    },
-  });
+    }),
+    db.class.findMany({
+      where:
+        actor.role === 'ADMIN'
+          ? { isArchived: false }
+          : { isArchived: false, teacherId: actor.id },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    }),
+  ]);
 
   // A teacher id typed into the student URL is "not found" here, not a partial
   // page about a colleague.
@@ -598,6 +618,7 @@ export async function duLieuHocSinhChuaSanSang(
     username: student.username,
     isActive: student.isActive,
     lyDo,
+    lopXepDuoc: lop.map((l) => ({ id: l.id, ten: l.name, ma: l.code })),
   };
 }
 

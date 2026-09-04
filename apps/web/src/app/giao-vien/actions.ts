@@ -28,6 +28,7 @@ import {
   voHieuHoaHocSinh,
   voHieuHoaNhanVien,
   xoaLopHoc,
+  xepHocSinhVaoLop,
   xoaTaiKhoanHocSinh,
   xoaTaiKhoanNhanVien,
   xuLyCanhBao,
@@ -838,6 +839,59 @@ export async function xoaHocSinh(
         `Đã xoá tài khoản “${kq.displayName}” (${kq.username})` +
         (kq.daXoaBanGhi > 0 ? ` cùng ${kq.daXoaBanGhi} bản ghi liên quan` : '') +
         '. Nhật ký kiểm toán vẫn giữ lại việc này.',
+    };
+  });
+}
+
+/**
+ * Put a student into a class.
+ *
+ * The counterpart to removal, and the reason the student detail page could
+ * previously dead-end: an `Enrollment` row could only be created while creating
+ * the account, so a child provisioned without a class had no way back except
+ * deleting the account — which destroys every submission they ever made.
+ *
+ * Additive. Enrolling into a second class does NOT remove the first; a transfer
+ * is this action followed by "gỡ khỏi lớp", so nothing is emptied out of a
+ * child's record as an invisible side effect of an add.
+ *
+ * Every affected page is revalidated, because one row here changes four
+ * different reads: the child's own page gains a course to render, the roster
+ * gains a name, the account list gains a class label, and — for a teacher who
+ * did not previously teach this child — the visible-student scope itself moves.
+ */
+export async function xepLopHocSinh(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const studentId = String(form.get('studentId') ?? '');
+    const classId = String(form.get('classId') ?? '');
+    if (!studentId) return { trangThai: 'loi', thongDiep: 'Thiếu học sinh cần xếp lớp.' };
+    // Answered here rather than letting the guard refuse an empty id, so
+    // forgetting to pick from the dropdown does not read as a permission problem.
+    if (!classId) return { trangThai: 'loi', thongDiep: 'Thầy cô chọn giúp em một lớp nhé.' };
+
+    const kq = await xepHocSinhVaoLop(db, actor, studentId, classId);
+
+    revalidatePath('/giao-vien/hoc-sinh');
+    revalidatePath(`/giao-vien/hoc-sinh/${studentId}`);
+    revalidatePath('/giao-vien/lop');
+    revalidatePath(`/giao-vien/lop/${classId}`);
+
+    if (kq.trangThai === 'da-o-trong-lop') {
+      return { trangThai: 'thanh-cong', thongDiep: `Em vốn đã ở lớp ${kq.tenLop} rồi.` };
+    }
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        kq.trangThai === 'da-khoi-phuc'
+          ? `Đã cho em quay lại lớp ${kq.tenLop}. Bài làm cũ của em trong lớp này vẫn còn nguyên.`
+          : `Đã xếp em vào lớp ${kq.tenLop}. Lộ trình của em hiện ngay bên dưới.`,
     };
   });
 }

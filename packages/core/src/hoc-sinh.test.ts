@@ -19,6 +19,7 @@ import {
   khoiPhucHocSinh,
   STUDENT_AUDIT,
   voHieuHoaHocSinh,
+  xepHocSinhVaoLop,
   xoaTaiKhoanHocSinh,
 } from './hoc-sinh';
 import { createSession, validateSession } from './session';
@@ -209,5 +210,131 @@ describe('Gỡ khỏi lớp', () => {
     await expect(
       goHocSinhKhoiLop(fx.db, teacherB, fx.studentA1, fx.classA),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('Xếp vào lớp', () => {
+  /** Audit rows and enrolments this block invented, cleaned up after each test. */
+  async function donDep(studentId: string, classId: string) {
+    await fx.db.auditLog.deleteMany({
+      where: { entityId: studentId, action: STUDENT_AUDIT.ENROLLED },
+    });
+    await fx.db.enrollment.deleteMany({ where: { classId, studentId } });
+  }
+
+  it('tạo ghi danh mới và ghi audit', async () => {
+    const kq = await xepHocSinhVaoLop(fx.db, admin, fx.studentB1, fx.classA);
+    expect(kq.trangThai).toBe('da-xep');
+
+    const ghiDanh = await fx.db.enrollment.findUniqueOrThrow({
+      where: { classId_studentId: { classId: fx.classA, studentId: fx.studentB1 } },
+    });
+    expect(ghiDanh.isActive).toBe(true);
+
+    const nhatKy = await fx.db.auditLog.findFirst({
+      where: { entityId: fx.studentB1, action: STUDENT_AUDIT.ENROLLED },
+    });
+    expect(nhatKy).not.toBeNull();
+    expect(nhatKy?.actorId).toBe(fx.admin);
+
+    await donDep(fx.studentB1, fx.classA);
+  });
+
+  it('không gỡ em ra khỏi các lớp đang học', async () => {
+    // Additive by design: a transfer is enrol-then-remove, two explicit steps.
+    // If this ever starts failing, someone has taught the function to empty a
+    // child out of their other classes as a side effect.
+    await xepHocSinhVaoLop(fx.db, admin, fx.studentB1, fx.classA);
+
+    const cu = await fx.db.enrollment.findUniqueOrThrow({
+      where: { classId_studentId: { classId: fx.classB, studentId: fx.studentB1 } },
+    });
+    expect(cu.isActive).toBe(true);
+
+    await donDep(fx.studentB1, fx.classA);
+  });
+
+  it('em quay lại lớp cũ thì dùng lại bản ghi, không tạo bản ghi thứ hai', async () => {
+    // @@unique([classId, studentId]) makes a second row impossible, so the only
+    // question is whether the original is reused honestly: enrolledAt must not
+    // move, or the record would claim the child had never been there before.
+    const truoc = await fx.db.enrollment.findUniqueOrThrow({
+      where: { classId_studentId: { classId: fx.classA, studentId: fx.studentWithdrawn } },
+    });
+    expect(truoc.isActive).toBe(false);
+
+    const kq = await xepHocSinhVaoLop(fx.db, admin, fx.studentWithdrawn, fx.classA);
+    expect(kq.trangThai).toBe('da-khoi-phuc');
+
+    const sau = await fx.db.enrollment.findUniqueOrThrow({
+      where: { classId_studentId: { classId: fx.classA, studentId: fx.studentWithdrawn } },
+    });
+    expect(sau.id).toBe(truoc.id);
+    expect(sau.enrolledAt.getTime()).toBe(truoc.enrolledAt.getTime());
+    expect(sau.isActive).toBe(true);
+
+    // Put the fixture back the way the rest of the suite expects it.
+    await fx.db.enrollment.update({ where: { id: truoc.id }, data: { isActive: false } });
+    await fx.db.auditLog.deleteMany({
+      where: { entityId: fx.studentWithdrawn, action: STUDENT_AUDIT.ENROLLED },
+    });
+  });
+
+  it('bấm hai lần không ghi thêm audit', async () => {
+    // Clicking twice is not an error, and a no-op must not leave a trail
+    // implying something changed.
+    await xepHocSinhVaoLop(fx.db, admin, fx.studentB1, fx.classA);
+    const lan2 = await xepHocSinhVaoLop(fx.db, admin, fx.studentB1, fx.classA);
+    expect(lan2.trangThai).toBe('da-o-trong-lop');
+
+    const soDong = await fx.db.auditLog.count({
+      where: { entityId: fx.studentB1, action: STUDENT_AUDIT.ENROLLED },
+    });
+    expect(soDong).toBe(1);
+
+    await donDep(fx.studentB1, fx.classA);
+  });
+
+  it('giáo viên xếp được vào lớp mình phụ trách', async () => {
+    const kq = await xepHocSinhVaoLop(fx.db, teacherA, fx.studentB1, fx.classA);
+    expect(kq.trangThai).toBe('da-xep');
+    await donDep(fx.studentB1, fx.classA);
+  });
+
+  it('giáo viên lớp khác không xếp được', async () => {
+    await expect(
+      xepHocSinhVaoLop(fx.db, teacherB, fx.studentB1, fx.classA),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+
+    const co = await fx.db.enrollment.findUnique({
+      where: { classId_studentId: { classId: fx.classA, studentId: fx.studentB1 } },
+    });
+    expect(co).toBeNull();
+  });
+
+  it('không xếp được tài khoản không phải học sinh', async () => {
+    // Otherwise a teacher id in the student field creates an enrolment that
+    // every roster query then has to know to ignore.
+    await expect(
+      xepHocSinhVaoLop(fx.db, admin, fx.teacherB, fx.classA),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('không xếp được vào lớp đã lưu trữ', async () => {
+    const luuTru = await fx.db.class.create({
+      data: {
+        code: `XEP-LOP-ARCHIVED-${Date.now()}`,
+        name: 'Lớp đã lưu trữ',
+        teacherId: fx.teacherA,
+        isArchived: true,
+      },
+      select: { id: true },
+    });
+
+    await expect(
+      xepHocSinhVaoLop(fx.db, admin, fx.studentB1, luuTru.id),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+
+    await fx.db.class.delete({ where: { id: luuTru.id } });
   });
 });

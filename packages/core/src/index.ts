@@ -108,8 +108,10 @@ export {
   khoiPhucHocSinh,
   STUDENT_AUDIT,
   voHieuHoaHocSinh,
+  xepHocSinhVaoLop,
   xoaTaiKhoanHocSinh,
   type AnhHuongXoaHocSinh,
+  type KetQuaXepLop,
   type KetQuaXoaHocSinh,
 } from './hoc-sinh';
 

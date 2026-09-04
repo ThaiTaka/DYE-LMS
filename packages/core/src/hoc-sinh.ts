@@ -38,6 +38,7 @@ export const STUDENT_AUDIT = {
   REACTIVATED: 'student.reactivated',
   DELETED: 'student.deleted',
   UNENROLLED: 'student.unenrolled',
+  ENROLLED: 'student.enrolled',
 } as const;
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -301,4 +302,96 @@ export async function goHocSinhKhoiLop(
   });
 
   return { daGo: true, tenLop: enrollment.class.name };
+}
+
+/**
+ * Put a student into a class.
+ *
+ * The missing half of `goHocSinhKhoiLop`. Until this existed, an `Enrollment`
+ * row could only be created as part of `taoTaiKhoan`, so a child created
+ * without a class — or removed from their last one — could never be put back.
+ * Their detail page had no course to build a path from, and the only way out
+ * was to delete the account and make a new one, which destroys every submission
+ * they had ever made.
+ *
+ * ── Additive on purpose ──────────────────────────────────────────────────────
+ * `Enrollment` is many-to-many and `taoTaiKhoan` already takes a list, so a
+ * child may sit in several classes at once. This function therefore ADDS one
+ * and never removes another. A transfer is "add the new, then
+ * `goHocSinhKhoiLop` the old" — two explicit steps, because a function that
+ * silently emptied a child out of every other class would be a destructive act
+ * hiding inside an additive-sounding name.
+ *
+ * ── Re-enrolment reuses the row ──────────────────────────────────────────────
+ * `@@unique([classId, studentId])` means a child who left and came back cannot
+ * get a second row. Flipping `isActive` back is also the honest record: their
+ * work in that class's courses was always theirs, and a fresh row would reset
+ * `enrolledAt` and imply they had never been there before.
+ *
+ * ── Who may do this ──────────────────────────────────────────────────────────
+ * `class:manage` — an admin, or the teacher who owns THIS class. Note that this
+ * is permission over the class, not over the child: a teacher who owns a class
+ * can enrol a student they did not previously teach, and by doing so gains
+ * sight of that child. That is why the audit row below names the actor.
+ */
+export type KetQuaXepLop =
+  | { trangThai: 'da-xep'; tenLop: string }
+  | { trangThai: 'da-khoi-phuc'; tenLop: string }
+  | { trangThai: 'da-o-trong-lop'; tenLop: string };
+
+export async function xepHocSinhVaoLop(
+  db: PrismaClient,
+  actor: Actor,
+  studentId: string,
+  classId: string,
+  context: SessionContext = {},
+): Promise<KetQuaXepLop> {
+  await authorize(db, actor, { resource: 'class', action: 'manage', classId });
+
+  const lop = await db.class.findUnique({
+    where: { id: classId },
+    select: { name: true, isArchived: true },
+  });
+  // Unknown id reads as forbidden rather than "not found", matching the rest of
+  // this layer: which ids exist is not something a caller gets to enumerate.
+  if (!lop) throw new ForbiddenError('class-not-found');
+  if (lop.isArchived) throw new ForbiddenError('class-archived');
+
+  const student = await db.user.findUnique({
+    where: { id: studentId },
+    select: { role: true },
+  });
+  if (!student) throw new ForbiddenError('student-not-found');
+  // A teacher id in the student field would otherwise create an enrolment that
+  // every roster query then has to know to ignore.
+  if (student.role !== 'STUDENT') throw new ForbiddenError('not-a-student');
+
+  const dangCo = await db.enrollment.findUnique({
+    where: { classId_studentId: { classId, studentId } },
+    select: { id: true, isActive: true },
+  });
+
+  // Already there. Reported rather than thrown: clicking twice is not an error,
+  // and no audit row is written for a change that did not happen.
+  if (dangCo?.isActive) return { trangThai: 'da-o-trong-lop', tenLop: lop.name };
+
+  if (dangCo) {
+    await db.enrollment.update({ where: { id: dangCo.id }, data: { isActive: true } });
+  } else {
+    await db.enrollment.create({ data: { classId, studentId } });
+  }
+
+  await db.auditLog.create({
+    data: {
+      actorId: actor.id,
+      action: STUDENT_AUDIT.ENROLLED,
+      entityType: 'User',
+      entityId: studentId,
+      meta: { classId, tenLop: lop.name, khoiPhuc: dangCo !== null },
+      ipAddress: context.ipAddress ?? null,
+      userAgent: context.userAgent ?? null,
+    },
+  });
+
+  return { trangThai: dangCo ? 'da-khoi-phuc' : 'da-xep', tenLop: lop.name };
 }

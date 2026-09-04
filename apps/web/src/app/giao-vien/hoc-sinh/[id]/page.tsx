@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { HangCanThiep } from '@/components/giao-vien/dieu-khien-bai-hoc';
 import { DieuKhienNhanh } from '@/components/giao-vien/dieu-khien-nhanh';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
+import { XepLop } from '@/components/giao-vien/xep-lop';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireRole, xemDuoc } from '@/lib/guard';
@@ -254,14 +255,9 @@ function ChuaSanSang({ actor, chua }: { actor: Actor; chua: HocSinhChuaSanSang }
               đều tính theo khoá học <strong className="text-chu">của lớp</strong>, nên khi chưa có
               lớp thì chưa có gì để hiển thị ở đây.
             </p>
-            <p className="m-0 text-chu-phu">
-              Hiện lớp chỉ được chọn <strong className="text-chu">lúc tạo tài khoản</strong>, ở
-              trang{' '}
-              <a href="/giao-vien/hoc-sinh" className="font-semibold text-chinh hover:underline">
-                Tài khoản học sinh
-              </a>
-              . Nếu em đã được tạo mà thiếu lớp, thầy cô báo quản trị viên giúp em nhé.
-            </p>
+            <div className="mt-4 border-t border-mo-rong pt-4">
+              <XepLop studentId={chua.studentId} lop={chua.lopXepDuoc} />
+            </div>
           </>
         ) : (
           <>
