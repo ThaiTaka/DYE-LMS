@@ -95,7 +95,10 @@ echo
 
 # ── 4. Cảnh báo những thứ làm dịch vụ chạy nhưng vô dụng ────────────────────
 CANH_BAO=0
-if ! id -nG "$NGUOI_DUNG" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+# root vào được /var/run/docker.sock nhờ LÀ root, không nhờ nhóm docker. Kiểm
+# tra nhóm mà không trừ root ra sẽ báo động giả đúng vào cấu hình VPS phổ biến
+# nhất (chạy dịch vụ dưới root), khiến người cài đi sửa một thứ không hỏng.
+if [ "$(id -u "$NGUOI_DUNG")" != 0 ] && ! id -nG "$NGUOI_DUNG" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
   vang_ "⚠ '$NGUOI_DUNG' chưa ở trong nhóm docker → bộ chấm bài sẽ không tạo được container."
   vang_ "  Sửa:  sudo usermod -aG docker $NGUOI_DUNG   (rồi chạy lại script này)"
   CANH_BAO=1
