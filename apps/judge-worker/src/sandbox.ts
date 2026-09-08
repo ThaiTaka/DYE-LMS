@@ -34,7 +34,7 @@
  */
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -190,13 +190,37 @@ export async function chayTrongHop(yeuCau: YeuCauChay): Promise<KetQuaChay> {
   const thuMuc = await mkdtemp(join(tmpdir(), 'dye-judge-'));
 
   try {
+    /*
+     * Make the mount readable by the container's user.
+     *
+     * The container runs `--user 1000:1000`, but `mkdtemp` creates 0700 owned by
+     * whoever runs the worker — root, under systemd and under compose. uid 1000
+     * then cannot even traverse into the mount, and every run dies with
+     *
+     *     python: can't open file '/sandbox/main.py': [Errno 13] Permission denied
+     *
+     * which surfaces to the student as RUNTIME_ERROR: their program crashed. On
+     * the production VPS this made the judge incapable of ever returning
+     * ACCEPTED — 7 submissions, 0 accepted, all RUNTIME_ERROR or timeout.
+     *
+     * It does not reproduce on Docker Desktop for Windows or macOS, where the
+     * bind mount goes through a virtualised filesystem that ignores host uids.
+     * A laptop and a real server disagree here, and the laptop is the one lying.
+     */
+    await chmod(thuMuc, 0o755);
+
     for (const [tenTep, noiDung] of Object.entries(yeuCau.tep)) {
       // Defence in depth: filenames come from this codebase, never from a
       // student, but a traversal here would write outside the sandbox dir.
       if (tenTep.includes('..') || tenTep.includes('/') || tenTep.includes('\\')) {
         throw new Error(`ten tep khong hop le: ${tenTep}`);
       }
-      await writeFile(join(thuMuc, tenTep), noiDung, 'utf8');
+      const duong = join(thuMuc, tenTep);
+      await writeFile(duong, noiDung, 'utf8');
+      // Explicit rather than trusting umask: a worker started with umask 077
+      // writes 0600, and uid 1000 still could not read the file even once it
+      // can enter the directory.
+      await chmod(duong, 0o644);
     }
 
     const args = dungLenhDocker(ten, duongDanHost(thuMuc), yeuCau);

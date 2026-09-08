@@ -285,6 +285,27 @@ except Exception as e:
     expect(kq.stdout).not.toContain('CHAY DUOC');
   }, 30_000);
 
+  it('người dùng sandbox đọc được mã đã gắn vào', async () => {
+    /*
+     * Regression: the mount was created by `mkdtemp` as 0700 owned by whoever
+     * runs the worker. Under systemd and under compose that is root, while the
+     * container runs as uid 1000 — so it could not even enter /sandbox, and
+     * every run died with
+     *
+     *     python: can't open file '/sandbox/main.py': [Errno 13] Permission denied
+     *
+     * reported to the student as RUNTIME_ERROR. Production had 7 submissions and
+     * 0 accepted before this was found.
+     *
+     * This assertion is nearly free here, because on a Linux host the failure
+     * makes EVERY test in this file fail. It exists to name the cause, so the
+     * next person seeing a wall of red does not go looking at Python.
+     */
+    const kq = await chay('print(open("/sandbox/main.py").read().strip())\n');
+    expect(kq.stdout).toContain('/sandbox/main.py');
+    expect(kq.stderr).not.toContain('Permission denied');
+  }, 30_000);
+
   it('không chạy dưới quyền root', async () => {
     const kq = await chay('import os\nprint("uid", os.getuid(), "gid", os.getgid())\n');
     expect(kq.stdout).toContain('uid 1000');
