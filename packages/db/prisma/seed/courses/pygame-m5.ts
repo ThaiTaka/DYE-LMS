@@ -1155,6 +1155,11 @@ export const pygameModule5: ModuleSpec = {
             'diem = (chay_duoc * 0.4 + ky_thuat * 0.3',
             '        + trai_nghiem * 0.2 + hoan_thien * 0.1)',
             '',
+            '# Xep loai theo dung con so DA HIEN THI. Khong lam tron o day thi',
+            '# 10/9/8/7 cong lai ra 8.999999999999998: in ra "9.00" nhung truot',
+            '# dieu kien >= 9, va bang diem tu mau thuan voi chinh no.',
+            'diem = round(diem, 2)',
+            '',
             'print(f"Diem tong: {diem:.2f}")',
             '',
             'if diem >= 9:',
@@ -1171,8 +1176,8 @@ export const pygameModule5: ModuleSpec = {
           tests: [
             sample(
               '10\n9\n8\n7\n',
-              'Diem tong: 9.10\nXep loai: Xuat sac\n',
-              '4.0 + 2.7 + 1.6 + 0.7 = 9.10.',
+              'Diem tong: 9.00\nXep loai: Xuat sac\n',
+              '4.0 + 2.7 + 1.6 + 0.7 = 9.00 — đúng mốc Xuất sắc.',
             ),
             sample('8\n7\n6\n5\n', 'Diem tong: 7.00\nXep loai: Kha\n'),
             hidden('10\n10\n10\n10\n', 'Diem tong: 10.00\nXep loai: Xuat sac\n', 20),

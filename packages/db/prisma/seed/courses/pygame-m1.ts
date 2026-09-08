@@ -622,14 +622,14 @@ export const pygameModule1: ModuleSpec = {
           tests: [
             sample(
               '2 100 30\n0 10\n50 20\n',
-              '5\n',
-              'Vật 1 chạm đáy 2 lần, vật 2 chạm 3 lần trong 30 khung hình.',
+              '7\n',
+              'Vật 1 chạm đáy 2 lần, vật 2 chạm 5 lần trong 30 khung hình.',
             ),
             sample('1 10 1\n0 5\n', '0\n', '5 chưa vượt quá 10 nên chưa chạm đáy.'),
             hidden('1 10 3\n0 5\n', '1\n', 25),
-            hidden('3 100 10\n0 50\n0 50\n0 50\n', '15\n', 25),
+            hidden('3 100 10\n0 50\n0 50\n0 50\n', '9\n', 25),
             hidden('1 1000 5\n0 1\n', '0\n', 25),
-            hidden('2 50 100\n0 25\n0 10\n', '69\n', 25),
+            hidden('2 50 100\n0 25\n0 10\n', '49\n', 25),
           ],
         }),
       ],

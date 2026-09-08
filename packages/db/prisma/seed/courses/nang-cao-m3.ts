@@ -311,7 +311,7 @@ const advancedLessons17to22: LessonSpec[] = [
         tests: [
           sample(
             '2\nLien he lan@dyelms.vn hoac 0912345678\nLop 7A1 co 32 ban\n',
-            'Email: lan@dyelms.vn\nSDT: 0912345678\nSo: 912345758\n',
+            'Email: lan@dyelms.vn\nSDT: 0912345678\nSo: 912345718\n',
             'Tổng gồm cả 0912345678 (số điện thoại) cộng 7, 1 và 32.',
           ),
           sample('1\nKhong co gi ca\n', 'Email: khong co\nSDT: khong co\nSo: 0\n'),
