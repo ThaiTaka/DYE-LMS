@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
 
 import {
+  chayThu,
   khoiPhuc,
   layLichSu,
   layLichSuNop,
@@ -10,6 +11,7 @@ import {
   nop,
   type BaiDaNopHienThi,
   type BanLuuHienThi,
+  type KetQuaChayThuUI,
 } from '@/app/bai-hoc/[slug]/code-actions';
 
 import { useTuLuu, type TrangThaiLuu } from './dung-tu-luu';
@@ -119,6 +121,8 @@ export function KhuLamBai({
   const [maBanChon, setMaBanChon] = useState<string>('');
   const [baiNop, setBaiNop] = useState<BaiDaNopHienThi[]>([]);
   const [thongBao, setThongBao] = useState('');
+  const [ketQuaChay, setKetQuaChay] = useState<KetQuaChayThuUI | null>(null);
+  const [dangChay, setDangChay] = useState(false);
   const [dangGui, batDauGui] = useTransition();
 
   const tuLuu = useTuLuu(blockId);
@@ -193,6 +197,26 @@ export function KhuLamBai({
     [blockId, napLichSu],
   );
 
+  /**
+   * Run the code as it stands and show what it printed.
+   *
+   * Deliberately does NOT flush the draft first, unlike submitting. Running is
+   * something a student does every few seconds while poking at an idea, and
+   * writing a draft revision for each press would bury the meaningful saves —
+   * the ones made when they submitted — under dozens of keystroke-level ones.
+   */
+  const chayThuMa = useCallback(() => {
+    setDangChay(true);
+    setKetQuaChay(null);
+    void (async () => {
+      try {
+        setKetQuaChay(await chayThu(blockId, maRef.current));
+      } finally {
+        setDangChay(false);
+      }
+    })();
+  }, [blockId]);
+
   const nopBaiLam = useCallback(() => {
     batDauGui(async () => {
       // Flush the draft first so what is stored matches what was handed in even
@@ -264,11 +288,11 @@ export function KhuLamBai({
       <div className="flex flex-wrap items-center gap-3 border-t border-vien px-4 py-3">
         <button
           type="button"
-          disabled
-          title="Chạy thử trong sandbox sẽ có ở bản cập nhật sau"
-          className="min-h-cham cursor-not-allowed rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-nhat"
+          onClick={chayThuMa}
+          disabled={dangChay}
+          className="min-h-cham rounded-nut border border-chinh px-4 py-2 text-sm font-semibold text-chinh hover:bg-chinh-nhat disabled:opacity-60"
         >
-          ▶ Chạy thử
+          {dangChay ? 'Đang chạy…' : '▶ Chạy thử'}
         </button>
 
         {coBaiTap ? (
@@ -292,6 +316,59 @@ export function KhuLamBai({
           🕘 {moLichSu ? 'Đóng lịch sử' : 'Lịch sử bài làm'}
         </button>
       </div>
+
+      {/*
+        Run output.
+
+        `aria-live="polite"` because the result arrives seconds after a click
+        with no focus change: a screen-reader user would otherwise have to go
+        hunting for whether anything happened.
+
+        stdout and stderr are shown in ONE stream, in that order, rather than in
+        two tabs. A beginner's mental model is "what my program printed", and a
+        traceback is the most important thing on the page when it exists —
+        putting it behind a tab is how a child concludes the button is broken.
+      */}
+      {dangChay || ketQuaChay ? (
+        <div aria-live="polite" className="border-t border-vien">
+          <div className="flex items-center justify-between px-4 py-2">
+            <span className="text-sm font-semibold">Kết quả chạy thử</span>
+            {ketQuaChay?.ok ? (
+              <span className="font-mono text-xs text-chu-nhat tabular-nums">
+                {ketQuaChay.thoiGianMs} ms
+              </span>
+            ) : null}
+          </div>
+
+          {dangChay ? (
+            <p className="m-0 px-4 pb-3 text-sm text-chu-phu">Đang chạy trong sandbox…</p>
+          ) : ketQuaChay ? (
+            <div className="px-4 pb-4">
+              {ketQuaChay.stdout || ketQuaChay.stderr ? (
+                <pre className="m-0 max-h-64 overflow-auto rounded-nut bg-the-mo p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
+                  {ketQuaChay.stdout}
+                  {ketQuaChay.stderr ? (
+                    <span className="text-loi">{ketQuaChay.stderr}</span>
+                  ) : null}
+                </pre>
+              ) : ketQuaChay.ok ? (
+                <p className="m-0 text-sm text-chu-phu">
+                  Chương trình chạy xong mà không in ra gì. Thử thêm một dòng{' '}
+                  <code className="font-mono">print(...)</code> để xem kết quả nhé.
+                </p>
+              ) : null}
+
+              {ketQuaChay.ghiChu ? (
+                <p
+                  className={`mt-2 mb-0 text-sm ${ketQuaChay.ok ? 'text-thu-lai' : 'text-loi'}`}
+                >
+                  {ketQuaChay.ghiChu}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {thongBao ? (
         <p

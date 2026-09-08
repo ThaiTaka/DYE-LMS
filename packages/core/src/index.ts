@@ -195,8 +195,13 @@ export {
 // ── Phase 8: judge queue contract (no queue library — see the module) ────────
 export {
   CHINH_SACH_THU_LAI,
+  CHINH_SACH_CHAY_THU,
+  GIOI_HAN_CHAY_THU,
   HANG_CHAM_BAI,
   VIEC_CHAM_BAI,
+  VIEC_CHAY_THU,
+  type KetQuaChayThu,
+  type ViecChayThu,
   type ViecChamBai,
 } from './judge-queue';
 

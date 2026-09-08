@@ -956,6 +956,120 @@ export interface BaiMicrobitChoCham {
   verdict: string;
 }
 
+export interface HangKetQuaBaiNop {
+  submissionId: string;
+  studentId: string;
+  tenHocSinh: string;
+  lessonTitle: string;
+  lessonOrder: number;
+  problemTitle: string;
+  attemptNo: number;
+  verdict: string;
+  score: number | null;
+  totalPoints: number;
+  nopLuc: Date;
+  /** Exactly what the student handed in. */
+  code: string;
+}
+
+export interface DuLieuKetQuaBaiNop {
+  bai: HangKetQuaBaiNop[];
+  /** True when this actor sees every class rather than only their own. */
+  toanHeThong: boolean;
+  /** Count per verdict across the scope, for the filter chips. */
+  demTheoKetQua: Record<string, number>;
+  /** True when the list was cut at the page size. */
+  conNua: boolean;
+}
+
+/** How many rows one page of the results table holds. */
+const SO_DONG_KET_QUA = 100;
+
+/**
+ * Every submission this actor may see, newest first.
+ *
+ * ── Scope is the whole feature ───────────────────────────────────────────────
+ * Built from `visibleStudentIds`, the same relationship every other teacher view
+ * uses: a teacher reaches a child only through a class they run. A results table
+ * is the easiest place in an LMS to leak, because a single missing WHERE reads
+ * as a working page rather than as an error — it just quietly shows other
+ * people's children.
+ *
+ * ── The code travels with the row ────────────────────────────────────────────
+ * `Submission.code` is selected here rather than behind a second "fetch this
+ * one" action. It is the thing the teacher opened the page to read, the rows are
+ * already scoped, and a per-row endpoint would be a second place for the same
+ * authorization to be got right. The cost is page weight, so the page size is
+ * bounded and the disclosure stays closed until asked.
+ *
+ * MAKECODE submissions are excluded: their `code` is block XML, unreadable as
+ * text, and they have their own review queue in `hangMicrobitChoCham`.
+ */
+export async function duLieuKetQuaBaiNop(
+  actor: Actor,
+  loc?: { verdict?: string },
+): Promise<DuLieuKetQuaBaiNop> {
+  const ids = await visibleStudentIds(db, actor);
+  if (ids.length === 0) {
+    return { bai: [], toanHeThong: actor.role === 'ADMIN', demTheoKetQua: {}, conNua: false };
+  }
+
+  const trongPhamVi = {
+    studentId: { in: ids },
+    problem: { judgeMode: { not: 'MAKECODE' as const } },
+  };
+
+  const [rows, dem] = await Promise.all([
+    db.submission.findMany({
+      where: {
+        ...trongPhamVi,
+        ...(loc?.verdict ? { verdict: loc.verdict as never } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: SO_DONG_KET_QUA + 1,
+      select: {
+        id: true,
+        studentId: true,
+        attemptNo: true,
+        verdict: true,
+        score: true,
+        code: true,
+        createdAt: true,
+        student: { select: { displayName: true } },
+        problem: { select: { title: true, totalPoints: true } },
+        lesson: { select: { title: true, order: true } },
+      },
+    }),
+    db.submission.groupBy({
+      by: ['verdict'],
+      where: trongPhamVi,
+      _count: { _all: true },
+    }),
+  ]);
+
+  const conNua = rows.length > SO_DONG_KET_QUA;
+
+  return {
+    bai: rows.slice(0, SO_DONG_KET_QUA).map((r) => ({
+      submissionId: r.id,
+      studentId: r.studentId,
+      tenHocSinh: r.student.displayName,
+      lessonTitle: bocMarkdown(r.lesson?.title ?? ''),
+      lessonOrder: r.lesson?.order ?? 0,
+      problemTitle: bocMarkdown(r.problem.title),
+      attemptNo: r.attemptNo,
+      verdict: r.verdict,
+      score: r.score,
+      totalPoints: r.problem.totalPoints,
+      nopLuc: r.createdAt,
+      code: r.code,
+    })),
+    toanHeThong: actor.role === 'ADMIN',
+    demTheoKetQua: Object.fromEntries(dem.map((d) => [d.verdict, d._count._all])),
+    conNua,
+  };
+}
+
 /**
  * Micro:bit submissions waiting for a person.
  *

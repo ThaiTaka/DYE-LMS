@@ -19,6 +19,7 @@ const lichSuStub = vi.hoisted(() => vi.fn());
 const lichSuNopStub = vi.hoisted(() => vi.fn());
 const noiDungBanStub = vi.hoisted(() => vi.fn());
 const khoiPhucStub = vi.hoisted(() => vi.fn());
+const chayThuStub = vi.hoisted(() => vi.fn());
 
 vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
   tuDongLuu: luuStub,
@@ -27,11 +28,20 @@ vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
   layLichSuNop: lichSuNopStub,
   layNoiDungBanLuu: noiDungBanStub,
   khoiPhuc: khoiPhucStub,
+  chayThu: chayThuStub,
   layBanNhap: vi.fn(),
 }));
 
 beforeEach(() => {
-  for (const s of [luuStub, nopStub, lichSuStub, lichSuNopStub, noiDungBanStub, khoiPhucStub]) {
+  for (const s of [
+    luuStub,
+    nopStub,
+    lichSuStub,
+    lichSuNopStub,
+    noiDungBanStub,
+    khoiPhucStub,
+    chayThuStub,
+  ]) {
     s.mockReset();
   }
   luuStub.mockResolvedValue({
@@ -522,11 +532,58 @@ describe('Khu làm bài', () => {
     expect(screen.queryByRole('button', { name: /^nộp bài$/i })).not.toBeInTheDocument();
   });
 
-  it('nút chạy thử hiện rõ là đang tắt, không phải hỏng', async () => {
+  it('chạy thử gửi mã đang soạn và hiện những gì chương trình in ra', async () => {
+    chayThuStub.mockResolvedValue({
+      ok: true,
+      stdout: 'Xin chao\n',
+      stderr: '',
+      thoiGianMs: 42,
+      ghiChu: '',
+    });
+
+    const nguoiDung = userEvent.setup();
     await dungKhu();
-    const nut = await screen.findByRole('button', { name: /chạy thử/i });
-    expect(nut).toBeDisabled();
-    expect(nut).toHaveAttribute('title', expect.stringMatching(/bản cập nhật sau/i));
+    await nguoiDung.click(await screen.findByRole('button', { name: /chạy thử/i }));
+
+    expect(await screen.findByText(/Xin chao/)).toBeInTheDocument();
+    // The code that was sent must be what is in the editor, not the last saved
+    // draft — running is how a student checks an edit they have not saved yet.
+    expect(chayThuStub).toHaveBeenCalledWith('b1', 'print("hien tai")\n');
+  });
+
+  it('lỗi Python hiện nguyên văn stderr thay vì bị nuốt', async () => {
+    // A traceback is the whole point of pressing Run while learning. Swallowing
+    // it, or replacing it with a friendly summary, removes the only thing that
+    // says which line broke.
+    chayThuStub.mockResolvedValue({
+      ok: true,
+      stdout: '',
+      stderr: "NameError: name 'x' is not defined\n",
+      thoiGianMs: 30,
+      ghiChu: '',
+    });
+
+    const nguoiDung = userEvent.setup();
+    await dungKhu();
+    await nguoiDung.click(await screen.findByRole('button', { name: /chạy thử/i }));
+
+    expect(await screen.findByText(/NameError/)).toBeInTheDocument();
+  });
+
+  it('không chạy được thì nói ra, không im lặng', async () => {
+    chayThuStub.mockResolvedValue({
+      ok: false,
+      stdout: '',
+      stderr: '',
+      thoiGianMs: 0,
+      ghiChu: 'Máy chấm đang bận, em thử lại nhé.',
+    });
+
+    const nguoiDung = userEvent.setup();
+    await dungKhu();
+    await nguoiDung.click(await screen.findByRole('button', { name: /chạy thử/i }));
+
+    expect(await screen.findByText(/Máy chấm đang bận/)).toBeInTheDocument();
   });
 
   it('không có vi phạm axe khi mở lịch sử', async () => {

@@ -1,0 +1,119 @@
+# Deploy to the production VPS on every push to main.
+#
+# ── Why this does NOT run `docker compose -f docker-compose.prod.yml up`  ─────
+# Production currently runs the web app and the judge worker as SYSTEMD units
+# (see trien-khai/ and section 11 of HUONG_DAN_DEPLOY_VPS.md). Only Postgres,
+# Redis and MinIO are containers. Bringing the prod compose file up alongside
+# that would break the live site in two ways:
+#
+#   1. compose `web` binds 127.0.0.1:3000, which the systemd dye-web already
+#      holds — the container would fail to start, or worse, win the race.
+#   2. compose `judge-worker` consumes the SAME Redis queue as systemd
+#      dye-judge, so submissions would be split between two workers
+#      non-deterministically, with two processes holding the Docker socket.
+#
+# The two deployment styles are alternatives, not layers. To switch to the
+# all-container one, first `systemctl disable --now dye-web dye-judge`, put the
+# required values in `.env.production` on the server (compose needs AUTH_SECRET
+# and AUTH_URL — both are `:?` required and will abort the deploy if unset), and
+# then replace the script below with:
+#
+#     cd /root/dye-lms && git pull origin main
+#     docker compose -f docker-compose.prod.yml up -d --build
+#
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  # Lets a failed deploy be retried from the Actions tab without an empty commit.
+  workflow_dispatch:
+
+# A second push while a deploy is mid-flight would have two SSH sessions running
+# `git pull` and `npm run build` in the same directory at once.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # Gate. A push straight to production with no check at all is how a live
+  # classroom finds out about a type error.
+  #
+  # `npm run test` is deliberately NOT here: the suites are integration tests
+  # against a real Postgres with the curriculum seeded, so running them properly
+  # needs service containers plus a seed step. Worth adding — but a half-seeded
+  # database that fails at random is worse than an honest gap, so it stays out
+  # until it can be done properly.
+  # ───────────────────────────────────────────────────────────────────────────
+  kiem-tra:
+    name: Typecheck and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      # `npm ci` runs the repo's postinstall, which is `prisma generate` — that
+      # reads the schema file and needs no database.
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm run lint
+
+  trien-khai:
+    name: Deploy to VPS
+    needs: kiem-tra
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH and deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          # Password auth, as specified. A deploy key is stronger and is a
+          # drop-in swap: replace this line with `key: ${{ secrets.VPS_SSH_KEY }}`
+          # and put the PRIVATE half of a keypair in that secret, with the public
+          # half in ~/.ssh/authorized_keys on the server.
+          password: ${{ secrets.VPS_PASSWORD }}
+          # The build is the slow step; the default 10m is not enough headroom.
+          command_timeout: 20m
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /root/dye-lms
+
+            git fetch origin main
+            # Hard reset rather than merge: the server is a deploy target, not a
+            # place anyone edits. A local change here would otherwise stop every
+            # future deploy with a merge conflict nobody is watching for.
+            git reset --hard origin/main
+
+            # Dependencies can change between deploys, and `git pull` alone would
+            # leave node_modules stale — the failure mode is a missing-module
+            # crash loop after restart, minutes later.
+            npm ci
+
+            npm run build
+
+            # The judge sandbox image is rebuilt only when its Dockerfile moved.
+            # It is a slow no-op otherwise, and a missing image means every
+            # submission fails as an internal error rather than being graded.
+            npm run judge:images
+
+            sudo systemctl restart dye-web dye-judge
+
+            # Prove it actually came back rather than trusting the restart.
+            # dye-judge needs the longer grace: it waits for in-flight grading.
+            sleep 12
+            systemctl is-active --quiet dye-web || { journalctl -u dye-web -n 40 --no-pager; exit 1; }
+            systemctl is-active --quiet dye-judge || { journalctl -u dye-judge -n 40 --no-pager; exit 1; }
+
+            ma=$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:3000/dang-nhap)
+            test "$ma" = "200" || { echo "dang-nhap tra ve HTTP $ma"; exit 1; }
+
+            echo "Deploy xong: $(git rev-parse --short HEAD)"

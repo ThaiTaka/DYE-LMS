@@ -20,13 +20,22 @@
 // time, so the root .env has to be loaded before either is evaluated.
 import './env';
 
-import { CHINH_SACH_THU_LAI, HANG_CHAM_BAI, VIEC_CHAM_BAI, type ViecChamBai } from '@dye/core';
+import {
+  CHINH_SACH_THU_LAI,
+  GIOI_HAN_CHAY_THU,
+  HANG_CHAM_BAI,
+  VIEC_CHAM_BAI,
+  VIEC_CHAY_THU,
+  type KetQuaChayThu,
+  type ViecChamBai,
+  type ViecChayThu,
+} from '@dye/core';
 import { PrismaClient } from '@prisma/client';
 import { Queue, Worker, type Job } from 'bullmq';
 
 import { CAU_HINH } from './config';
 import { BaiNopKhongTonTai, chamBai } from './judge';
-import { coDocker } from './sandbox';
+import { ANH_CHAY, chayTrongHop, coDocker } from './sandbox';
 
 const db = new PrismaClient({ log: ['error', 'warn'] });
 
@@ -38,6 +47,42 @@ function ketNoiRedis() {
     ...(url.password ? { password: url.password } : {}),
     // BullMQ requires this; without it a blocked command can retry forever.
     maxRetriesPerRequest: null,
+  };
+}
+
+/**
+ * Run a student's code and hand back what it printed. No grading, no database.
+ *
+ * Every limit here is a constant rather than anything from the job body — see
+ * `ViecChayThu` in @dye/core. The payload is the least trusted input the worker
+ * takes, because it is the only one that is not re-read from a row.
+ *
+ * Failure is RETURNED, not thrown. A student pressing "Chạy thử" on code with a
+ * syntax error has done nothing wrong, and a thrown job would be retried and
+ * then logged as a worker fault. A non-zero exit with a traceback on stderr is
+ * the normal, useful outcome of this button.
+ */
+async function chayThu(viec: ViecChayThu): Promise<KetQuaChayThu> {
+  const code = viec.code.slice(0, GIOI_HAN_CHAY_THU.MA_TOI_DA_KY_TU);
+  const stdin = (viec.stdin ?? '').slice(0, GIOI_HAN_CHAY_THU.STDIN_TOI_DA_KY_TU);
+
+  const kq = await chayTrongHop({
+    tep: { 'main.py': code },
+    lenh: ['python', '/sandbox/main.py'],
+    stdin,
+    timeLimitMs: GIOI_HAN_CHAY_THU.THOI_GIAN_MS,
+    memoryLimitMb: GIOI_HAN_CHAY_THU.BO_NHO_MB,
+    image: ANH_CHAY['PY_BASE'] ?? 'python:3.12-alpine',
+    mang: 'none',
+  });
+
+  return {
+    ketThuc: kq.ketThuc,
+    exitCode: kq.exitCode,
+    stdout: kq.stdout,
+    stderr: kq.stderr,
+    thoiGianMs: kq.thoiGianMs,
+    daCatBot: kq.daCatBot,
   };
 }
 
@@ -56,10 +101,15 @@ async function main(): Promise<void> {
   const connection = ketNoiRedis();
   const hang = new Queue<ViecChamBai>(HANG_CHAM_BAI, { connection });
 
-  const worker = new Worker<ViecChamBai>(
+  const worker = new Worker<ViecChamBai | ViecChayThu>(
     HANG_CHAM_BAI,
-    async (job: Job<ViecChamBai>) => {
-      const { submissionId } = job.data;
+    async (job: Job<ViecChamBai | ViecChayThu>) => {
+      // Two job shapes share one queue so a deployment does not have to grow a
+      // second worker process, a second connection and a second set of limits.
+      // They are told apart by job NAME, never by inspecting the payload.
+      if (job.name === VIEC_CHAY_THU) return chayThu(job.data as ViecChayThu);
+
+      const { submissionId } = (job.data as ViecChamBai);
       const batDau = Date.now();
 
       let kq;

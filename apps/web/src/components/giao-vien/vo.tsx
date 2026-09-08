@@ -77,6 +77,7 @@ export async function VoGiaoVien({
             <MucDieuHuong href="/giao-vien/microbit">Micro:bit</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/giao-trinh">Giáo trình</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/hoc-sinh">Học sinh</MucDieuHuong>
+            <MucDieuHuong href="/giao-vien/ket-qua">Kết quả</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/thong-ke">Thống kê</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/canh-bao" huy={soCanhBao}>
               Cảnh báo

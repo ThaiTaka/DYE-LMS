@@ -43,6 +43,21 @@ export default async function TrangDangNhap({
       <p className="mt-6 text-center text-sm text-chu-nhat">
         Quên mật khẩu? Hãy nhờ thầy cô đặt lại giúp em.
       </p>
+
+      {/*
+        Author signature.
+
+        Sits below the divider rather than beside the product name on purpose:
+        the first thing a child reads on this page should be where they are and
+        what to do, not who wrote it. Muted to the same weight as the
+        password-help line so it reads as a footer, not as a second heading.
+      */}
+      <div className="mt-10 border-t border-vien pt-5 text-center">
+        <p className="m-0 text-xs tracking-wide text-chu-nhat uppercase">Phát triển bởi</p>
+        <p className="mt-1 mb-0 bg-gradient-to-r from-chinh to-chinh-dam bg-clip-text text-lg font-bold text-transparent">
+          Thái Taka
+        </p>
+      </div>
     </main>
   );
 }

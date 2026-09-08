@@ -30,7 +30,7 @@ import {
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
-import { xepHangChamBai } from '@/lib/judge-queue';
+import { chayThuTrongSandbox, xepHangChamBai } from '@/lib/judge-queue';
 
 import type { Actor } from '@dye/core';
 
@@ -196,6 +196,61 @@ export interface KetQuaNop {
  * their code "passed" when nothing ran would be a lie they cannot detect, and it
  * would teach them the verdict means nothing.
  */
+export interface KetQuaChayThuUI {
+  ok: boolean;
+  stdout: string;
+  stderr: string;
+  thoiGianMs: number;
+  /** Human sentence when the run did not simply finish. */
+  ghiChu: string;
+}
+
+/**
+ * Run what is in the editor and hand back its output. Nothing is graded or kept.
+ *
+ * ── Authorized on the block, exactly like submitting ─────────────────────────
+ * `moKhoiCode` is the same gate `nop` uses. Without it this action would be a
+ * general-purpose "execute Python on the server" endpoint for anyone with a
+ * session, reachable by anybody who can read a block id out of the page source.
+ * Running code is cheaper than submitting it, which makes it MORE attractive to
+ * abuse, not less.
+ *
+ * ── Why a non-zero exit is `ok: true` ────────────────────────────────────────
+ * A traceback is the normal, useful result of pressing this button while
+ * learning. `ok` means "the sandbox ran your program and here is what happened";
+ * it is false only when we could not run it at all.
+ */
+export async function chayThu(blockId: string, code: string, stdin = ''): Promise<KetQuaChayThuUI> {
+  try {
+    const actor = await hocSinhHienTai();
+    await moKhoiCode(db, actor.id, blockId);
+
+    const kq = await chayThuTrongSandbox(code, stdin);
+    if (!kq.ok) {
+      return { ok: false, stdout: '', stderr: '', thoiGianMs: 0, ghiChu: kq.loi };
+    }
+
+    const r = kq.ketQua;
+    const ghiChu =
+      r.ketThuc === 'het-gio'
+        ? 'Chương trình chạy quá lâu nên đã bị dừng. Em xem lại vòng lặp có thoát được chưa nhé.'
+        : r.ketThuc === 'het-bo-nho'
+          ? 'Chương trình dùng hết bộ nhớ cho phép nên đã bị dừng.'
+          : r.ketThuc === 'qua-nhieu-dau-ra'
+            ? 'Chương trình in ra quá nhiều nên phần sau đã bị cắt bớt.'
+            : r.ketThuc === 'khong-chay-duoc'
+              ? 'Không chạy được đoạn này trong sandbox.'
+              : r.daCatBot
+                ? 'Kết quả dài quá nên đã cắt bớt phần cuối.'
+                : '';
+
+    return { ok: true, stdout: r.stdout, stderr: r.stderr, thoiGianMs: r.thoiGianMs, ghiChu };
+  } catch (error) {
+    const { thongDiep } = loiThanhThongDiep(error);
+    return { ok: false, stdout: '', stderr: '', thoiGianMs: 0, ghiChu: thongDiep };
+  }
+}
+
 export async function nop(blockId: string, code: string): Promise<KetQuaNop> {
   try {
     const actor = await hocSinhHienTai();
