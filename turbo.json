@@ -55,6 +55,7 @@
     "NEXT_PUBLIC_*",
 
     "SEED_DEMO",
+    "SEED_SKIP_ADMIN",
     "SEED_ALLOW_PRODUCTION",
     "SEED_DEMO_PASSWORD"
   ],

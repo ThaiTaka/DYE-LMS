@@ -30,7 +30,7 @@ import { assertCurriculumCompliance, CurriculumViolation } from './seed/assertio
 import { seedBadges } from './seed/badges.ts';
 import { allCourses } from './seed/courses/index.ts';
 import { seedDemoData } from './seed/demo.ts';
-import { taoQuanTriGoc } from './seed/quan-tri.ts';
+import { taoQuanTriGoc, type KetQuaQuanTri } from './seed/quan-tri.ts';
 import { seedCourse } from './seed/upsert.ts';
 
 const db = new PrismaClient();
@@ -100,14 +100,39 @@ async function main(): Promise<void> {
   const badgeCount = await seedBadges(db);
   console.log(`${badgeCount} huy hiệu`);
 
-  // ── 4. Root admin ────────────────────────────────────────────────────────
-  process.stdout.write('  4/4  Tài khoản quản trị gốc ... ');
-  const quanTri = await taoQuanTriGoc(db, {
-    username: process.env['ADMIN_USERNAME'],
-    password: process.env['ADMIN_PASSWORD'] ?? '',
-    displayName: process.env['ADMIN_DISPLAY_NAME'],
-  });
-  console.log(`${quanTri.username} (${quanTri.laMoi ? 'mới tạo' : 'đặt lại mật khẩu'})`);
+  /*
+   * ── 4. Root admin — skippable ───────────────────────────────────────────
+   *
+   * `taoQuanTriGoc` upserts on username, so on an existing system it RESETS the
+   * admin password to whatever ADMIN_PASSWORD currently holds. That is the
+   * intended recovery path for a forgotten password, and it is the right
+   * default for a fresh install.
+   *
+   * It is the wrong thing to do while shipping curriculum. Steps 1-3 are pure
+   * content upserts and are exactly what a curriculum update needs to run; step
+   * 4 quietly rewrites a live credential on the way past. On a server whose
+   * `.env` still carries the password from installation day, seeding new lessons
+   * would silently undo every password change made since — and the person who
+   * discovers that is the admin, locked out, with no obvious cause.
+   *
+   * SEED_SKIP_ADMIN=yes leaves the account alone. Content and credentials are
+   * different concerns, and a content deploy should not be able to touch one by
+   * accident.
+   */
+  const boQuaQuanTri = process.env['SEED_SKIP_ADMIN'] === 'yes';
+  let quanTri: KetQuaQuanTri | null = null;
+
+  if (boQuaQuanTri) {
+    console.log('  4/4  Tài khoản quản trị gốc ... BỎ QUA (SEED_SKIP_ADMIN=yes)');
+  } else {
+    process.stdout.write('  4/4  Tài khoản quản trị gốc ... ');
+    quanTri = await taoQuanTriGoc(db, {
+      username: process.env['ADMIN_USERNAME'],
+      password: process.env['ADMIN_PASSWORD'] ?? '',
+      displayName: process.env['ADMIN_DISPLAY_NAME'],
+    });
+    console.log(`${quanTri.username} (${quanTri.laMoi ? 'mới tạo' : 'đặt lại mật khẩu'})`);
+  }
 
   // ── 5. Development fixtures, only when asked for ─────────────────────────
   const demo = taoDemo ? await seedDemoData(db) : null;
@@ -128,8 +153,13 @@ async function main(): Promise<void> {
 
   if (!demo) {
     console.log('');
-    console.log(`  Đăng nhập bằng ${quanTri.username} · ${quanTri.displayName}`);
-    console.log('    Mật khẩu lấy từ ADMIN_PASSWORD, không in ra ở đây.');
+    if (quanTri) {
+      console.log(`  Đăng nhập bằng ${quanTri.username} · ${quanTri.displayName}`);
+      console.log('    Mật khẩu lấy từ ADMIN_PASSWORD, không in ra ở đây.');
+    } else {
+      // Nothing to report about an account this run deliberately did not touch.
+      console.log('  Tài khoản quản trị giữ nguyên — lần chạy này không đụng tới mật khẩu.');
+    }
     console.log('');
     console.log('    Chưa có giáo viên, học sinh hay lớp nào — tạo bằng giao diện web:');
     console.log('      Lớp học   → /giao-vien/lop');
