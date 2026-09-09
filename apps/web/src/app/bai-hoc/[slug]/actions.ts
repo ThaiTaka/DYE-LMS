@@ -1,6 +1,8 @@
 'use server';
 
-import { authorize, moKhoiCode, syncLessonCompletion } from '@dye/core';
+import { authorize, ForbiddenError, moKhoiCode, nopTuLuan, syncLessonCompletion } from '@dye/core';
+
+import { revalidatePath } from 'next/cache';
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
@@ -90,8 +92,70 @@ export async function kiemTraCauTraLoi(
     };
   }
 
-  // SHORT_ANSWER is graded by a teacher; there is nothing to check here.
-  return { dung: true, giaiThich: question.explanation, dapAnDung: null };
+  /*
+   * SHORT_ANSWER never lands here.
+   *
+   * It used to, and returned `dung: true` unconditionally — a child could type
+   * one character into an essay question and be told they were right, with
+   * nothing stored and no teacher ever seeing it. Free-text answers go through
+   * `nopBaiTuLuan`, which persists them and leaves them for a person.
+   */
+  throw new Error('SHORT_ANSWER phai di qua nopBaiTuLuan, khong tu cham o day');
+}
+
+export interface KetQuaNopTuLuanUI {
+  trangThai: 'da-nhan' | 'da-nop-roi' | 'rong' | 'tu-choi' | 'loi';
+  thongDiep: string;
+}
+
+/**
+ * Hand in one free-text answer.
+ *
+ * Returns a result object rather than throwing: this is called from a client
+ * component, and a thrown error would replace the lesson with a crash page
+ * while the student was mid-sentence.
+ *
+ * The lock is enforced in `nopTuLuan` by the existence of the row, not by the
+ * disabled button that usually prevents reaching here — so a second submit from
+ * a stale tab is refused rather than recorded.
+ */
+export async function nopBaiTuLuan(
+  questionId: string,
+  noiDung: string,
+): Promise<KetQuaNopTuLuanUI> {
+  try {
+    const actor = await currentActor();
+    if (!actor || actor.role !== 'STUDENT') {
+      return { trangThai: 'tu-choi', thongDiep: 'Chỉ học sinh mới nộp được bài này.' };
+    }
+
+    const kq = await nopTuLuan(db, actor, questionId, noiDung);
+
+    if (kq.trangThai === 'rong') {
+      return { trangThai: 'rong', thongDiep: 'Em viết vài dòng rồi hãy nộp nhé.' };
+    }
+    if (kq.trangThai === 'da-nop-roi') {
+      return {
+        trangThai: 'da-nop-roi',
+        thongDiep: 'Câu này em đã nộp rồi. Muốn sửa thì nhờ thầy cô mở lại giúp em.',
+      };
+    }
+
+    // The lesson page reads the lock from the server, so it has to be re-read
+    // for the box to stay closed after this returns.
+    revalidatePath('/bai-hoc/[slug]', 'page');
+
+    return {
+      trangThai: 'da-nhan',
+      thongDiep: 'Đã nộp bài của em. Thầy cô sẽ chấm và phản hồi sau nhé.',
+    };
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return { trangThai: 'tu-choi', thongDiep: error.message };
+    }
+    console.error('[tu-luan] nop that bai', error);
+    return { trangThai: 'loi', thongDiep: 'Có lỗi kỹ thuật. Em thử lại giúp nhé.' };
+  }
 }
 
 /**
@@ -131,6 +195,20 @@ export async function danhDauKhoiXong(blockId: string): Promise<{ baiXong: boole
   });
 
   const baiXong = await syncLessonCompletion(db, actor.id, block.lessonId);
+
+  /*
+   * Re-read the lesson so the progress bar moves now rather than on the next
+   * navigation.
+   *
+   * `syncLessonCompletion` writes the new percentage, but the page that shows it
+   * is a server component — without this the student finishes a block, watches
+   * the bar stay where it was, and reasonably concludes it did not count. It
+   * also matters for the lesson map: finishing the last required block is what
+   * opens the next session, and that list is rendered on the server too.
+   */
+  revalidatePath('/bai-hoc/[slug]', 'page');
+  revalidatePath('/khoa-hoc/[slug]', 'page');
+  revalidatePath('/bang-dieu-khien');
 
   return { baiXong };
 }

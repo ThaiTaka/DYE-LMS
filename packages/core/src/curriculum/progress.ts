@@ -266,17 +266,28 @@ export async function syncLessonCompletion(
       ? 'IN_PROGRESS'
       : 'NOT_STARTED';
 
+  /*
+   * `percent` is written here and nowhere else.
+   *
+   * It is the completion of the blocks REQUIRED for THIS student's tier, which
+   * is the same number `lessonView` already computed — so it is a cache, not a
+   * second opinion. Storing it lets a class roster read thirty pupils in one
+   * query instead of running the block-level derivation thirty times, and lets
+   * the student's own page show a number without recomputing on every render.
+   */
   await db.lessonProgress.upsert({
     where: { studentId_lessonId: { studentId, lessonId } },
     create: {
       studentId,
       lessonId,
       state,
+      percent: view.required.percent,
       startedAt: new Date(),
       completedAt: view.isComplete ? new Date() : null,
     },
     update: {
       state,
+      percent: view.required.percent,
       completedAt: view.isComplete ? new Date() : null,
     },
   });

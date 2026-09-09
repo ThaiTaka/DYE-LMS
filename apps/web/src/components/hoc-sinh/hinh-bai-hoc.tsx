@@ -20,12 +20,22 @@ import { useCallback, useState } from 'react';
  * and there is nothing there"), so an error that fired before hydration is
  * picked up rather than missed.
  *
- * ── What the fallback says ───────────────────────────────────────────────────
+ * ── A missing image renders NOTHING ──────────────────────────────────────────
  * The curriculum ships illustration paths ahead of the files themselves, so a
- * missing image is a NORMAL state during authoring, not a fault. The placeholder
- * therefore renders the alt text as a description of the picture that belongs
- * there — which is genuinely useful to a student reading the lesson — rather
- * than an error, and never the browser's broken-image icon.
+ * missing image is a NORMAL state during authoring, not a fault. This used to
+ * draw a dashed box reading "Hình minh hoạ đang được vẽ", which was worse than
+ * the gap it filled: on a lesson with several pending illustrations the page
+ * became a column of grey boxes, and a student reading it could not tell an
+ * unfinished drawing from a broken site.
+ *
+ * So a failed load now collapses to nothing at all and the prose closes over
+ * it. The surrounding text was always written to stand on its own — the
+ * pictures illustrate it rather than carry it.
+ *
+ * A stock image from a CDN was the other option and is not available: the CSP
+ * in next.config.mjs allows `img-src 'self' data: blob:` only, so a remote
+ * asset is blocked at the browser with no visible error. Widening that for
+ * decoration would trade a real protection for a placeholder.
  */
 
 type TrangThaiAnh = 'dang-tai' | 'hong';
@@ -60,19 +70,8 @@ function useAnhHong(): {
 export function HinhBaiHoc({ src, alt }: { src: string; alt: string }) {
   const { hong, onError, ref } = useAnhHong();
 
-  if (hong) {
-    return (
-      <figure className="hinh-bai-hoc hinh-bai-hoc--thieu">
-        <div className="hinh-bai-hoc__o-trong">
-          <span aria-hidden="true" className="text-3xl">
-            🖼️
-          </span>
-          <p className="m-0 text-sm font-semibold text-chu-phu">Hình minh hoạ đang được vẽ</p>
-          {alt ? <p className="m-0 max-w-prose text-sm text-chu-nhat">{alt}</p> : null}
-        </div>
-      </figure>
-    );
-  }
+  // Nothing at all, rather than a box explaining the absence.
+  if (hong) return null;
 
   return (
     <figure className="hinh-bai-hoc">
@@ -95,14 +94,7 @@ export function HinhBaiHoc({ src, alt }: { src: string; alt: string }) {
 export function HinhTrongDong({ src, alt }: { src: string; alt: string }) {
   const { hong, onError, ref } = useAnhHong();
 
-  if (hong) {
-    return (
-      <span className="hinh-trong-dong hinh-trong-dong--thieu">
-        <span aria-hidden="true">🖼️</span>
-        {alt ? <span>{alt}</span> : <span>hình minh hoạ</span>}
-      </span>
-    );
-  }
+  if (hong) return null;
 
   return (
     <img

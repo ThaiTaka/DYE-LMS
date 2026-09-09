@@ -22,7 +22,28 @@ export default async function TrangDangNhap({
         <p aria-hidden="true" className="m-0 text-4xl">
           🐍
         </p>
-        <h1 className="mt-2 mb-1 text-3xl font-bold">DYE LMS</h1>
+
+        {/*
+          Product name and author on one line.
+
+          `flex-wrap` with a middot rather than a drawn divider: on a narrow
+          phone the two halves wrap onto separate lines, and a vertical rule
+          left stranded at the end of a line looks like a mistake where a
+          middot just disappears into the gap.
+        */}
+        <div className="mt-2 mb-1 flex flex-wrap items-baseline justify-center gap-x-2.5 gap-y-0.5">
+          <h1 className="m-0 text-3xl font-bold">DYE LMS</h1>
+          <span aria-hidden="true" className="text-chu-nhat">
+            ·
+          </span>
+          <p className="m-0 text-sm text-chu-nhat">
+            Phát triển bởi{' '}
+            <span className="bg-gradient-to-r from-chinh to-chinh-dam bg-clip-text font-bold text-transparent">
+              Thái Taka
+            </span>
+          </p>
+        </div>
+
         <p className="m-0 text-chu-phu">Học lập trình Python cùng nhau</p>
       </div>
 
@@ -44,20 +65,6 @@ export default async function TrangDangNhap({
         Quên mật khẩu? Hãy nhờ thầy cô đặt lại giúp em.
       </p>
 
-      {/*
-        Author signature.
-
-        Sits below the divider rather than beside the product name on purpose:
-        the first thing a child reads on this page should be where they are and
-        what to do, not who wrote it. Muted to the same weight as the
-        password-help line so it reads as a footer, not as a second heading.
-      */}
-      <div className="mt-10 border-t border-vien pt-5 text-center">
-        <p className="m-0 text-xs tracking-wide text-chu-nhat uppercase">Phát triển bởi</p>
-        <p className="mt-1 mb-0 bg-gradient-to-r from-chinh to-chinh-dam bg-clip-text text-lg font-bold text-transparent">
-          Thái Taka
-        </p>
-      </div>
     </main>
   );
 }

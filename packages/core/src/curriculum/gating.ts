@@ -145,7 +145,7 @@ export function resolveGating(input: GatingInput): LessonAccess[] {
   const byId = new Map(input.lessons.map((l) => [l.id, l]));
   const ordered = [...input.lessons].sort((a, b) => a.order - b.order);
 
-  return ordered.map((lesson) => {
+  return ordered.map((lesson, i) => {
     const { student, klass } = pickOverride(input.overrides, lesson.id);
 
     // ── Status ─────────────────────────────────────────────────────────────
@@ -186,6 +186,9 @@ export function resolveGating(input: GatingInput): LessonAccess[] {
     // The explicit unlock flag: student scope wins, then class scope.
     const explicitUnlock = student?.isUnlocked ?? klass?.isUnlocked ?? null;
 
+    /** The session immediately before this one, in course order. */
+    const truoc = i > 0 ? ordered[i - 1] : undefined;
+
     let unlocked: boolean;
     let lockReason: string | null = null;
 
@@ -209,6 +212,24 @@ export function resolveGating(input: GatingInput): LessonAccess[] {
       // `calendar`" sees stray backticks, and a screen reader speaks them.
       const names = missing.map((m) => tenBuoi(m.order, m.title)).join(', ');
       lockReason = `Em cần hoàn thành trước: ${names}.`;
+    } else if (truoc && !waived && input.progress.get(truoc.id) !== 'COMPLETED') {
+      /*
+       * Sequential progression: a session opens when the one before it is done.
+       *
+       * Only three of the authored lessons declare explicit `prerequisites`, so
+       * before this the whole course was open from day one and "finish a lesson
+       * to unlock the next" had nothing to unlock. This supplies the chain
+       * implicitly, in course order, instead of asking the curriculum to repeat
+       * the previous slug 117 times.
+       *
+       * It sits BELOW both teacher overrides on purpose: `isUnlocked === false`
+       * keeps a lesson shut even when the pupil has earned it, and
+       * `isUnlocked === true` opens one they have not — a teacher deciding
+       * either way outranks the ladder. `waivePrerequisites` releases this too,
+       * because "let this child skip ahead" means the same thing here.
+       */
+      unlocked = false;
+      lockReason = `Em cần hoàn thành ${tenBuoi(truoc.order, truoc.title)} trước.`;
     } else {
       unlocked = true;
     }

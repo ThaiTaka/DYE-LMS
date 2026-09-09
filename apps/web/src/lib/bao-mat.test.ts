@@ -92,6 +92,11 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   'khoiPhucHocSinh(': 'authorize(',
   'goHocSinhKhoiLop(': 'authorize(',
   'xepHocSinhVaoLop(': 'authorize(',
+  // Both load the answer through `moTuLuan`, which is where the
+  // `student: manage` check lives — the teacher must teach that child.
+  'chamTuLuan(': 'moTuLuan(',
+  'moLaiTuLuan(': 'moTuLuan(',
+  'nopTuLuan(': 'authorize(',
   // Re-reads the alert through the same scoped feed the teacher sees, so an id
   // guessed from outside that scope is refused.
   'xuLyCanhBao(': 'canhBaoTapTrung(',

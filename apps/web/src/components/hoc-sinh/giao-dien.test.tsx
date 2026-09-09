@@ -83,6 +83,7 @@ const TRAC_NGHIEM = {
       template: null,
       mediaUrl: null,
       hint: null,
+      tuLuan: null,
       choices: [
         { id: 'a', text: '2' },
         { id: 'b', text: '3' },
@@ -98,6 +99,7 @@ const TRAC_NGHIEM = {
       template: 'Toán tử ___ cho phần dư của phép chia.',
       mediaUrl: null,
       hint: 'Nó là một ký tự em thấy trên bàn phím số.',
+      tuLuan: null,
       choices: [],
     },
   ],

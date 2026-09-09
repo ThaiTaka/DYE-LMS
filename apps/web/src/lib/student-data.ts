@@ -18,11 +18,13 @@ import {
   lessonView,
   resolveCourseAccess,
   resolveLessonAccess,
+  tuLuanCuaHocSinh,
   stageOf,
   type BlockAccess,
   type CourseProgress,
   type FlowStage,
   type LessonAccess,
+  type TrangThaiTuLuan,
 } from '@dye/core';
 
 import { parseNoiDung, type NoiDungKhoi } from './block-content';
@@ -271,6 +273,14 @@ export interface CauHoiHienThi {
   mediaUrl: string | null;
   /** Offered before answering, on request. Costs nothing; this is practice. */
   hint: string | null;
+  /**
+   * SHORT_ANSWER only: what this student has already handed in.
+   *
+   * Loaded on the server so the lock survives a reload. The previous runner
+   * kept "already answered" in React state alone, so refreshing the page gave
+   * the student a blank box and let them answer again.
+   */
+  tuLuan: TrangThaiTuLuan | null;
 }
 
 export interface TracNghiemHienThi {
@@ -487,6 +497,16 @@ export async function duLieuBaiHoc(
   });
   const draftOf = new Map(drafts.map((d) => [d.blockId, d]));
 
+  /*
+   * Essay state for every free-text question in the lesson, in one query.
+   *
+   * The mapping lives in @dye/core rather than here — see `tuLuanCuaHocSinh`.
+   */
+  const idTuLuan = blocks.flatMap((b) =>
+    (b.quiz?.questions ?? []).filter((q) => q.type === 'SHORT_ANSWER').map((q) => q.id),
+  );
+  const tuLuanOf = await tuLuanCuaHocSinh(db, studentId, idTuLuan);
+
   const hienThi: KhoiHienThi[] = blocks.map((b) => {
     const resolved = accessOf.get(b.id);
     const draft = draftOf.get(b.id);
@@ -518,7 +538,10 @@ export async function duLieuBaiHoc(
             title: b.quiz.title,
             description: b.quiz.description,
             passingScore: b.quiz.passingScore,
-            questions: b.quiz.questions,
+            questions: b.quiz.questions.map((q) => ({
+              ...q,
+              tuLuan: q.type === 'SHORT_ANSWER' ? (tuLuanOf.get(q.id) ?? { trangThai: 'chua-nop' }) : null,
+            })),
           }
         : null,
       baiTap: b.problem

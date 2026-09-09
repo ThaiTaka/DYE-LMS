@@ -1,10 +1,11 @@
 import Link from 'next/link';
 
+import { ChamTuLuan } from '@/components/giao-vien/cham-tu-luan';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { XemMaBaiNop } from '@/components/giao-vien/xem-ma-bai-nop';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { requireRole } from '@/lib/guard';
-import { duLieuKetQuaBaiNop } from '@/lib/teacher-data';
+import { duLieuKetQuaBaiNop, duLieuTuLuanChoCham } from '@/lib/teacher-data';
 
 /** Student-facing wording for each verdict. Mirrors the editor's own table. */
 const NHAN_KET_QUA: Record<string, string> = {
@@ -76,7 +77,10 @@ export default async function TrangKetQua({
   const { ket_qua } = await searchParams;
   const loc = ket_qua && NHAN_KET_QUA[ket_qua] ? ket_qua : undefined;
 
-  const data = await duLieuKetQuaBaiNop(actor, loc ? { verdict: loc } : undefined);
+  const [data, tuLuan] = await Promise.all([
+    duLieuKetQuaBaiNop(actor, loc ? { verdict: loc } : undefined),
+    duLieuTuLuanChoCham(actor),
+  ]);
   const tong = Object.values(data.demTheoKetQua).reduce((a, b) => a + b, 0);
 
   return (
@@ -96,6 +100,41 @@ export default async function TrangKetQua({
           .
         </p>
       </header>
+
+      {/*
+        Essays waiting for a person, ABOVE the auto-graded list.
+
+        The list below reports work the judge has already settled; this section
+        is the only thing on the page that will not resolve itself. A queue
+        nobody works blocks the student — the answer stays locked until it is
+        marked — so it goes first and says how many are waiting.
+      */}
+      {tuLuan.length > 0 ? (
+        <section aria-labelledby="cho-cham" className="mb-8">
+          <h2 id="cho-cham" className="mt-0 mb-1 text-xl font-bold">
+            Bài tự luận chờ chấm ({tuLuan.length})
+          </h2>
+          <p className="mt-0 mb-4 text-sm text-chu-phu">
+            Máy không chấm được tự luận. Em nào nộp rồi thì câu đó khoá lại cho tới khi thầy cô
+            chấm hoặc mở lại.
+          </p>
+          <ul className="m-0 list-none space-y-3 p-0">
+            {tuLuan.map((t) => (
+              <ChamTuLuan
+                key={t.answerId}
+                answerId={t.answerId}
+                tenHocSinh={t.tenHocSinh}
+                prompt={t.prompt}
+                noiDung={t.noiDung}
+                diemToiDa={t.diemToiDa}
+                lessonTitle={t.lessonTitle}
+                lessonOrder={t.lessonOrder}
+                nopLuc={gioPhut(t.nopLuc)}
+              />
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* ── Filter chips ───────────────────────────────────────────────── */}
       <nav aria-label="Lọc theo kết quả" className="mb-6 flex flex-wrap gap-2">

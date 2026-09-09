@@ -181,6 +181,99 @@ describe('Mở khoá theo tiên quyết', () => {
 // Can thiệp của giáo viên
 // ═══════════════════════════════════════════════════════════════════════════
 
+describe('Mở khoá tuần tự khi không khai báo tiên quyết', () => {
+  /*
+   * The authored curriculum declares explicit `prerequisites` on 3 of its 120
+   * lessons, so in production this path — not the prerequisite path — is what
+   * decides whether a session is open. The helper above chains every fixture by
+   * default, which would hide that entirely; these build with an EMPTY map on
+   * purpose.
+   */
+  const khongTienQuyet = () => ({ prerequisites: new Map<string, string[]>() });
+
+  /** A teacher override with the defaults filled in. */
+  const canThiep = (
+    over: Partial<GatingInput['overrides'][number]> & { lessonId: string },
+  ): GatingInput['overrides'][number] => ({
+    studentId: null,
+    classId: null,
+    forceStatus: null,
+    isUnlocked: null,
+    waivePrerequisites: false,
+    createdAt: new Date(),
+    ...over,
+  });
+
+  it('buổi đầu tiên luôn mở, không có buổi nào trước nó', () => {
+    const kq = resolveGating(input(khongTienQuyet()));
+    expect(kq[0]?.unlocked).toBe(true);
+  });
+
+  it('buổi sau khoá lại cho tới khi buổi trước xong', () => {
+    const kq = resolveGating(input(khongTienQuyet()));
+    expect(kq[1]?.unlocked).toBe(false);
+    expect(kq[1]?.lockReason).toMatch(/Buổi 1/);
+    expect(kq[2]?.unlocked).toBe(false);
+  });
+
+  it('xong buổi 1 thì buổi 2 mở, buổi 3 vẫn đóng', () => {
+    const kq = resolveGating(
+      input({
+        ...khongTienQuyet(),
+        progress: new Map<string, ProgressState>([['l1', 'COMPLETED']]),
+      }),
+    );
+    expect(kq[0]?.completed).toBe(true);
+    expect(kq[1]?.unlocked).toBe(true);
+    // One step at a time: finishing lesson 1 must not open the whole course.
+    expect(kq[2]?.unlocked).toBe(false);
+  });
+
+  it('đang làm dở chưa đủ — phải COMPLETED mới mở buổi sau', () => {
+    const kq = resolveGating(
+      input({
+        ...khongTienQuyet(),
+        progress: new Map<string, ProgressState>([['l1', 'IN_PROGRESS']]),
+      }),
+    );
+    expect(kq[1]?.unlocked).toBe(false);
+  });
+
+  it('giáo viên khoá tay thì vẫn đóng, dù buổi trước đã xong', () => {
+    // The override outranks the ladder: a teacher closing a session is a
+    // decision, and earning it does not overturn a decision.
+    const kq = resolveGating(
+      input({
+        ...khongTienQuyet(),
+        progress: new Map<string, ProgressState>([['l1', 'COMPLETED']]),
+        overrides: [canThiep({ lessonId: 'l2', studentId: 'hs', isUnlocked: false })],
+      }),
+    );
+    expect(kq[1]?.unlocked).toBe(false);
+    expect(kq[1]?.lockReason).toMatch(/tạm khoá/i);
+  });
+
+  it('giáo viên mở tay thì mở, dù chưa xong buổi trước', () => {
+    const kq = resolveGating(
+      input({
+        ...khongTienQuyet(),
+        overrides: [canThiep({ lessonId: 'l3', classId: 'lop', isUnlocked: true })],
+      }),
+    );
+    expect(kq[2]?.unlocked).toBe(true);
+  });
+
+  it('miễn tiên quyết cũng bỏ luôn ràng buộc tuần tự', () => {
+    const kq = resolveGating(
+      input({
+        ...khongTienQuyet(),
+        overrides: [canThiep({ lessonId: 'l2', studentId: 'hs', waivePrerequisites: true })],
+      }),
+    );
+    expect(kq[1]?.unlocked).toBe(true);
+  });
+});
+
 describe('Can thiệp của giáo viên', () => {
   const now = new Date();
 

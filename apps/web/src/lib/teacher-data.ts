@@ -37,6 +37,7 @@ import {
   thongKeGiangDay,
   tierRank,
   tomTatTapTrung,
+  tuLuanChoCham,
   visibleStudentIds,
   type Actor,
   type AnhHuongXoaTaiKhoan,
@@ -45,6 +46,7 @@ import {
   type FlowStage,
   type KhoaHocChonDuoc,
   type LessonAccess,
+  type TuLuanChoCham,
   type ThongKeTongQuan,
   type TomTatTapTrung,
 } from '@dye/core';
@@ -1197,6 +1199,17 @@ export async function baiMicrobitDeCham(
       luc: f.createdAt,
     })),
   };
+}
+
+/**
+ * Free-text answers waiting for a person, scoped to this actor's students.
+ *
+ * A thin wrapper over `tuLuanChoCham` in @dye/core: the scope is derived from
+ * `visibleStudentIds`, the same relationship every other teacher view uses, so
+ * a teacher never sees an essay written by a child they do not teach.
+ */
+export async function duLieuTuLuanChoCham(actor: Actor): Promise<TuLuanChoCham[]> {
+  return tuLuanChoCham(db, await visibleStudentIds(db, actor));
 }
 
 /** Every student this actor may legitimately reach. Used by search and pickers. */

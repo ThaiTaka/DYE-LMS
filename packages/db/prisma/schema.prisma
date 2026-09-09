@@ -820,10 +820,16 @@ model Answer {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model LessonProgress {
-  id           String        @id @default(cuid())
-  studentId    String
-  lessonId     String
-  state        ProgressState @default(NOT_STARTED)
+  id        String        @id @default(cuid())
+  studentId String
+  lessonId  String
+  state     ProgressState @default(NOT_STARTED)
+  /// Completion of the blocks REQUIRED for this student's tier, 0-100.
+  ///
+  /// Stored rather than derived so a roster or a dashboard can read a class in
+  /// one query. `syncLessonCompletion` is the only writer, and it recomputes
+  /// from BlockProgress — this column is a cache of that, never a source.
+  percent      Int           @default(0)
   score        Int           @default(0)
   maxScore     Int           @default(0)
   timeSpentSec Int           @default(0)

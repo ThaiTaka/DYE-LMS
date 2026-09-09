@@ -2,7 +2,11 @@
 
 import { useId, useState } from 'react';
 
-import { kiemTraCauTraLoi, type KetQuaTraLoi } from '@/app/bai-hoc/[slug]/actions';
+import {
+  kiemTraCauTraLoi,
+  nopBaiTuLuan,
+  type KetQuaTraLoi,
+} from '@/app/bai-hoc/[slug]/actions';
 import type { CauHoiHienThi, TracNghiemHienThi } from '@/lib/student-data';
 
 import { HinhBaiHoc } from './hinh-bai-hoc';
@@ -161,6 +165,20 @@ function CauHoi({
 
   const daXong = ketQua !== undefined;
   const tracNghiem = cau.type === 'MULTIPLE_CHOICE' || cau.type === 'TRUE_FALSE';
+  const tuLuan = cau.type === 'SHORT_ANSWER';
+
+  // Free-text questions render their own surface: one submission, then a wait.
+  if (tuLuan) {
+    return (
+      <CauTuLuan
+        cau={cau}
+        soThuTu={soThuTu}
+        // Server state wins over anything this component has in memory: it is
+        // what makes the lock survive a reload.
+        banDau={cau.tuLuan ?? { trangThai: 'chua-nop' }}
+      />
+    );
+  }
 
   return (
     <fieldset className="m-0 border-0 p-0">
@@ -306,5 +324,134 @@ function PhanHoi({ ketQua, onLamLai }: { ketQua: KetQuaTraLoi; onLamLai: () => v
         </button>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * One free-text (tự luận) question.
+ *
+ * ── Why this is not just another branch of the runner above ──────────────────
+ * Every other question type is a loop: answer, see the verdict, try again. This
+ * one is a handover — the student writes, submits once, and waits for a person.
+ * There is no "Thử lại", no explanation to reveal, and no score to show, so
+ * sharing the runner's shell would mean disabling most of it.
+ *
+ * ── The lock is server state, not a disabled button ──────────────────────────
+ * `banDau` comes from the database on every render. A disabled textarea is a
+ * courtesy; `nopTuLuan` refuses a second answer regardless, so a stale tab or a
+ * hand-made request cannot overwrite what a teacher is about to read.
+ */
+function CauTuLuan({
+  cau,
+  soThuTu,
+  banDau,
+}: {
+  cau: CauHoiHienThi;
+  soThuTu: number;
+  banDau: NonNullable<CauHoiHienThi['tuLuan']>;
+}) {
+  const [trangThai, setTrangThai] = useState(banDau);
+  const [nhap, setNhap] = useState('');
+  const [dangGui, setDangGui] = useState(false);
+  const [thongBao, setThongBao] = useState('');
+  const id = useId();
+
+  async function gui() {
+    if (dangGui || nhap.trim() === '') return;
+    setDangGui(true);
+    try {
+      const kq = await nopBaiTuLuan(cau.id, nhap);
+      setThongBao(kq.thongDiep);
+      if (kq.trangThai === 'da-nhan') {
+        setTrangThai({
+          trangThai: 'cho-cham',
+          answerId: '',
+          noiDung: nhap.trim(),
+          nopLuc: new Date(),
+        });
+      }
+    } finally {
+      setDangGui(false);
+    }
+  }
+
+  const daNop = trangThai.trangThai !== 'chua-nop';
+
+  return (
+    <fieldset className="m-0 border-0 p-0">
+      <legend className="mb-3 p-0 text-base font-semibold">
+        <span className="text-chu-nhat">Câu {soThuTu}.</span> {cau.prompt}
+        <span className="ms-2 rounded-full bg-the-mo px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
+          Tự luận
+        </span>
+      </legend>
+
+      {cau.mediaUrl ? (
+        <div className="mb-3">
+          <HinhBaiHoc src={cau.mediaUrl} alt="" />
+        </div>
+      ) : null}
+
+      {daNop ? (
+        <div className="rounded-the border border-vien bg-the p-4">
+          <p className="mt-0 mb-2 text-xs font-semibold tracking-wide text-chu-nhat uppercase">
+            Bài em đã nộp
+          </p>
+          <p className="m-0 whitespace-pre-wrap">{trangThai.noiDung}</p>
+
+          <div className="mt-3 border-t border-vien pt-3">
+            {trangThai.trangThai === 'cho-cham' ? (
+              <p className="m-0 text-sm text-chu-phu">
+                <span aria-hidden="true">⏳ </span>
+                Thầy cô đang chấm bài của em. Em quay lại xem sau nhé.
+              </p>
+            ) : trangThai.dung ? (
+              <p className="m-0 text-sm font-semibold text-dung">
+                <span aria-hidden="true">✓ </span>
+                Thầy cô đã chấm: đạt · {trangThai.diem} điểm
+              </p>
+            ) : (
+              <p className="m-0 text-sm font-semibold text-thu-lai">
+                <span aria-hidden="true">↻ </span>
+                Thầy cô đã xem và muốn em suy nghĩ thêm. Nhờ thầy cô mở lại để em làm lại nhé.
+              </p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <>
+          <label htmlFor={id} className="mb-2 block text-sm text-chu-phu">
+            Em viết câu trả lời của mình. Nộp xong sẽ không sửa được, nên đọc lại một lượt nhé.
+          </label>
+          <textarea
+            id={id}
+            value={nhap}
+            disabled={dangGui}
+            onChange={(e) => setNhap(e.target.value)}
+            rows={6}
+            maxLength={5000}
+            placeholder="Câu trả lời của em…"
+            className="w-full rounded-nut border border-vien bg-the px-4 py-3 text-base"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={dangGui || nhap.trim() === ''}
+              onClick={() => void gui()}
+              className="min-h-cham rounded-nut bg-chinh px-5 py-2.5 font-semibold text-white hover:bg-chinh-dam disabled:opacity-50"
+            >
+              {dangGui ? 'Đang nộp…' : 'Nộp bài'}
+            </button>
+            <span className="text-xs text-chu-nhat tabular-nums">{nhap.length}/5000</span>
+          </div>
+        </>
+      )}
+
+      {thongBao ? (
+        <p role="status" className="mt-2 mb-0 text-sm text-chu-phu">
+          {thongBao}
+        </p>
+      ) : null}
+    </fieldset>
   );
 }

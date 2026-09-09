@@ -103,6 +103,20 @@ export {
 } from './lop';
 
 export {
+  chamTuLuan,
+  moLaiTuLuan,
+  nopTuLuan,
+  trangThaiTuLuan,
+  tuLuanCuaHocSinh,
+  tuLuanChoCham,
+  TU_LUAN_AUDIT,
+  TU_LUAN_TOI_DA_KY_TU,
+  type KetQuaNopTuLuan,
+  type TrangThaiTuLuan,
+  type TuLuanChoCham,
+} from './tu-luan';
+
+export {
   anhHuongXoaHocSinh,
   goHocSinhKhoiLop,
   khoiPhucHocSinh,

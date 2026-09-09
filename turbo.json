@@ -67,8 +67,22 @@
       "dependsOn": ["^build"]
     },
     "lint": {},
+    /*
+     * `@dye/db#build` is named explicitly, not just `^build`.
+     *
+     * @dye/core, @dye/web and @dye/judge-worker import `@prisma/client`
+     * directly rather than depending on the @dye/db package, so `^build` does
+     * not make their tests wait for `prisma generate`. The two then run at the
+     * same time: vitest has the query engine DLL open while generate tries to
+     * rename it, and on Windows that is an EPERM with a path in it and no
+     * explanation.
+     *
+     * It only appears when db#build is a cache miss — i.e. right after a schema
+     * change — which is exactly when someone is least inclined to read it as a
+     * scheduling bug.
+     */
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build", "@dye/db#build"]
     },
 
     /*

@@ -28,6 +28,8 @@ import {
   voHieuHoaHocSinh,
   voHieuHoaNhanVien,
   xoaLopHoc,
+  chamTuLuan,
+  moLaiTuLuan,
   xepHocSinhVaoLop,
   xoaTaiKhoanHocSinh,
   xoaTaiKhoanNhanVien,
@@ -892,6 +894,68 @@ export async function xepLopHocSinh(
         kq.trangThai === 'da-khoi-phuc'
           ? `Đã cho em quay lại lớp ${kq.tenLop}. Bài làm cũ của em trong lớp này vẫn còn nguyên.`
           : `Đã xếp em vào lớp ${kq.tenLop}. Lộ trình của em hiện ngay bên dưới.`,
+    };
+  });
+}
+
+/**
+ * Mark one free-text answer right or wrong.
+ *
+ * Both verdicts are final for the student — neither reopens the question. That
+ * is deliberate: "wrong" here means a teacher read the work and formed a view,
+ * and whether the child gets another go is a separate decision the teacher
+ * makes with `moLaiBaiTuLuan`. Bundling the two would mean every low mark
+ * silently reopened the question, which is not what marking one means.
+ */
+export async function chamBaiTuLuan(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const answerId = String(form.get('answerId') ?? '');
+    if (!answerId) return { trangThai: 'loi', thongDiep: 'Thiếu bài cần chấm.' };
+
+    const dung = form.get('dung') === 'co';
+    const kq = await chamTuLuan(db, actor, answerId, dung);
+
+    revalidatePath('/giao-vien/ket-qua');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep: kq.dung
+        ? `Đã ghi nhận bài của ${kq.tenHocSinh} là đạt.`
+        : `Đã ghi nhận bài của ${kq.tenHocSinh} là chưa đạt. Muốn em làm lại thì bấm “Yêu cầu làm lại”.`,
+    };
+  });
+}
+
+/**
+ * Reopen a free-text question so the student may answer it again.
+ *
+ * Deletes the answer. The audit row is written first, inside `moLaiTuLuan`, so
+ * the history survives the row it describes.
+ */
+export async function moLaiBaiTuLuan(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const answerId = String(form.get('answerId') ?? '');
+    if (!answerId) return { trangThai: 'loi', thongDiep: 'Thiếu bài cần mở lại.' };
+
+    const kq = await moLaiTuLuan(db, actor, answerId);
+
+    revalidatePath('/giao-vien/ket-qua');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep: `Đã mở lại câu này cho ${kq.tenHocSinh}. Em ấy nộp lại được ngay.`,
     };
   });
 }

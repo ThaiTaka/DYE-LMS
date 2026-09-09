@@ -168,11 +168,13 @@ describe('Hình minh hoạ trong bài học', () => {
     expect(container.querySelectorAll('p figure')).toHaveLength(0);
   });
 
-  it('ảnh 404 hiện ô thay thế kèm mô tả, không phải biểu tượng ảnh vỡ', async () => {
+  it('ảnh 404 biến mất hẳn, không để lại ô thay thế nào', async () => {
     /*
      * The curriculum ships image paths ahead of the files, so a missing picture
-     * is a normal authoring state. The browser's broken-image glyph reads to a
-     * 12-year-old as "this page is broken".
+     * is a normal authoring state — but a dashed box announcing that is worse
+     * than the gap it fills. On a lesson with several pending illustrations the
+     * page became a column of grey boxes, and a student could not tell an
+     * unfinished drawing from a broken site. Now the prose simply closes over it.
      */
     const { container } = render(
       <VanBan>{'![Board Micro:bit nhìn từ mặt trước](/hinh-anh/chua-co.png)'}</VanBan>,
@@ -184,12 +186,12 @@ describe('Hình minh hoạ trong bài học', () => {
     fireEvent.error(img!);
 
     expect(container.querySelector('img')).toBeNull();
-    expect(screen.getByText(/hình minh hoạ đang được vẽ/i)).toBeInTheDocument();
-    // The alt text is genuinely useful on its own, so it is kept.
-    expect(screen.getByText(/board micro:bit nhìn từ mặt trước/i)).toBeInTheDocument();
+    expect(container.querySelector('figure')).toBeNull();
+    expect(container.textContent).not.toMatch(/đang được vẽ/i);
+    expect(container.textContent).not.toMatch(/board micro:bit/i);
   });
 
-  it('ảnh nội dòng hỏng thì thay bằng thẻ span, không phá cấu trúc p', () => {
+  it('ảnh nội dòng hỏng thì biến mất, câu văn vẫn liền mạch và thẻ p vẫn hợp lệ', () => {
     const { container } = render(
       <VanBan>{'Nhìn ![cái board](/hinh-anh/chua-co.png) nhé.'}</VanBan>,
     );
@@ -200,7 +202,11 @@ describe('Hình minh hoạ trong bài học', () => {
     for (const the of CAM_TRONG_P) {
       expect(container.querySelector(`p ${the}`)).toBeNull();
     }
-    expect(container.textContent).toContain('cái board');
+    expect(container.querySelector('img')).toBeNull();
+    // The sentence around it survives; only the picture is gone.
+    expect(container.textContent).toContain('Nhìn');
+    expect(container.textContent).toContain('nhé.');
+    expect(container.textContent).not.toContain('cái board');
   });
 });
 
