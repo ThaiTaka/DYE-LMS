@@ -257,6 +257,36 @@ describe('Khu làm việc Micro:bit', () => {
     });
   }
 
+  /** Watch what the wrapper posts INTO the editor frame. */
+  function nghePostMessage(container: HTMLElement) {
+    const frame = container.querySelector('iframe')!;
+    return vi.spyOn(frame.contentWindow!, 'postMessage');
+  }
+
+  /** The `importproject` request, if the wrapper sent one. */
+  function timNhapBai(gui: ReturnType<typeof nghePostMessage>) {
+    return gui.mock.calls.find(
+      ([tin]) => (tin as { action?: string }).action === 'importproject',
+    );
+  }
+
+  /**
+   * The editor announcing it has loaded.
+   *
+   * MakeCode sends this on first boot and again after any reload of the frame,
+   * which is the only moment the wrapper gets to put the student's blocks back.
+   */
+  function editorDaTai() {
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: GOC_MAKECODE,
+          data: { type: 'pxthost', action: 'workspaceloaded' },
+        }),
+      );
+    });
+  }
+
   it('nhúng trình soạn thảo từ đúng nguồn makecode.microbit.org', async () => {
     const { container } = await dung();
     const frame = container.querySelector('iframe');
@@ -511,6 +541,54 @@ describe('Khu làm việc Micro:bit', () => {
     editorTraBlocks(BLOCKS);
     await waitFor(() => expect(nopStub).toHaveBeenCalledWith('b1', BLOCKS));
     expect(nopStub).not.toHaveBeenCalledWith('b1', '');
+  });
+
+  // ── Dựng lại bài khi khung trình soạn tải lại ─────────────────────────────
+
+  it('lần đầu tải thì nạp bài đã lưu vào trình soạn', async () => {
+    const { container } = await dung();
+
+    const gui = nghePostMessage(container);
+    editorDaTai();
+
+    const nhap = timNhapBai(gui);
+    expect(nhap).toBeDefined();
+    expect(JSON.stringify(nhap![0])).toContain('device_forever');
+    // Never '*': that would hand the student's work to whatever document
+    // happens to occupy the frame.
+    expect(nhap![1]).toBe(GOC_MAKECODE);
+  });
+
+  it('khung tải lại thì nạp lại khối lệnh MỚI NHẤT, không phải bản lúc mở trang', async () => {
+    /*
+     * `workspaceloaded` fires again whenever the frame reloads. Seeding it from
+     * the props there re-imported the snapshot the SERVER held when the page
+     * rendered, silently undoing everything the student had built since — the
+     * blocks on screen visibly reverted to an earlier attempt.
+     */
+    const { container } = await dung();
+
+    const MOI = '<xml><block type="basic_show_leds"/></xml>';
+    editorTraBlocks(MOI);
+
+    const gui = nghePostMessage(container);
+    editorDaTai();
+
+    const nhap = timNhapBai(gui);
+    expect(nhap).toBeDefined();
+    expect(JSON.stringify(nhap![0])).toContain('basic_show_leds');
+    expect(JSON.stringify(nhap![0])).not.toContain('device_forever');
+  });
+
+  it('bài chưa có gì thì không nạp gì vào trình soạn', async () => {
+    // Importing an empty project over a blank editor is pointless work, and
+    // MakeCode answers it with its own save, which we would then have to ignore.
+    const { container } = await dung({ blocksXmlDaLuu: '', blocksXmlBanDau: '' });
+
+    const gui = nghePostMessage(container);
+    editorDaTai();
+
+    expect(timNhapBai(gui)).toBeUndefined();
   });
 
   it('không có vi phạm axe', async () => {
