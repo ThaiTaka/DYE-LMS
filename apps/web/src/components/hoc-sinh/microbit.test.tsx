@@ -6,7 +6,7 @@
  * without checking `event.origin` is taking instructions from whoever managed
  * to get a frame onto it. That check gets tested directly.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -235,6 +235,28 @@ describe('Khu làm việc Micro:bit', () => {
     return ket;
   }
 
+  /**
+   * Play the editor's half of the protocol: hand a workspace back the way
+   * MakeCode does, from the origin the card actually trusts.
+   *
+   * MakeCode emits this on every block added, moved or deleted, and again as
+   * its answer to a `saveproject` request.
+   */
+  function editorTraBlocks(xml: string) {
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: GOC_MAKECODE,
+          data: {
+            type: 'pxthost',
+            action: 'workspacesave',
+            project: { text: { 'main.blocks': xml } },
+          },
+        }),
+      );
+    });
+  }
+
   it('nhúng trình soạn thảo từ đúng nguồn makecode.microbit.org', async () => {
     const { container } = await dung();
     const frame = container.querySelector('iframe');
@@ -285,6 +307,7 @@ describe('Khu làm việc Micro:bit', () => {
     await dung();
 
     await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    editorTraBlocks(BLOCKS);
     await waitFor(() => expect(nopStub).toHaveBeenCalledWith('b1', BLOCKS));
   });
 
@@ -293,6 +316,7 @@ describe('Khu làm việc Micro:bit', () => {
     await dung();
 
     await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    editorTraBlocks(BLOCKS);
     // Promising an automatic verdict that is never coming would leave a student
     // waiting on a spinner forever.
     expect(await screen.findByText(/thầy cô sẽ xem/i)).toBeInTheDocument();
@@ -400,8 +424,93 @@ describe('Khu làm việc Micro:bit', () => {
 
     const nguoiDung = userEvent.setup();
     await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    editorTraBlocks(BLOCKS);
     await waitFor(() => expect(nopStub).toHaveBeenCalled());
     expect(nopStub).not.toHaveBeenCalledWith('b1', '<xml>HACKED</xml>');
+  });
+
+  // ── Đồng bộ khối lệnh sang bài nộp ────────────────────────────────────────
+
+  it('khối lệnh vừa kéo vào được ghi nhận và nộp đi', async () => {
+    /*
+     * The plain sync path, which had no test at all: the student drags a block,
+     * MakeCode autosaves, and that is what "Nộp bài" must send.
+     */
+    const nguoiDung = userEvent.setup();
+    await dung({ blocksXmlDaLuu: '', blocksXmlBanDau: '' });
+
+    // Nothing yet — a genuinely empty workspace.
+    expect(screen.getByText(/kéo khối lệnh vào vùng làm việc/i)).toBeInTheDocument();
+
+    const MOI = '<xml><block type="basic_show_icon"/></xml>';
+    editorTraBlocks(MOI);
+    expect(screen.getByText(/sẵn sàng để nộp/i)).toBeInTheDocument();
+
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    editorTraBlocks(MOI);
+    await waitFor(() => expect(nopStub).toHaveBeenCalledWith('b1', MOI));
+  });
+
+  it('CHỜ trình soạn trả khối lệnh rồi mới nộp, không nộp theo trạng thái cũ', async () => {
+    /*
+     * The reported bug. The card used to fire `saveproject`, wait a flat 400 ms
+     * and submit whatever state it happened to hold. On a school laptop the
+     * editor answers later than that, so a student who had just built their
+     * first program submitted an empty string — and the server, correctly, told
+     * them "vùng làm việc đang trống" while their blocks sat on the screen.
+     */
+    const nguoiDung = userEvent.setup();
+    await dung({ blocksXmlDaLuu: '', blocksXmlBanDau: '' });
+
+    const MOI = '<xml><block type="basic_show_string"/></xml>';
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+
+    /*
+     * Answer LATER than the 400 ms the old code was willing to wait. That gap
+     * is the whole bug, so a test that replies inside it passes against the
+     * broken version and proves nothing.
+     */
+    await new Promise((r) => setTimeout(r, 700));
+
+    // Still waiting on the editor, not on a guess about how fast it is.
+    expect(nopStub).not.toHaveBeenCalled();
+
+    editorTraBlocks(MOI);
+    await waitFor(() => expect(nopStub).toHaveBeenCalledWith('b1', MOI));
+    expect(nopStub).not.toHaveBeenCalledWith('b1', '');
+  });
+
+  it('KHÔNG ghi đè bài làm bằng workspace rỗng', async () => {
+    /*
+     * MakeCode saves a project with no `main.blocks` file when it saves from the
+     * JavaScript view. `docWorkspace` reports that as `{ xml: '', json: '…' }`,
+     * and the old length check accepted it — wiping blocks the student could
+     * still see, so the next submit was rejected as empty.
+     */
+    const nguoiDung = userEvent.setup();
+    await dung();
+    expect(screen.getByText(/sẵn sàng để nộp/i)).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          origin: GOC_MAKECODE,
+          data: {
+            type: 'pxthost',
+            action: 'workspacesave',
+            project: { text: { 'main.ts': 'basic.showIcon(IconNames.Happy)' } },
+          },
+        }),
+      );
+    });
+
+    // The blocks are still on screen, so the card must still believe it has work.
+    expect(screen.getByText(/sẵn sàng để nộp/i)).toBeInTheDocument();
+
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    editorTraBlocks(BLOCKS);
+    await waitFor(() => expect(nopStub).toHaveBeenCalledWith('b1', BLOCKS));
+    expect(nopStub).not.toHaveBeenCalledWith('b1', '');
   });
 
   it('không có vi phạm axe', async () => {

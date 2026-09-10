@@ -112,6 +112,16 @@ const KhungMakeCode = memo(
  */
 let khungDangMo: HTMLIFrameElement | null = null;
 
+/**
+ * How long "Nộp bài" waits for the editor to hand back its newest workspace.
+ *
+ * A ceiling, not a delay. The submit path asks MakeCode to save and then waits
+ * for the resulting event, which normally lands well under 100 ms; this only
+ * elapses when the editor is wedged, or was never really there because a school
+ * network blocked it.
+ */
+const CHO_LUU_TOI_DA = 2_500;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // The workspace card
 // ═══════════════════════════════════════════════════════════════════════════
@@ -154,8 +164,19 @@ export const KhuMicrobit = memo(function KhuMicrobit({
   const [thongBao, setThongBao] = useState<{ ok: boolean; chu: string } | null>(null);
   const [dangGui, batDau] = useTransition();
 
+  /*
+   * The newest workspace we have been handed, written the moment the editor
+   * hands it over rather than during some later render.
+   *
+   * This used to be assigned in the render body (`workspaceRef.current =
+   * workspace`), which made it a copy of COMMITTED state and left it one render
+   * behind the editor. React batches an update made from a `message` listener,
+   * so a submit running in that same tick read the previous value — an empty
+   * string on a task the student had only just started. That is the reported
+   * bug exactly: blocks on screen, nothing in the payload, and a server that
+   * then quite correctly answers "vùng làm việc đang trống".
+   */
   const workspaceRef = useRef(workspace);
-  workspaceRef.current = workspace;
   const id = useId();
 
   /*
@@ -186,6 +207,74 @@ export const KhuMicrobit = memo(function KhuMicrobit({
     );
   }, []);
 
+  /*
+   * A submit that is waiting for the editor to answer `saveproject`.
+   *
+   * `null` whenever nothing is in flight, which is what keeps the autosave path
+   * free: a `workspacesave` nobody asked for finds no waiter and simply updates
+   * state.
+   */
+  const choLuu = useRef<((xml: string) => void) | null>(null);
+
+  /**
+   * Record a workspace the editor gave us — the one place this state changes.
+   *
+   * Two rules, and both of them were the bug:
+   *
+   *  1. An EMPTY `main.blocks` is never recorded. MakeCode saves a project with
+   *     no blocks file whenever it saves from the JavaScript/Python view, and
+   *     `docWorkspace` reports that as `{ xml: '', json: '…' }` — an object, so
+   *     the old `ws.xml.length <= GIOI_HAN_WORKSPACE` test accepted it and wrote
+   *     an empty string over blocks the student could still see on screen.
+   *     `makecode.ts` says in as many words that guessing here "would store an
+   *     empty workspace over a student's real work"; the caller was doing the
+   *     guessing the module had carefully avoided.
+   *
+   *  2. The ref is written BEFORE the state update, so a submit racing this
+   *     event reads the new blocks even though React has not re-rendered yet.
+   */
+  const ghiNhanWorkspace = useCallback((xml: string) => {
+    if (!xml || xml.length > GIOI_HAN_WORKSPACE) return;
+
+    workspaceRef.current = xml;
+    setWorkspace(xml);
+
+    const cho = choLuu.current;
+    choLuu.current = null;
+    cho?.(xml);
+  }, []);
+
+  /**
+   * Ask the editor for its newest blocks, and actually wait for them.
+   *
+   * Replaces a flat `await new Promise((r) => setTimeout(r, 400))`. 400 ms was a
+   * guess about how fast a ~10 MB third-party editor answers on a school
+   * laptop, and every time it guessed low the submission carried the PREVIOUS
+   * workspace — an empty string, on a first attempt. Waiting for the event is
+   * both faster in the normal case and correct in the slow one.
+   *
+   * Falls back to the last good workspace if the editor never answers: a
+   * student who pressed "Nộp bài" meant it, and blocks they saved earlier are a
+   * truer answer than nothing.
+   */
+  const layWorkspaceMoiNhat = useCallback(
+    () =>
+      new Promise<string>((tra) => {
+        const hen = setTimeout(() => {
+          choLuu.current = null;
+          tra(workspaceRef.current);
+        }, CHO_LUU_TOI_DA);
+
+        choLuu.current = (xml) => {
+          clearTimeout(hen);
+          tra(xml);
+        };
+
+        guiToiEditor('saveproject');
+      }),
+    [guiToiEditor],
+  );
+
   /** Take the editor. Whoever had it releases it and goes back to a placeholder. */
   const moEditor = useCallback(() => {
     setTrangThai('dang-tai');
@@ -209,31 +298,47 @@ export const KhuMicrobit = memo(function KhuMicrobit({
 
       if (data.type === 'pxthost' && data.action === 'workspaceloaded') {
         setTrangThai('san-sang');
-        if (blocksXmlDaLuu || blocksXmlBanDau) {
-          guiToiEditor('importproject', {
-            project: { text: { 'main.blocks': blocksXmlDaLuu || blocksXmlBanDau } },
-          });
+
+        /*
+         * Seed from the freshest workspace we hold, not from the props.
+         *
+         * The props are what the SERVER had when the page rendered. Handing the
+         * editor to another task and taking it back re-fires this event, and
+         * seeding from props there re-imported that page-load snapshot over
+         * everything the student had built since — their blocks visibly
+         * reverted to an earlier attempt, or to nothing at all.
+         */
+        const hat = workspaceRef.current || blocksXmlDaLuu || blocksXmlBanDau;
+        if (hat) {
+          guiToiEditor('importproject', { project: { text: { 'main.blocks': hat } } });
         }
         return;
       }
 
+      /*
+       * The two ways the editor hands a workspace back: the autosave it emits
+       * whenever a block is added, moved or deleted, and the reply to a
+       * `saveproject` we asked for. Both go through `ghiNhanWorkspace`, which
+       * holds the "never record an empty workspace" rule in one place — the
+       * check used to be duplicated here and got it wrong in both copies.
+       */
       if (data.type === 'pxthost' && data.action === 'workspacesave') {
         const ws = docWorkspace(data);
         // A null read means the shape was not recognised. Keeping the previous
         // value beats overwriting a student's work with an empty workspace.
-        if (ws && ws.xml.length <= GIOI_HAN_WORKSPACE) setWorkspace(ws.xml);
+        if (ws) ghiNhanWorkspace(ws.xml);
         return;
       }
 
       if (data.id && data.success === true) {
         const ws = docWorkspace(data);
-        if (ws && ws.xml.length <= GIOI_HAN_WORKSPACE) setWorkspace(ws.xml);
+        if (ws) ghiNhanWorkspace(ws.xml);
       }
     };
 
     window.addEventListener('message', nhan);
     return () => window.removeEventListener('message', nhan);
-  }, [dangMo, blocksXmlBanDau, blocksXmlDaLuu, guiToiEditor]);
+  }, [dangMo, blocksXmlBanDau, blocksXmlDaLuu, guiToiEditor, ghiNhanWorkspace]);
 
   // The editor is third-party and sometimes simply does not arrive. Only armed
   // while this card actually holds the frame.
@@ -246,17 +351,20 @@ export const KhuMicrobit = memo(function KhuMicrobit({
   }, [dangMo]);
 
   const nop = useCallback(() => {
-    // Ask for the newest workspace, then submit what we have. The request is
-    // best-effort: if the editor does not answer, the last saved state is still
-    // a real answer and the student's press of "Nộp bài" still means something.
-    guiToiEditor('saveproject');
-
     batDau(async () => {
-      await new Promise((r) => setTimeout(r, 400));
-      const kq: KetQuaNop = await nopMicrobit(blockId, workspaceRef.current);
+      /*
+       * Pull the newest blocks out of the editor and submit THOSE.
+       *
+       * Reading component state here — after a fixed 400 ms and a hope — is
+       * what sent empty payloads to a server check that then, quite correctly,
+       * called the workspace empty.
+       */
+      const xml = await layWorkspaceMoiNhat();
+
+      const kq: KetQuaNop = await nopMicrobit(blockId, xml);
       setThongBao({ ok: kq.trangThai === 'da-nhan', chu: kq.thongDiep });
     });
-  }, [blockId, guiToiEditor]);
+  }, [blockId, layWorkspaceMoiNhat]);
 
   const sanSang = useCallback(() => {
     setTrangThai((cu) => (cu === 'dang-tai' ? 'san-sang' : cu));
