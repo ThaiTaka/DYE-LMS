@@ -39,6 +39,18 @@ export interface KhuMicrobitProps {
 
 type TrangThaiEditor = 'dang-tai' | 'san-sang' | 'khong-tai-duoc';
 
+/**
+ * The two languages the editor is offered in.
+ *
+ * Vietnamese is the default because the lesson around it is Vietnamese. English
+ * is here because MakeCode's own documentation, and every tutorial a curious
+ * student will find on their own, is in English — a child who wants to match
+ * what they see on screen to what they see on YouTube needs to be able to flip.
+ */
+type NgonNgu = 'vi' | 'en';
+
+const TEN_NGON_NGU: Record<NgonNgu, string> = { vi: 'VN', en: 'EN' };
+
 // ═══════════════════════════════════════════════════════════════════════════
 // The iframe, isolated behind memo
 // ═══════════════════════════════════════════════════════════════════════════
@@ -194,17 +206,27 @@ export const KhuMicrobit = memo(function KhuMicrobit({
   const chuSoHuu = useSyncExternalStore(theoDoiChuEditor, dangGiuEditor, () => null);
   const dangMo = chuSoHuu === id;
 
-  // Stable across every render, so the memo on the frame actually holds.
-  const src = useMemo(() => urlMakeCode(), []);
+  /*
+   * The editor's language.
+   *
+   * Changing this changes the iframe `src`, and changing `src` reloads the
+   * editor — there is no way to re-language a running MakeCode instance. The
+   * reload is therefore the mechanism, not a side effect, and everything below
+   * is built around surviving it: the blocks are pushed into `workspaceRef`
+   * before the switch, and `workspaceloaded` puts them back afterwards.
+   */
+  const [locale, setLocale] = useState<NgonNgu>('vi');
+  const [dangDoiNgonNgu, setDangDoiNgonNgu] = useState(false);
+
+  // Stable for a given language, so the memo on the frame holds across every
+  // render that is not a language change.
+  const src = useMemo(() => urlMakeCode(locale), [locale]);
 
   /** Send a request into the editor, targeted at the MakeCode origin only. */
   const guiToiEditor = useCallback((action: string, them: Record<string, unknown> = {}) => {
     // Never '*': that would broadcast the message to whatever document happens
     // to occupy the frame.
-    khungDangMo?.contentWindow?.postMessage(
-      yeuCau(action, them),
-      'https://makecode.microbit.org',
-    );
+    khungDangMo?.contentWindow?.postMessage(yeuCau(action, them), 'https://makecode.microbit.org');
   }, []);
 
   /*
@@ -348,7 +370,9 @@ export const KhuMicrobit = memo(function KhuMicrobit({
       setTrangThai((cu) => (cu === 'dang-tai' ? 'khong-tai-duoc' : cu));
     }, 15_000);
     return () => clearTimeout(t);
-  }, [dangMo]);
+    // `locale` re-arms this: a language switch reloads the frame, and a reload
+    // that never finishes has to reach 'khong-tai-duoc' just like a first load.
+  }, [dangMo, locale]);
 
   const nop = useCallback(() => {
     batDau(async () => {
@@ -369,6 +393,38 @@ export const KhuMicrobit = memo(function KhuMicrobit({
   const sanSang = useCallback(() => {
     setTrangThai((cu) => (cu === 'dang-tai' ? 'san-sang' : cu));
   }, []);
+
+  /**
+   * Switch the editor's language.
+   *
+   * The blocks are pulled out FIRST and only then is the reload triggered. A
+   * reload discards everything the editor is holding, and `workspaceloaded`
+   * rebuilds from `workspaceRef` on the way back — so anything not in that ref
+   * by the time `setLocale` runs is genuinely gone. Asking the editor to save
+   * and waiting for the answer is the difference between a language toggle and
+   * a button that quietly eats a child's work.
+   *
+   * MakeCode renders its own toolbox from its own bundle, so the categories
+   * come back in the new language by themselves; there is nothing of ours to
+   * re-inject.
+   */
+  const doiNgonNgu = useCallback(
+    (moi: NgonNgu) => {
+      if (moi === locale || dangDoiNgonNgu) return;
+
+      setDangDoiNgonNgu(true);
+      void (async () => {
+        try {
+          await layWorkspaceMoiNhat();
+          setTrangThai('dang-tai');
+          setLocale(moi);
+        } finally {
+          setDangDoiNgonNgu(false);
+        }
+      })();
+    },
+    [locale, dangDoiNgonNgu, layWorkspaceMoiNhat],
+  );
 
   return (
     <div className="rounded-nut border border-vien bg-the">
@@ -393,11 +449,7 @@ export const KhuMicrobit = memo(function KhuMicrobit({
       </div>
 
       {!dangMo ? (
-        <ChuaMo
-          daCoNguoiKhac={chuSoHuu !== null}
-          daCoBaiLam={workspace !== ''}
-          onMo={moEditor}
-        />
+        <ChuaMo daCoNguoiKhac={chuSoHuu !== null} daCoBaiLam={workspace !== ''} onMo={moEditor} />
       ) : trangThai === 'khong-tai-duoc' ? (
         <TaiKhongDuoc />
       ) : (
@@ -425,6 +477,10 @@ export const KhuMicrobit = memo(function KhuMicrobit({
           >
             {dangGui ? 'Đang gửi…' : 'Nộp bài cho thầy cô'}
           </button>
+        ) : null}
+
+        {dangMo ? (
+          <ChonNgonNgu locale={locale} dangDoi={dangDoiNgonNgu} onDoi={doiNgonNgu} />
         ) : null}
 
         {dangMo ? (
@@ -462,6 +518,52 @@ export const KhuMicrobit = memo(function KhuMicrobit({
     </div>
   );
 });
+
+/**
+ * The VN | EN switch.
+ *
+ * Two buttons rather than a `<select>`: there are exactly two choices, and a
+ * pair of visible targets is faster for a 12-year-old on a trackpad than a
+ * dropdown they have to open first.
+ *
+ * `aria-pressed` is what carries the current choice to a screen reader. The
+ * wrapper is a named group so the two are announced as one control rather than
+ * as a pair of unrelated buttons called "VN" and "EN".
+ */
+function ChonNgonNgu({
+  locale,
+  dangDoi,
+  onDoi,
+}: {
+  locale: NgonNgu;
+  dangDoi: boolean;
+  onDoi: (ma: NgonNgu) => void;
+}) {
+  return (
+    <div
+      role="group"
+      aria-label="Ngôn ngữ trình soạn khối lệnh"
+      className="inline-flex overflow-hidden rounded-nut border border-vien"
+    >
+      {(Object.keys(TEN_NGON_NGU) as NgonNgu[]).map((ma) => (
+        <button
+          key={ma}
+          type="button"
+          onClick={() => onDoi(ma)}
+          disabled={dangDoi}
+          aria-pressed={locale === ma}
+          className={`min-h-cham px-3.5 py-2 text-sm font-semibold disabled:opacity-60 ${
+            locale === ma
+              ? 'bg-chinh text-white'
+              : 'bg-the text-chu-phu hover:bg-the-mo hover:text-chu'
+          }`}
+        >
+          {TEN_NGON_NGU[ma]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * The closed state.
@@ -526,8 +628,8 @@ function HuongDanNap({ id }: { id: string }) {
             board sẽ sáng lên.
           </li>
           <li>
-            Máy tính sẽ hiện thêm <strong>một ổ đĩa tên là MICROBIT</strong> — giống như khi em
-            cắm USB. Nếu chưa thấy, em thử rút ra cắm lại, hoặc đổi cổng USB khác.
+            Máy tính sẽ hiện thêm <strong>một ổ đĩa tên là MICROBIT</strong> — giống như khi em cắm
+            USB. Nếu chưa thấy, em thử rút ra cắm lại, hoặc đổi cổng USB khác.
           </li>
           <li>
             Trong trình soạn khối lệnh ở trên, bấm nút <strong>Download</strong> (hoặc{' '}
@@ -538,8 +640,8 @@ function HuongDanNap({ id }: { id: string }) {
             .
           </li>
           <li>
-            <strong>Kéo tệp .hex đó thả vào ổ đĩa MICROBIT.</strong> Đèn vàng sẽ nhấp nháy vài
-            giây — đó là lúc chương trình đang được nạp.
+            <strong>Kéo tệp .hex đó thả vào ổ đĩa MICROBIT.</strong> Đèn vàng sẽ nhấp nháy vài giây
+            — đó là lúc chương trình đang được nạp.
           </li>
           <li>
             Đèn ngừng nhấp nháy là xong. <strong>Chương trình của em bắt đầu chạy ngay.</strong>
@@ -549,9 +651,17 @@ function HuongDanNap({ id }: { id: string }) {
         <div className="mt-4 rounded-nut bg-thu-lai-nen p-3.5 text-sm">
           <p className="mt-0 mb-1.5 font-semibold text-thu-lai">Nếu chưa chạy được</p>
           <ul className="m-0 space-y-1 ps-5 text-chu-phu">
-            <li>Ổ MICROBIT không hiện ra → thử dây USB khác. Có loại dây chỉ sạc, không truyền dữ liệu.</li>
-            <li>Đã thả tệp nhưng board không đổi → kiểm tra em đã thả đúng tệp `.hex` mới nhất chưa.</li>
-            <li>Không có board ở lớp → em vẫn chạy thử được bằng trình mô phỏng bên trái trong MakeCode.</li>
+            <li>
+              Ổ MICROBIT không hiện ra → thử dây USB khác. Có loại dây chỉ sạc, không truyền dữ
+              liệu.
+            </li>
+            <li>
+              Đã thả tệp nhưng board không đổi → kiểm tra em đã thả đúng tệp `.hex` mới nhất chưa.
+            </li>
+            <li>
+              Không có board ở lớp → em vẫn chạy thử được bằng trình mô phỏng bên trái trong
+              MakeCode.
+            </li>
           </ul>
         </div>
       </div>

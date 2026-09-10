@@ -265,9 +265,7 @@ describe('Khu làm việc Micro:bit', () => {
 
   /** The `importproject` request, if the wrapper sent one. */
   function timNhapBai(gui: ReturnType<typeof nghePostMessage>) {
-    return gui.mock.calls.find(
-      ([tin]) => (tin as { action?: string }).action === 'importproject',
-    );
+    return gui.mock.calls.find(([tin]) => (tin as { action?: string }).action === 'importproject');
   }
 
   /**
@@ -428,8 +426,22 @@ describe('Khu làm việc Micro:bit', () => {
 
     render(
       <>
-        <KhuMicrobit blockId="b1" goal="Bài 1" khoiLenh={[]} blocksXmlBanDau="" blocksXmlDaLuu="" coBaiTap />
-        <KhuMicrobit blockId="b2" goal="Bài 2" khoiLenh={[]} blocksXmlBanDau="" blocksXmlDaLuu="" coBaiTap />
+        <KhuMicrobit
+          blockId="b1"
+          goal="Bài 1"
+          khoiLenh={[]}
+          blocksXmlBanDau=""
+          blocksXmlDaLuu=""
+          coBaiTap
+        />
+        <KhuMicrobit
+          blockId="b2"
+          goal="Bài 2"
+          khoiLenh={[]}
+          blocksXmlBanDau=""
+          blocksXmlDaLuu=""
+          coBaiTap
+        />
       </>,
     );
 
@@ -447,7 +459,11 @@ describe('Khu làm việc Micro:bit', () => {
       window.dispatchEvent(
         new MessageEvent('message', {
           origin: 'https://evil.example',
-          data: { type: 'pxthost', action: 'workspacesave', project: { text: { 'main.blocks': '<xml>HACKED</xml>' } } },
+          data: {
+            type: 'pxthost',
+            action: 'workspacesave',
+            project: { text: { 'main.blocks': '<xml>HACKED</xml>' } },
+          },
         }),
       ),
     );
@@ -589,6 +605,64 @@ describe('Khu làm việc Micro:bit', () => {
     editorDaTai();
 
     expect(timNhapBai(gui)).toBeUndefined();
+  });
+
+  // ── Đổi ngôn ngữ trình soạn ───────────────────────────────────────────────
+
+  it('có nút chuyển VN | EN, mặc định là tiếng Việt', async () => {
+    await dung();
+
+    const vn = screen.getByRole('button', { name: 'VN' });
+    const en = screen.getByRole('button', { name: 'EN' });
+
+    expect(vn).toHaveAttribute('aria-pressed', 'true');
+    expect(en).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('đổi sang EN thì nạp lại khung với lang=en', async () => {
+    const nguoiDung = userEvent.setup();
+    const { container } = await dung();
+
+    expect(container.querySelector('iframe')!.getAttribute('src')).toContain('lang=vi');
+
+    await nguoiDung.click(screen.getByRole('button', { name: 'EN' }));
+    // The switch saves first and waits for the answer, so the editor has to
+    // answer before the reload happens.
+    editorTraBlocks(BLOCKS);
+
+    await waitFor(() =>
+      expect(container.querySelector('iframe')!.getAttribute('src')).toContain('lang=en'),
+    );
+    expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('đổi ngôn ngữ KHÔNG làm mất khối lệnh đang làm', async () => {
+    /*
+     * A language change is a full reload of the frame — MakeCode cannot be
+     * re-languaged in place. Everything the editor holds is discarded, so the
+     * blocks have to be pulled into `workspaceRef` before the switch and pushed
+     * back when the new frame announces itself.
+     */
+    const nguoiDung = userEvent.setup();
+    const { container } = await dung({ blocksXmlDaLuu: '', blocksXmlBanDau: '' });
+
+    const MOI = '<xml><block type="basic_show_number"/></xml>';
+    editorTraBlocks(MOI);
+
+    await nguoiDung.click(screen.getByRole('button', { name: 'EN' }));
+    editorTraBlocks(MOI);
+
+    await waitFor(() =>
+      expect(container.querySelector('iframe')!.getAttribute('src')).toContain('lang=en'),
+    );
+
+    // The reloaded frame announces itself; the blocks must go back in.
+    const gui = nghePostMessage(container);
+    editorDaTai();
+
+    const nhap = timNhapBai(gui);
+    expect(nhap).toBeDefined();
+    expect(JSON.stringify(nhap![0])).toContain('basic_show_number');
   });
 
   it('không có vi phạm axe', async () => {
