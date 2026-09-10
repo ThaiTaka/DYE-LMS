@@ -98,6 +98,19 @@ jobs:
             # crash loop after restart, minutes later.
             npm ci
 
+            # Apply pending migrations BEFORE the new code starts serving.
+            #
+            # `prisma migrate deploy` only applies migrations already committed
+            # to the repo — it never generates one, never prompts, and never
+            # resets — so it is a no-op on a deploy that carries no schema
+            # change. Without it a release whose code reads a new column meets a
+            # database that does not have one, and every page touching that
+            # table 500s until someone SSHes in and runs this by hand.
+            #
+            # It runs before `npm run build` so a migration failure stops the
+            # deploy while the OLD release is still up and serving.
+            npm run db:migrate
+
             npm run build
 
             # The judge sandbox image is rebuilt only when its Dockerfile moved.
