@@ -33,6 +33,7 @@ import {
   xepHocSinhVaoLop,
   xoaTaiKhoanHocSinh,
   xoaTaiKhoanNhanVien,
+  moKhoaViPham,
   xuLyCanhBao,
   ForbiddenError,
 } from '@dye/core';
@@ -1039,6 +1040,76 @@ export async function xuLyCanhBaoTapTrung(
         hanhDong === 'da-hoi-tham'
           ? `Đã ghi nhận thầy cô đã hỏi thăm ${kq.tenHocSinh}.`
           : `Đã bỏ qua cảnh báo về ${kq.tenHocSinh}.`,
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Integrity locks
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Lift an auto-zero lock and restore everything it took.
+ *
+ * ── Why this exists at all ───────────────────────────────────────────────────
+ * The lock is applied by a machine reading a signal that cannot distinguish a
+ * student looking up `range()` from a student reading an answer key — a sleeping
+ * laptop, a Vietnamese IME grabbing focus and a notification toast all arrive as
+ * the same event. Being wrong is therefore a NORMAL outcome, and a lock with no
+ * key would make every wrong one permanent.
+ *
+ * ── What "lift" means here ───────────────────────────────────────────────────
+ * Not merely "you may submit again". `moKhoaViPham` deletes the zeroed
+ * submissions it created — identifiable by the `focus-lock:` marker, so a real
+ * attempt can never be caught by it — and re-marks the voided quiz answers from
+ * the question bank. A teacher who decides the tab-outs were innocent has
+ * decided the zeros were wrong, and leaving them standing would make the remedy
+ * for a false positive "the child redoes work they already did".
+ *
+ * ── The note is required ─────────────────────────────────────────────────────
+ * Both the lock and the unlock land in `AuditLog`. A zero that appeared for a
+ * recorded reason and vanished for none is exactly the shape a parent asks about
+ * and nobody can answer, so the reason is a field rather than an option.
+ *
+ * The visibility check lives in `moKhoaViPham`, which re-reads the lock through
+ * the same relational scope the teacher's feed is built from.
+ */
+export async function moKhoaBaiViPham(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const lockId = String(form.get('lockId') ?? '');
+    const ghiChu = String(form.get('ghiChu') ?? '').trim();
+    if (!lockId) return { trangThai: 'loi', thongDiep: 'Thiếu khoá cần mở.' };
+    if (ghiChu.length < 3) {
+      return {
+        trangThai: 'loi',
+        thongDiep: 'Thầy cô ghi ngắn gọn lý do mở khoá giúp em nhé (ít nhất 3 ký tự).',
+      };
+    }
+
+    const kq = await moKhoaViPham(db, actor, lockId, ghiChu);
+
+    revalidatePath('/giao-vien/canh-bao');
+    revalidatePath('/giao-vien');
+    revalidatePath('/bai-hoc/[slug]', 'page');
+
+    const hoanLai = [
+      kq.soBaiHoanLai > 0 ? `${kq.soBaiHoanLai} bài code` : null,
+      kq.soCauHoanLai > 0 ? `${kq.soCauHoanLai} câu trắc nghiệm` : null,
+    ]
+      .filter(Boolean)
+      .join(' và ');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã mở khoá cho ${kq.tenHocSinh}.` +
+        (hoanLai ? ` Điểm của ${hoanLai} đã được trả lại như cũ.` : ''),
     };
   });
 }

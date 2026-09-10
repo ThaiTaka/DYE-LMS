@@ -15,6 +15,7 @@ import 'server-only';
  */
 import {
   courseProgress,
+  khoaHienTai,
   lessonView,
   resolveCourseAccess,
   resolveLessonAccess,
@@ -349,6 +350,25 @@ export interface DuLieuBaiHoc {
 
   truoc: { slug: string; title: string; order: number } | null;
   sau: { slug: string; title: string; order: number; unlocked: boolean } | null;
+
+  /**
+   * The integrity lock, when one is in force.
+   *
+   * Resolved on the SERVER and rendered from here, so the locked lesson is what
+   * the browser receives rather than something JavaScript applies after paint.
+   * A lock that arrived as a client-side effect would leave the editors live and
+   * editable for the first frame — and, with scripting off, forever.
+   *
+   * Null covers both "never locked" and "a teacher lifted it", which are the
+   * same thing from the lesson page's point of view.
+   */
+  khoaViPham: {
+    soLan: number;
+    nguong: number;
+    soBaiKhongDiem: number;
+    soCauKhongDiem: number;
+    luc: string;
+  } | null;
 }
 
 /**
@@ -563,6 +583,8 @@ export async function duLieuBaiHoc(
   const truoc = courseAccess.find((a) => a.order === lesson.order - 1) ?? null;
   const sau = courseAccess.find((a) => a.order === lesson.order + 1) ?? null;
 
+  const khoa = await khoaHienTai(db, studentId, lesson.id);
+
   return {
     trangThai: 'ok',
     bai: {
@@ -584,6 +606,16 @@ export async function duLieuBaiHoc(
       sau: sau
         ? { slug: sau.slug, title: sau.title, order: sau.order, unlocked: sau.unlocked }
         : null,
+      khoaViPham:
+        khoa && khoa.state === 'LOCKED'
+          ? {
+              soLan: khoa.soLan,
+              nguong: khoa.nguong,
+              soBaiKhongDiem: khoa.soBaiKhongDiem,
+              soCauKhongDiem: khoa.soCauKhongDiem,
+              luc: khoa.luc.toISOString(),
+            }
+          : null,
     },
   };
 }

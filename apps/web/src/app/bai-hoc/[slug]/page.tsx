@@ -1,6 +1,9 @@
+import { NGUONG_CANH_BAO_NANG, NGUONG_KHOA } from '@dye/core';
+
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { BiKhoaViPham } from '@/components/hoc-sinh/bi-khoa-vi-pham';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { KhoiNoiDung } from '@/components/hoc-sinh/khoi-noi-dung';
 import { ThanhChang } from '@/components/hoc-sinh/thanh-chang';
@@ -51,6 +54,20 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
   }
 
   const bai = ketQua.bai;
+
+  /*
+   * The first unfinished code block, handed to the tracker.
+   *
+   * When a lock fires it is recorded against this block, so the zeroed
+   * submission carries the exercise the student was actually sitting on rather
+   * than an arbitrary one. A best guess is the honest description — the page
+   * cannot know where the cursor was — and it only ever ADDS a problem to the
+   * set already selected by having a draft.
+   */
+  const khoiDangLam =
+    bai.blocks.find((k) => k.baiTap !== null && !k.completed)?.blockId ??
+    bai.blocks.find((k) => k.baiTap !== null)?.blockId ??
+    null;
 
   return (
     <VoHocSinh tenHienThi={actor.displayName} nhanh={bai.tier}>
@@ -105,8 +122,33 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
         alt-tab constantly by the nature of the job, and logging that would fill
         the feed with alerts about the person the feed is for.
       */}
+      {/*
+        The lock, stated once at the top of the lesson.
+
+        The per-block panels below say it again where each editor used to be,
+        which is where a student who scrolled straight to their work will meet
+        it. This one is for the student who reloads the page and needs to know
+        before they start hunting for the editor.
+      */}
+      {bai.khoaViPham ? (
+        <div className="mb-6">
+          <BiKhoaViPham khoa={bai.khoaViPham} />
+        </div>
+      ) : null}
+
       <div className="mb-6">
-        <TheoDoiTapTrung lessonId={bai.lessonId} bat={actor.role === 'STUDENT'} />
+        <TheoDoiTapTrung
+          lessonId={bai.lessonId}
+          bat={actor.role === 'STUDENT'}
+          /*
+           * Both thresholds come from @dye/core through this server component,
+           * so the numbers a student is shown are the numbers the server
+           * enforces. See the note on the component's props.
+           */
+          nguongNhac={NGUONG_CANH_BAO_NANG}
+          nguongKhoa={NGUONG_KHOA}
+          {...(khoiDangLam ? { blockId: khoiDangLam } : {})}
+        />
       </div>
 
       <div className="mb-6">
@@ -127,7 +169,7 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
 
       <div className="space-y-5">
         {bai.blocks.map((khoi) => (
-          <KhoiNoiDung key={khoi.blockId} khoi={khoi} />
+          <KhoiNoiDung key={khoi.blockId} khoi={khoi} khoaViPham={bai.khoaViPham} />
         ))}
       </div>
 

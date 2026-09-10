@@ -175,6 +175,10 @@ enum NotificationType {
   /// A student left the lesson tab repeatedly. Goes to the class teacher and to
   /// admins — never to the student.
   FOCUS_ALERT
+  /// A student passed NGUONG_KHOA tab-outs and the lesson auto-locked at zero.
+  /// Separate from FOCUS_ALERT because it demands a decision, not a check-in:
+  /// only a teacher can lift it, and until one does the student cannot hand in.
+  FOCUS_LOCK
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -223,6 +227,8 @@ model User {
   focusEvents       FocusEvent[]
   focusAlerts       FocusAlert[]      @relation("FocusAlertStudent")
   focusAlertsSeen   FocusAlert[]      @relation("FocusAlertReviewer")
+  focusLocks        FocusLock[]       @relation("FocusLockStudent")
+  focusLocksCleared FocusLock[]       @relation("FocusLockClearer")
 
   @@index([role, isActive])
 }
@@ -290,6 +296,7 @@ model Class {
   overrides     LessonOverride[]
   announcements Announcement[]
   focusAlerts   FocusAlert[]
+  focusLocks    FocusLock[]
 
   @@index([teacherId, isArchived])
 }
@@ -405,6 +412,7 @@ model Lesson {
   submissions   Submission[]
   focusEvents   FocusEvent[]
   focusAlerts   FocusAlert[]
+  focusLocks    FocusLock[]
 
   @@unique([courseId, order])
   @@unique([courseId, slug])
@@ -806,6 +814,15 @@ model Answer {
   pointsAwarded Int       @default(0)
   /// SHORT_ANSWER is teacher-graded; null until reviewed.
   gradedAt      DateTime?
+  /// Voided by a FocusLock rather than by being wrong.
+  ///
+  /// Kept as its own column instead of writing `isCorrect = false` and losing
+  /// the reason: a teacher lifting the lock has to be able to tell which zeros
+  /// were the student's work and which the system imposed, and a zero with no
+  /// recorded cause is one nobody can defend to a parent. `pointsAwarded` is
+  /// still set to 0 so every existing score query stays correct without
+  /// learning about this column.
+  khoaViPham    Boolean   @default(false)
 
   attempt  QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
   question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
@@ -820,10 +837,10 @@ model Answer {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model LessonProgress {
-  id        String        @id @default(cuid())
-  studentId String
-  lessonId  String
-  state     ProgressState @default(NOT_STARTED)
+  id           String        @id @default(cuid())
+  studentId    String
+  lessonId     String
+  state        ProgressState @default(NOT_STARTED)
   /// Completion of the blocks REQUIRED for this student's tier, 0-100.
   ///
   /// Stored rather than derived so a roster or a dashboard can read a class in
@@ -1080,6 +1097,13 @@ enum FocusAlertState {
   DISMISSED
 }
 
+/// LOCKED until an adult decides otherwise. There is no third state: a lock is
+/// either in force or it has been lifted by someone whose name is on the row.
+enum FocusLockState {
+  LOCKED
+  CLEARED
+}
+
 /// One reported focus change, append-only.
 ///
 /// `studentId` always comes from the server session, never from the request
@@ -1137,6 +1161,58 @@ model FocusAlert {
   reviewedBy User?  @relation("FocusAlertReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
   @@unique([studentId, lessonId, nguong])
+  @@index([classId, state, createdAt])
+  @@index([state, createdAt])
+  @@index([studentId, createdAt])
+}
+
+/// The lesson auto-locked at zero: this student passed NGUONG_KHOA tab-outs.
+///
+/// ── Why this is a row and not a flag ────────────────────────────────────────
+/// Zeroing a child's work is a consequential act, so it leaves an artefact that
+/// survives the event: what the count actually was, which threshold closed it,
+/// how much was voided, and — once a teacher acts — who lifted it and why. A
+/// boolean on LessonProgress would answer none of those questions the first
+/// time a parent asked one.
+///
+/// ── One lock per (student, lesson) ──────────────────────────────────────────
+/// The unique key is what makes `khoaBaiViPham` idempotent. Without it a client
+/// looping the action would mint a fresh zeroed Submission on every call, and
+/// the student's attempt history would fill with rows no teacher could read.
+///
+/// ── It is always liftable ───────────────────────────────────────────────────
+/// `state` moves to CLEARED, never back to nothing: an unlock is recorded, not
+/// erased. The tab-out signal is a noisy proxy — a sleeping laptop, an IME
+/// switch and a notification toast all look identical to a browser — so being
+/// wrong is a normal outcome here, and a lock that could not be lifted by the
+/// adult in the room would make being wrong permanent.
+model FocusLock {
+  id             String         @id @default(cuid())
+  studentId      String
+  lessonId       String
+  classId        String?
+  /// Tab-outs counted SERVER-SIDE at lock time. Never the client's number.
+  soLan          Int
+  /// The threshold that closed it. Stored so a later change to NGUONG_KHOA
+  /// cannot silently rewrite the reason an old lock was applied.
+  nguong         Int
+  /// Submissions auto-zeroed by this lock.
+  soBaiKhongDiem Int            @default(0)
+  /// Quiz answers voided by this lock.
+  soCauKhongDiem Int            @default(0)
+  state          FocusLockState @default(LOCKED)
+  clearedById    String?
+  clearedAt      DateTime?
+  /// The teacher's reason for lifting it, in their own words.
+  ghiChuMoKhoa   String?
+  createdAt      DateTime       @default(now())
+
+  student   User   @relation("FocusLockStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  lesson    Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  class     Class? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  clearedBy User?  @relation("FocusLockClearer", fields: [clearedById], references: [id], onDelete: SetNull)
+
+  @@unique([studentId, lessonId])
   @@index([classId, state, createdAt])
   @@index([state, createdAt])
   @@index([studentId, createdAt])

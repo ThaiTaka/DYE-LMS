@@ -1,6 +1,13 @@
 'use server';
 
-import { authorize, ghiNhanSuKienTapTrung } from '@dye/core';
+import {
+  authorize,
+  khoaBaiViPham as khoaTrongCore,
+  khoaHienTai,
+  NGUONG_CANH_BAO_NANG,
+  NGUONG_KHOA,
+  ghiNhanSuKienTapTrung,
+} from '@dye/core';
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
@@ -42,7 +49,35 @@ export interface KetQuaGhiNhanRoiTab {
   ok: boolean;
   /** Tab-outs recorded for this student in this lesson so far. */
   soLanRoi: number;
+  /**
+   * The count has reached NGUONG_CANH_BAO_NANG: show the student the modal.
+   *
+   * Decided HERE rather than by comparing numbers in the browser, so the two
+   * thresholds live in exactly one place. A client that drifted out of step with
+   * the server would either warn a student who was nowhere near the limit, or —
+   * far worse — lock one who never saw a warning at all.
+   */
+  canhBaoNang: boolean;
+  /** The count has reached NGUONG_KHOA. The client should now ask for the lock. */
+  phaiKhoa: boolean;
+  /** A lock is already in force, e.g. this tab reloaded after one landed. */
+  dangKhoa: boolean;
 }
+
+/**
+ * The refusal every failure path answers with.
+ *
+ * A `false` here is read by the tracker as "nothing happened", which is the only
+ * safe reading: a network blip must never be what warns a child, and it must
+ * certainly never be what locks one.
+ */
+const TU_CHOI: KetQuaGhiNhanRoiTab = {
+  ok: false,
+  soLanRoi: 0,
+  canhBaoNang: false,
+  phaiKhoa: false,
+  dangKhoa: false,
+};
 
 export async function ghiNhanRoiTab(input: {
   lessonId: string;
@@ -61,14 +96,14 @@ export async function ghiNhanRoiTab(input: {
      * feed with alerts about the person the feed is for.
      */
     if (!actor || actor.role !== 'STUDENT' || !actor.isActive) {
-      return { ok: false, soLanRoi: 0 };
+      return { ...TU_CHOI };
     }
 
     const loai = LOAI_HOP_LE.find((t) => t === input.loai);
-    if (!loai) return { ok: false, soLanRoi: 0 };
+    if (!loai) return { ...TU_CHOI };
 
     const lessonId = String(input.lessonId ?? '');
-    if (!lessonId) return { ok: false, soLanRoi: 0 };
+    if (!lessonId) return { ...TU_CHOI };
 
     /*
      * Being signed in is not the same as being allowed.
@@ -88,10 +123,80 @@ export async function ghiNhanRoiTab(input: {
       awaySeconds: input.awaySeconds,
     });
 
-    return { ok: kq.daGhi, soLanRoi: kq.soLanRoi };
+    const khoa = await khoaHienTai(db, actor.id, lessonId);
+    const dangKhoa = khoa?.state === 'LOCKED';
+
+    return {
+      ok: kq.daGhi,
+      soLanRoi: kq.soLanRoi,
+      canhBaoNang: !dangKhoa && kq.soLanRoi >= NGUONG_CANH_BAO_NANG,
+      phaiKhoa: !dangKhoa && kq.soLanRoi >= NGUONG_KHOA,
+      dangKhoa,
+    };
   } catch (error) {
     // Logged server-side; the student's page never learns that anything failed.
     console.error('[giam-sat] không ghi được sự kiện tập trung', error);
-    return { ok: false, soLanRoi: 0 };
+    return { ...TU_CHOI };
+  }
+}
+
+export interface KetQuaKhoaUI {
+  /** True when a lock is in force after this call, however it got there. */
+  dangKhoa: boolean;
+  /** The server's own count. Never the number the browser was holding. */
+  soLan: number;
+  nguong: number;
+  soBaiKhongDiem: number;
+  soCauKhongDiem: number;
+}
+
+/**
+ * Ask the server to lock this lesson at zero.
+ *
+ * ── The browser asks; it does not decide ─────────────────────────────────────
+ * There is no count parameter, and there never may be one. `khoaBaiViPham` in
+ * @dye/core re-counts `FocusEvent` rows for this student and refuses when the
+ * real total is under the threshold, so the worst a tampered client can do by
+ * hammering this action is spend a query — it cannot zero a lesson early, and it
+ * cannot reach a classmate at all, because the student id comes from the session
+ * exactly as it does in `ghiNhanRoiTab`.
+ *
+ * ── Why it answers instead of throwing ───────────────────────────────────────
+ * Same reason as the tracker above: this is called from a visibility handler in
+ * a 12-year-old's browser, and an unhandled rejection there is a crashed lesson.
+ */
+export async function khoaBaiViPham(input: {
+  lessonId: string;
+  blockId?: string | undefined;
+}): Promise<KetQuaKhoaUI> {
+  const trong: KetQuaKhoaUI = {
+    dangKhoa: false,
+    soLan: 0,
+    nguong: NGUONG_KHOA,
+    soBaiKhongDiem: 0,
+    soCauKhongDiem: 0,
+  };
+
+  try {
+    const actor = await currentActor();
+    if (!actor || actor.role !== 'STUDENT' || !actor.isActive) return trong;
+
+    const lessonId = String(input.lessonId ?? '');
+    if (!lessonId) return trong;
+
+    await authorize(db, actor, { resource: 'progress', action: 'read', studentId: actor.id });
+
+    const kq = await khoaTrongCore(db, actor.id, lessonId, { blockId: input.blockId });
+
+    return {
+      dangKhoa: kq.dangKhoa,
+      soLan: kq.soLan,
+      nguong: NGUONG_KHOA,
+      soBaiKhongDiem: kq.soBaiKhongDiem,
+      soCauKhongDiem: kq.soCauKhongDiem,
+    };
+  } catch (error) {
+    console.error('[giam-sat] không khoá được bài', error);
+    return trong;
   }
 }

@@ -100,6 +100,9 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   // Re-reads the alert through the same scoped feed the teacher sees, so an id
   // guessed from outside that scope is refused.
   'xuLyCanhBao(': 'canhBaoTapTrung(',
+  // Same shape for integrity locks: the lock is re-read through `danhSachKhoa`,
+  // which applies the teacher's relational scope, before anything is restored.
+  'moKhoaViPham(': 'danhSachKhoa(',
 };
 
 const CACH_KIEM_QUYEN = [...KIEM_QUYEN_TRUC_TIEP, ...Object.keys(UY_QUYEN_CHO_CORE)];

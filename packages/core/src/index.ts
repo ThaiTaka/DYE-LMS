@@ -146,6 +146,21 @@ export {
   type TomTatTapTrung,
 } from './giam-sat';
 
+// ── Auto-zero lock ───────────────────────────────────────────────────────────
+export {
+  biKhoaViPham,
+  danhSachKhoa,
+  demSoLanRoi,
+  khoaBaiViPham,
+  khoaHienTai,
+  moKhoaViPham,
+  NGUONG_CANH_BAO_NANG,
+  NGUONG_KHOA,
+  type KetQuaKhoa,
+  type KetQuaMoKhoa,
+  type KhoaHienThi,
+} from './khoa-vi-pham';
+
 // ── Teaching analytics ───────────────────────────────────────────────────────
 export {
   thongKeGiangDay,

@@ -1,6 +1,13 @@
 'use server';
 
-import { authorize, ForbiddenError, moKhoiCode, nopTuLuan, syncLessonCompletion } from '@dye/core';
+import {
+  authorize,
+  biKhoaViPham,
+  ForbiddenError,
+  moKhoiCode,
+  nopTuLuan,
+  syncLessonCompletion,
+} from '@dye/core';
 
 import { revalidatePath } from 'next/cache';
 
@@ -72,6 +79,25 @@ export async function kiemTraCauTraLoi(
   // they can probe its questions. Cheap, and keeps every path behind one guard.
   await authorize(db, actor, { resource: 'progress', action: 'read', studentId: actor.id });
 
+  /*
+   * The integrity lock.
+   *
+   * Quiz answering is the one student write path that does NOT pass through
+   * `moKhoiCode` — it is keyed on a question, not a block — so the gate has to
+   * be repeated here rather than inherited. Without it, a locked student could
+   * still work the multiple-choice questions from a tab that never re-rendered,
+   * which would make the lock a UI convention rather than a rule.
+   *
+   * Answered as "wrong, no explanation" instead of thrown: this returns into a
+   * client component mid-lesson, and the page already shows the lock panel
+   * explaining what happened. A second explanation from a quiz box would be
+   * noise on top of it.
+   */
+  const baiCuaCauHoi = question.quiz.blocks[0]?.lesson.id ?? null;
+  if (baiCuaCauHoi && (await biKhoaViPham(db, actor.id, baiCuaCauHoi))) {
+    return { dung: false, giaiThich: null, dapAnDung: null };
+  }
+
   if (question.type === 'MULTIPLE_CHOICE' || question.type === 'TRUE_FALSE') {
     const chon = question.choices.find((c) => c.id === traLoi);
     const dung = Boolean(chon?.isCorrect);
@@ -127,6 +153,27 @@ export async function nopBaiTuLuan(
     const actor = await currentActor();
     if (!actor || actor.role !== 'STUDENT') {
       return { trangThai: 'tu-choi', thongDiep: 'Chỉ học sinh mới nộp được bài này.' };
+    }
+
+    /*
+     * The integrity lock, again — see `kiemTraCauTraLoi`.
+     *
+     * This one DOES get a message, because unlike a multiple-choice click an
+     * essay is minutes of a child's writing: silently dropping it would look
+     * like the system had eaten their work.
+     */
+    const cauHoi = await db.question.findUnique({
+      where: { id: questionId },
+      select: { quiz: { select: { blocks: { select: { lessonId: true }, take: 1 } } } },
+    });
+    const baiCuaCauHoi = cauHoi?.quiz.blocks[0]?.lessonId ?? null;
+    if (baiCuaCauHoi && (await biKhoaViPham(db, actor.id, baiCuaCauHoi))) {
+      return {
+        trangThai: 'tu-choi',
+        thongDiep:
+          'Bài này đang bị khoá vì hệ thống ghi nhận em rời khỏi tab quá nhiều lần. ' +
+          'Em nói với thầy cô để được mở lại nhé — bài viết của em vẫn còn trong ô.',
+      };
     }
 
     const kq = await nopTuLuan(db, actor, questionId, noiDung);

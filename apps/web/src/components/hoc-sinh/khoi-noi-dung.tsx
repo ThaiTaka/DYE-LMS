@@ -1,7 +1,8 @@
 import { VanBan } from '@/lib/markdown';
-import type { KhoiHienThi } from '@/lib/student-data';
+import type { DuLieuBaiHoc, KhoiHienThi } from '@/lib/student-data';
 
 import { BaiTracNghiem } from './bai-trac-nghiem';
+import { BiKhoaViPham } from './bi-khoa-vi-pham';
 import { KhuLamBai } from './khu-lam-bai';
 import { KhuMicrobit } from './khu-microbit';
 import { KIEU_NHANH, KIEU_TRUY_CAP } from '../ui/nhanh';
@@ -14,7 +15,14 @@ import { KIEU_NHANH, KIEU_TRUY_CAP } from '../ui/nhanh';
  * is framed as a bonus quest with a gold dashed border and copy that says
  * "không làm cũng không sao cả". It is never a lock, a warning, or an error.
  */
-export function KhoiNoiDung({ khoi }: { khoi: KhoiHienThi }) {
+export function KhoiNoiDung({
+  khoi,
+  khoaViPham = null,
+}: {
+  khoi: KhoiHienThi;
+  /** Set when an integrity lock is in force on this lesson. */
+  khoaViPham?: DuLieuBaiHoc['khoaViPham'];
+}) {
   const khamPha = khoi.access === 'EXPLORATION';
   const truyCap = KIEU_TRUY_CAP[khoi.access];
   const kieuNhanh = KIEU_NHANH[khoi.tier];
@@ -60,13 +68,61 @@ export function KhoiNoiDung({ khoi }: { khoi: KhoiHienThi }) {
         {khamPha ? <p className="m-0 text-sm text-mo-rong">{truyCap.moTa}</p> : null}
       </header>
 
-      <NoiDungTheoLoai khoi={khoi} />
+      <NoiDungTheoLoai khoi={khoi} khoaViPham={khoaViPham} />
     </section>
   );
 }
 
-function NoiDungTheoLoai({ khoi }: { khoi: KhoiHienThi }) {
+/**
+ * Which block kinds a lock actually takes away.
+ *
+ * Reading material stays readable. The lock exists to stop work being HANDED IN,
+ * not to stop a student learning — a locked child who wants to go back and read
+ * the explanation is doing the thing everyone wants, and taking the theory away
+ * from them would be punishment for its own sake.
+ */
+type LoaiLamBai = 'playground' | 'challenge' | 'microbit' | 'quiz';
+
+const KHOI_LAM_BAI: readonly LoaiLamBai[] = ['playground', 'challenge', 'microbit', 'quiz'];
+
+function laKhoiLamBai(nd: KhoiHienThi['noiDung']): nd is Extract<
+  KhoiHienThi['noiDung'],
+  { kind: LoaiLamBai }
+> {
+  return (KHOI_LAM_BAI as readonly string[]).includes(nd.kind);
+}
+
+function NoiDungTheoLoai({
+  khoi,
+  khoaViPham,
+}: {
+  khoi: KhoiHienThi;
+  khoaViPham: DuLieuBaiHoc['khoaViPham'];
+}) {
   const nd = khoi.noiDung;
+
+  /*
+   * The editor is REPLACED, not disabled.
+   *
+   * A greyed-out editor still holds the student's text and still invites them to
+   * keep typing into work that no longer counts. Swapping the whole interactive
+   * area for the panel makes the state unambiguous — and means there is no
+   * disabled control for a devtools user to re-enable, since the server refuses
+   * every one of these paths anyway (`moKhoiCode` in @dye/core).
+   *
+   * The markdown above it is kept: it is the instructions, and losing them would
+   * leave the panel explaining a task the student can no longer read.
+   */
+  if (khoaViPham && laKhoiLamBai(nd)) {
+    return (
+      <>
+        <VanBan>{nd.markdown}</VanBan>
+        <div className="mt-4">
+          <BiKhoaViPham khoa={khoaViPham} />
+        </div>
+      </>
+    );
+  }
 
   switch (nd.kind) {
     case 'theory':

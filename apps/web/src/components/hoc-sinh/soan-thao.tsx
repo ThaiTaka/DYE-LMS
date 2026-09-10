@@ -14,6 +14,7 @@ import {
   indentMore,
 } from '@codemirror/commands';
 import { python } from '@codemirror/lang-python';
+import { lintGutter, linter } from '@codemirror/lint';
 import {
   HighlightStyle,
   bracketMatching,
@@ -35,6 +36,8 @@ import {
 } from '@codemirror/view';
 import { tags } from '@lezer/highlight';
 import { useEffect, useRef } from 'react';
+
+import { nguonKiemLoiPython } from './kiem-loi-python';
 
 /**
  * Python syntax colours.
@@ -104,7 +107,61 @@ const GIAO_DIEN = EditorView.theme({
   },
   '.cm-scroller': { overflow: 'auto' },
   '.cm-foldGutter span': { color: 'var(--color-chu-phu)' },
+
+  /*
+   * Syntax errors.
+   *
+   * A wavy underline rather than a red background: the point is to draw the eye
+   * to the character, not to make the line unreadable while it is being fixed.
+   * 2px because CodeMirror's 1px default disappears on the classroom projectors
+   * these lessons are taught from.
+   *
+   * Never colour alone (WCAG 1.4.1): the squiggle is a shape, the gutter carries
+   * a marker, and the hover panel carries the sentence. A student who cannot
+   * distinguish the red still gets all three.
+   */
+  '.cm-diagnostic-error': {
+    borderInlineStart: '4px solid #b91c1c',
+    paddingInlineStart: '0.5rem',
+  },
+  '.cm-lintRange-error': {
+    // Inline SVG so the wave scales with the 16px floor rather than being a
+    // fixed-size bitmap that blurs when a student zooms the page.
+    backgroundImage:
+      "url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%226%22 height=%223%22%3E%3Cpath d=%22m0 3 1.5-1.5L3 3l1.5-1.5L6 3%22 fill=%22none%22 stroke=%22%23b91c1c%22 stroke-width=%221%22/%3E%3C/svg%3E')",
+    backgroundRepeat: 'repeat-x',
+    backgroundPosition: 'left bottom',
+    paddingBottom: '2px',
+  },
+  '.cm-tooltip-lint': {
+    fontFamily: 'var(--font-sans)',
+    fontSize: '0.95rem',
+    maxWidth: '32rem',
+    lineHeight: '1.5',
+    backgroundColor: 'var(--color-the)',
+    color: 'var(--color-chu)',
+    border: '1px solid var(--color-vien)',
+    borderRadius: 'var(--radius-nut, 0.5rem)',
+    boxShadow: '0 4px 16px rgba(15, 23, 42, 0.18)',
+  },
+  '.cm-lint-marker-error': { content: 'none' },
+  '.cm-gutter-lint': { width: '1.1rem' },
 });
+
+/**
+ * How long the editor waits before underlining anything.
+ *
+ * Half of `@codemirror/lint`'s 750 ms default, but still far from instant, and
+ * the delay is the humane part of the feature. Python is invalid for most of the
+ * time a beginner spends typing a line — `if x` is an error until the `:` lands —
+ * so a checker with no delay would paint the file red on nearly every keystroke
+ * and teach a 12-year-old that they are constantly failing.
+ *
+ * 400 ms is roughly a pause for thought: long enough that ordinary typing never
+ * triggers it, short enough that a student who has stopped to stare at a line
+ * gets the hint while they are still looking at it.
+ */
+const CHO_KIEM_LOI_MS = 400;
 
 export interface SoanThaoProps {
   giaTri: string;
@@ -224,6 +281,24 @@ export function SoanThao({
         highlightActiveLine(),
         EditorView.lineWrapping,
         python(),
+        /*
+         * Diagnostics from the tree `python()` is already building — see
+         * `kiem-loi-python.ts` for why this is a tree walk and not a Python
+         * process. Read-only views (a version preview, a diff) get no linter:
+         * underlining an old version the student cannot edit is noise about a
+         * problem they may have already fixed.
+         */
+        ...(chiDoc
+          ? []
+          : [
+              linter((v) => nguonKiemLoiPython(v.state), {
+                delay: CHO_KIEM_LOI_MS,
+                // The panel is opened from the keyboard or by hovering; it never
+                // steals focus from a student mid-word.
+                needsRefresh: () => false,
+              }),
+              lintGutter(),
+            ]),
         GIAO_DIEN,
         // Ordered so our Tab/Escape handling wins over the defaults.
         thoatBangBanPhim,

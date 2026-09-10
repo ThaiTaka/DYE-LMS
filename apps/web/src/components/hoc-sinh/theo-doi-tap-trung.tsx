@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { ghiNhanRoiTab } from '@/app/bai-hoc/[slug]/giam-sat-actions';
+import { useRouter } from 'next/navigation';
+
+import { ghiNhanRoiTab, khoaBaiViPham } from '@/app/bai-hoc/[slug]/giam-sat-actions';
 
 /**
  * Focus tracker for the lesson page.
@@ -17,7 +19,24 @@ import { ghiNhanRoiTab } from '@/app/bai-hoc/[slug]/giam-sat-actions';
  *
  * The notice is also what earns the warning dialog below the right to be blunt.
  * A child who was told up front what is counted is being held to a rule they
- * were given; one who was not is being ambushed.
+ * were given; one who was not is being ambushed. Now that a tab-out can END in a
+ * zero, the notice carries BOTH numbers — a rule with a real penalty has to be
+ * stated before it is applied, not after.
+ *
+ * ── Two thresholds ───────────────────────────────────────────────────────────
+ *   NGUONG_CANH_BAO   the blocking dialog. The last moment the outcome can
+ *                     still change, so it leads with the count and the limit.
+ *   NGUONG_KHOA       the lesson locks at zero. The server decides this, not
+ *                     this file — see below.
+ *
+ * ── Which side decides ───────────────────────────────────────────────────────
+ * The LOCK is decided entirely by the server: `khoaBaiViPham` re-counts
+ * FocusEvent rows itself and refuses anything under the threshold, so the number
+ * held here can never zero a lesson early. The local count still drives the
+ * WARNING, and still counts up while offline, because a dialog that could be
+ * skipped by pulling the network cable would be worthless — but a warning shown
+ * wrongly costs a child an interruption, while a lock applied wrongly costs them
+ * their work. The two are trusted differently on purpose.
  *
  * ── What the browser actually gives us ───────────────────────────────────────
  * Two events, and they overlap:
@@ -47,8 +66,15 @@ const NGUONG_VANG_MS = 1200;
 /** Matches DEDUP_MS in @dye/core: one alt-tab must never post twice. */
 const CHONG_TRUNG_MS = 1500;
 
-/** Tab-outs in this lesson before the student is stopped and told. */
-const NGUONG_CANH_BAO = 2;
+/**
+ * Tab-outs before the student is stopped and told.
+ *
+ * The real value arrives as a prop from the server component, which reads it
+ * from @dye/core — the same module the lock enforces from. This constant is only
+ * the fallback for a caller that passes nothing, and it matches the core default
+ * so the two can never disagree silently.
+ */
+const NGUONG_CANH_BAO_MAC_DINH = 5;
 
 /** Where the count survives a reload when the server cannot be reached. */
 const KHOA_LUU = 'dye:so-lan-roi-tab';
@@ -74,10 +100,23 @@ function luuSoLan(lessonId: string, n: number): void {
 export function TheoDoiTapTrung({
   lessonId,
   bat,
+  blockId,
+  nguongNhac = NGUONG_CANH_BAO_MAC_DINH,
+  nguongKhoa = 20,
 }: {
   lessonId: string;
   /** False for teachers and admins previewing the lesson. */
   bat: boolean;
+  /** The code block in view. Recorded on the zeroed submission if it locks. */
+  blockId?: string | undefined;
+  /*
+   * Both numbers come from @dye/core through the server component that renders
+   * this, so what a student is SHOWN and what the server ENFORCES are the same
+   * value. A client bundle restating them would be free to drift — and the
+   * failure mode of drift is a child locked without ever seeing a warning.
+   */
+  nguongNhac?: number;
+  nguongKhoa?: number;
 }) {
   /*
    * Tracking stays in refs. The lesson page holds a code editor with unsaved
@@ -92,10 +131,52 @@ export function TheoDoiTapTrung({
   const roiLuc = useRef<number | null>(null);
   const guiLanCuoi = useRef(0);
   const demRef = useRef(0);
+  /** Set once the lock has been asked for, so it is asked for exactly once. */
+  const daXinKhoa = useRef(false);
 
   const [soLanRoi, setSoLanRoi] = useState<number | null>(null);
+  const [daKhoa, setDaKhoa] = useState(false);
+
+  const router = useRouter();
 
   const dong = useCallback(() => setSoLanRoi(null), []);
+
+  /**
+   * Ask the server to lock the lesson at zero.
+   *
+   * ── The browser asks; the server decides ─────────────────────────────────
+   * There is no count in this request and there must never be one. The action
+   * re-counts FocusEvent rows for this student and refuses when its own total is
+   * under the threshold, so the worst a tampered client achieves by calling this
+   * early is one wasted query. `dangKhoa: false` means the server said no, and
+   * the flag is re-armed so a genuinely later crossing can still ask.
+   */
+  const xinKhoa = useCallback(async () => {
+    if (daXinKhoa.current) return;
+    daXinKhoa.current = true;
+
+    const kq = await khoaBaiViPham({
+      lessonId,
+      ...(blockId ? { blockId } : {}),
+    }).catch(() => null);
+
+    if (!kq?.dangKhoa) {
+      daXinKhoa.current = false;
+      return;
+    }
+
+    setSoLanRoi(null);
+    setDaKhoa(true);
+    /*
+     * Re-render the lesson from the server.
+     *
+     * The overlay below lands instantly but is only a cover; the panel that
+     * REPLACES each editor is server-rendered from the lock row. Without this
+     * the student sits behind a dialog with live editors underneath it until
+     * they navigate.
+     */
+    router.refresh();
+  }, [lessonId, blockId, router]);
 
   useEffect(() => {
     if (!bat || !lessonId) return;
@@ -168,7 +249,23 @@ export function TheoDoiTapTrung({
           luuSoLan(lessonId, dem);
         }
 
-        if (dem >= NGUONG_CANH_BAO) setSoLanRoi(dem);
+        /*
+         * The lock is asked for only on a count the SERVER gave us.
+         *
+         * The offline fallback above is deliberately good enough to raise the
+         * warning — a student must not be able to dodge the dialog by pulling
+         * the network cable — but it is not good enough to zero a lesson. A
+         * locally incremented number reflects nothing the server has recorded,
+         * and acting on it would mean a flaky connection could cost a child
+         * their work. When the server is reachable it answers with its own
+         * count, and only that number reaches here.
+         */
+        if (tuMayChu !== null && dem >= nguongKhoa) {
+          void xinKhoa();
+          return;
+        }
+
+        if (dem >= nguongNhac) setSoLanRoi(dem);
       });
     };
 
@@ -189,7 +286,7 @@ export function TheoDoiTapTrung({
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
     };
-  }, [lessonId, bat]);
+  }, [lessonId, bat, nguongNhac, nguongKhoa, xinKhoa]);
 
   if (!bat) return null;
 
@@ -199,14 +296,54 @@ export function TheoDoiTapTrung({
         <span aria-hidden="true">👀</span>
         <span>
           Trang này có ghi lại <strong className="text-chu">số lần em rời khỏi tab</strong> trong
-          lúc học, để thầy cô biết lúc nào nên ghé hỏi thăm em. Hệ thống{' '}
-          <strong className="text-chu">không biết em đã mở gì</strong> — và rời tab không phải là
-          lỗi. Nếu em đang thấy khó ở chỗ nào, cứ nói với thầy cô nhé.
+          lúc học. Tới <strong className="text-chu">{nguongNhac} lần</strong> hệ thống sẽ nhắc em,
+          tới <strong className="text-chu">{nguongKhoa} lần</strong> bài sẽ bị khoá và tính 0 điểm
+          cho tới khi thầy cô mở lại. Hệ thống{' '}
+          <strong className="text-chu">không biết em đã mở gì</strong> — nếu em đang thấy khó ở chỗ
+          nào, cứ nói với thầy cô nhé.
         </span>
       </p>
 
-      {soLanRoi !== null ? <CanhBaoRoiTab soLan={soLanRoi} onDong={dong} /> : null}
+      {soLanRoi !== null ? (
+        <CanhBaoRoiTab soLan={soLanRoi} gioiHan={nguongKhoa} onDong={dong} />
+      ) : null}
+
+      {/*
+        The instant the lock lands.
+
+        `router.refresh()` is a round trip, and until it returns the page still
+        holds live editors. This covers them immediately, so a student cannot
+        type one more line into work that has already been voided — and so the
+        news does not arrive as a silent change under their cursor.
+      */}
+      {daKhoa ? <DaBiKhoa /> : null}
     </>
+  );
+}
+
+/**
+ * The lock overlay.
+ *
+ * Not an `alertdialog` and not focus-trapped, unlike the warning above: there is
+ * nothing to acknowledge and no decision to make, and trapping focus in a box a
+ * student cannot dismiss would leave a keyboard user stuck on a page they are
+ * meant to be able to leave. `role="alert"` announces it once; the lesson
+ * underneath re-renders into its locked state a moment later.
+ */
+function DaBiKhoa() {
+  return (
+    <div role="alert" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-lg rounded-nut border-2 border-thu-lai bg-the p-6 text-center shadow-2xl">
+        <p aria-hidden="true" className="m-0 text-4xl">
+          🔒
+        </p>
+        <h2 className="mt-3 mb-2 text-2xl font-bold text-thu-lai">Bài này đã bị khoá</h2>
+        <p className="m-0 text-chu">
+          Hệ thống ghi nhận em rời khỏi bài quá số lần cho phép, nên bài này bị tính 0 điểm. Thầy
+          cô đã nhận được thông báo — em nói với thầy cô để được mở lại nhé.
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -218,12 +355,21 @@ export function TheoDoiTapTrung({
  * real, it is written to the student's record, and it does reach the teacher's
  * alerts page — so the dialog can say so plainly.
  *
- * It does NOT claim the system is filming the student, and it does not threaten
- * an automatic zero. There is no camera anywhere in this codebase and nothing
- * locks or zeroes work over a tab-out, and a warning that tells a 12-year-old
- * they are being filmed when they are not is a lie told to a child by their
- * school. The tone stays strict; the facts stay true. If a lock-and-zero rule
- * is ever built, this text should be updated to match it — not before.
+ * It does NOT claim the system is filming the student. There is no camera
+ * anywhere in this codebase, and a warning that tells a 12-year-old they are
+ * being filmed when they are not is a lie told to a child by their school.
+ *
+ * It DOES now state the automatic zero, because as of the 5/20 escalation the
+ * system carries that out: at `gioiHan` tab-outs the lesson locks, the work is
+ * scored zero, and only a teacher can lift it. The previous version of this
+ * comment said the text should be updated if a lock-and-zero rule was ever
+ * built. It has been, so this is that update — and stating it here is the whole
+ * reason the dialog exists, since this is the last point at which a student can
+ * still act on the information.
+ *
+ * The tone stays strict; the facts stay true. What it does not do is accuse:
+ * the browser reports that a tab was hidden and nothing else, so the text says
+ * what was COUNTED and what will HAPPEN, never what the student was doing.
  *
  * ── On being blocking ────────────────────────────────────────────────────────
  * A plain `div` with `role="alertdialog"`, not `<dialog>`: `showModal()` is
@@ -231,7 +377,16 @@ export function TheoDoiTapTrung({
  * same everywhere. Escape is deliberately swallowed and there is no backdrop
  * close, so the acknowledgement button is the only way out.
  */
-function CanhBaoRoiTab({ soLan, onDong }: { soLan: number; onDong: () => void }) {
+function CanhBaoRoiTab({
+  soLan,
+  gioiHan,
+  onDong,
+}: {
+  soLan: number;
+  /** The tab-out count at which the lesson locks at zero. */
+  gioiHan: number;
+  onDong: () => void;
+}) {
   const nut = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -271,11 +426,21 @@ function CanhBaoRoiTab({ soLan, onDong }: { soLan: number; onDong: () => void })
           <span aria-hidden="true">🚨 </span>CẢNH BÁO TỪ HỆ THỐNG
         </h2>
 
-        <p id="canh-bao-roi-tab-noi-dung" className="mt-0 mb-5 text-chu">
-          Bạn đã rời khỏi màn hình làm bài <strong>{soLan} lần</strong>! Hệ thống DYE LMS đang ghi
-          nhận và giám sát quá trình làm bài. Số lần rời màn hình được gửi trực tiếp đến giáo viên
-          quản lý, và giáo viên sẽ xem xét bài làm của bạn!
-        </p>
+        <div id="canh-bao-roi-tab-noi-dung" className="mt-0 mb-5 space-y-3 text-chu">
+          <p className="m-0">
+            Bạn đã rời khỏi màn hình làm bài <strong>{soLan} lần</strong>! Hệ thống DYE LMS đang
+            ghi nhận và giám sát quá trình làm bài. Số lần rời màn hình được gửi trực tiếp đến giáo
+            viên quản lý, và giáo viên sẽ xem xét bài làm của bạn!
+          </p>
+          <p className="m-0">
+            Nếu bạn rời khỏi màn hình <strong>{gioiHan} lần</strong>, bài này sẽ{' '}
+            <strong>tự động bị khoá và tính 0 điểm</strong>, và chỉ giáo viên mới mở lại được.
+          </p>
+          <p className="m-0">
+            Hệ thống chỉ đếm số lần, <strong>không biết bạn đã mở gì</strong>. Nếu bạn đang tra cứu
+            hoặc đang gặp khó, hãy hỏi thầy cô — nhanh hơn nhiều.
+          </p>
+        </div>
 
         <button
           ref={nut}

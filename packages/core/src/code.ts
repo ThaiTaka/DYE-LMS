@@ -27,6 +27,7 @@ import { createHash } from 'node:crypto';
 
 import { resolveLessonAccess } from './curriculum/gating';
 import { ForbiddenError } from './errors';
+import { biKhoaViPham } from './khoa-vi-pham';
 
 import type { PrismaClient, SnapshotReason, Verdict } from '@prisma/client';
 
@@ -103,6 +104,26 @@ export async function moKhoiCode(
     const error = new ForbiddenError(`lesson-locked:${access.slug}`);
     Object.defineProperty(error, 'message', {
       value: access.lockReason ?? 'Bài học này chưa mở.',
+      enumerable: true,
+    });
+    throw error;
+  }
+
+  /*
+   * The integrity lock, enforced HERE rather than in the UI.
+   *
+   * Every code path a student can take into this lesson — autosave, run, submit,
+   * restore a version — goes through this function, which is the only reason a
+   * single check can hold them all. A disabled button in `khu-lam-bai.tsx` is a
+   * courtesy to the student; this is the part that means anything, because the
+   * server action is reachable from a console in a tab that never re-rendered.
+   */
+  if (await biKhoaViPham(db, studentId, block.lessonId)) {
+    const error = new ForbiddenError('focus-lock');
+    Object.defineProperty(error, 'message', {
+      value:
+        'Bài này đang bị khoá vì hệ thống ghi nhận em rời khỏi tab quá nhiều lần. ' +
+        'Em nói với thầy cô để được mở lại nhé.',
       enumerable: true,
     });
     throw error;
