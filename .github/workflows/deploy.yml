@@ -75,10 +75,9 @@ jobs:
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
-          # Password auth, as specified. A deploy key is stronger and is a
-          # drop-in swap: replace this line with `key: ${{ secrets.VPS_SSH_KEY }}`
-          # and put the PRIVATE half of a keypair in that secret, with the public
-          # half in ~/.ssh/authorized_keys on the server.
+          # Primary auth is SSH key; keep password as fallback while rotating.
+          key: ${{ secrets.VPS_SSH_KEY }}
+          passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
           password: ${{ secrets.VPS_PASSWORD }}
           # The build is the slow step; the default 10m is not enough headroom.
           command_timeout: 20m
@@ -109,7 +108,12 @@ jobs:
             #
             # It runs before `npm run build` so a migration failure stops the
             # deploy while the OLD release is still up and serving.
-            npm run db:migrate
+            # SSH sessions can inherit DATABASE_URL from shell startup files.
+            # The repo loader intentionally treats existing env vars as highest
+            # priority, so a stale exported value can override .env.production
+            # and make Prisma fail with P1000 even when the deploy file is
+            # correct. Run migrate with those vars unset to force repo config.
+            env -u DATABASE_URL -u DATABASE_URL_DOCKER npm run db:migrate
 
             npm run build
 
