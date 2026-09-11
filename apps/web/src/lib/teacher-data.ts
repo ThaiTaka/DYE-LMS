@@ -38,6 +38,8 @@ import {
   tierRank,
   tomTatTapTrung,
   tuLuanChoCham,
+  tuLuanDaCham,
+  soTuLuanChoCham,
   visibleStudentIds,
   type Actor,
   type AnhHuongXoaTaiKhoan,
@@ -47,6 +49,7 @@ import {
   type KhoaHocChonDuoc,
   type LessonAccess,
   type TuLuanChoCham,
+  type TuLuanDaCham,
   type ThongKeTongQuan,
   type TomTatTapTrung,
 } from '@dye/core';
@@ -1210,6 +1213,26 @@ export async function baiMicrobitDeCham(
  */
 export async function duLieuTuLuanChoCham(actor: Actor): Promise<TuLuanChoCham[]> {
   return tuLuanChoCham(db, await visibleStudentIds(db, actor));
+}
+
+/** Essays this actor has already marked (or may reopen). */
+export async function duLieuTuLuanDaCham(actor: Actor): Promise<TuLuanDaCham[]> {
+  return tuLuanDaCham(db, await visibleStudentIds(db, actor));
+}
+
+/**
+ * Essays waiting on this actor, for the nav badge.
+ *
+ * Swallows its own errors and answers 0 for the same reason
+ * `demCanhBaoChuaXuLy` does: a failure in a decorative count must never take
+ * down the page it decorates.
+ */
+export async function demTuLuanChoCham(actor: Actor): Promise<number> {
+  try {
+    return await soTuLuanChoCham(db, await visibleStudentIds(db, actor));
+  } catch {
+    return 0;
+  }
 }
 
 /** Every student this actor may legitimately reach. Used by search and pickers. */

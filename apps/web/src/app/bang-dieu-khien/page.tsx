@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { BaiNopGanDay } from '@/components/hoc-sinh/bai-nop-gan-day';
 import { TheHocTiep } from '@/components/hoc-sinh/the-hoc-tiep';
 import { VoHocSinh } from '@/components/hoc-sinh/vo';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
@@ -98,6 +99,17 @@ export default async function BangDieuKhien() {
           </ul>
         )}
       </section>
+
+      {/*
+        Recent hand-ins, above the badges.
+
+        This is the answer to "did the system get my work?" — the question a
+        student asks after every submit, and the one the dashboard used to
+        leave unanswered. It shows every attempt, including the ones still in
+        the queue, so a pending verdict reads as "being graded" rather than as
+        silence.
+      */}
+      <BaiNopGanDay baiNop={data.baiNopGanDay} />
 
       {data.huyHieu.length > 0 ? (
         <section aria-labelledby="tieu-de-huy-hieu">

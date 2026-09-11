@@ -365,6 +365,111 @@ async function moTuLuan(
   };
 }
 
+/** How many essays are waiting for this actor. Powers the nav badge. */
+export async function soTuLuanChoCham(db: PrismaClient, studentIds: string[]): Promise<number> {
+  if (studentIds.length === 0) return 0;
+  return db.answer.count({
+    where: {
+      gradedAt: null,
+      question: { type: 'SHORT_ANSWER' },
+      attempt: { studentId: { in: studentIds } },
+    },
+  });
+}
+
+export interface TuLuanDaCham extends TuLuanChoCham {
+  diem: number;
+  dat: boolean;
+  chamLuc: Date;
+  /** Voided by an integrity lock rather than marked by a person. */
+  khoaViPham: boolean;
+}
+
+/**
+ * Essays already marked, newest marking first.
+ *
+ * ── Why a second list rather than a flag on the first ────────────────────────
+ * `tuLuanChoCham` is the queue: it exists to be emptied, and every consumer of
+ * it assumes a row there needs a person. Folding graded rows in behind a
+ * status field would put "done" work in front of every one of those callers
+ * and rely on each remembering to filter — the same shape of mistake the
+ * module header warns about for reopened answers.
+ *
+ * This list is the RECORD: what was marked, by whom, at what score. It is what
+ * a teacher opens when a student asks "why did I get 6?", and what makes a
+ * mark reversible — "Mở lại" lives here, next to the grade it undoes.
+ */
+export async function tuLuanDaCham(
+  db: PrismaClient,
+  studentIds: string[],
+  gioiHan = 100,
+): Promise<TuLuanDaCham[]> {
+  if (studentIds.length === 0) return [];
+
+  const rows = await db.answer.findMany({
+    where: {
+      gradedAt: { not: null },
+      question: { type: 'SHORT_ANSWER' },
+      attempt: { studentId: { in: studentIds } },
+    },
+    orderBy: { gradedAt: 'desc' },
+    take: gioiHan,
+    select: {
+      id: true,
+      response: true,
+      pointsAwarded: true,
+      isCorrect: true,
+      gradedAt: true,
+      khoaViPham: true,
+      question: {
+        select: {
+          id: true,
+          prompt: true,
+          points: true,
+          quiz: {
+            select: {
+              blocks: {
+                select: { lesson: { select: { title: true, order: true } } },
+                take: 1,
+              },
+            },
+          },
+        },
+      },
+      attempt: {
+        select: {
+          studentId: true,
+          submittedAt: true,
+          startedAt: true,
+          student: { select: { displayName: true } },
+        },
+      },
+    },
+  });
+
+  return rows.map((r) => {
+    const bai = r.question.quiz.blocks[0]?.lesson;
+    return {
+      answerId: r.id,
+      studentId: r.attempt.studentId,
+      tenHocSinh: r.attempt.student.displayName,
+      questionId: r.question.id,
+      prompt: r.question.prompt,
+      noiDung: docNoiDung(r.response),
+      diemToiDa: r.question.points,
+      nopLuc: r.attempt.submittedAt ?? r.attempt.startedAt,
+      lessonTitle: bai?.title ?? '',
+      lessonOrder: bai?.order ?? 0,
+      diem: r.pointsAwarded,
+      dat: r.isCorrect,
+      // `gradedAt: { not: null }` above guarantees this; the fallback only
+      // satisfies the type.
+      chamLuc: r.gradedAt ?? new Date(0),
+      khoaViPham: r.khoaViPham,
+    };
+  });
+}
+
 /**
  * Mark one essay right or wrong.
  *

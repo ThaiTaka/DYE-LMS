@@ -109,11 +109,14 @@ export {
   trangThaiTuLuan,
   tuLuanCuaHocSinh,
   tuLuanChoCham,
+  tuLuanDaCham,
+  soTuLuanChoCham,
   TU_LUAN_AUDIT,
   TU_LUAN_TOI_DA_KY_TU,
   type KetQuaNopTuLuan,
   type TrangThaiTuLuan,
   type TuLuanChoCham,
+  type TuLuanDaCham,
 } from './tu-luan';
 
 export {

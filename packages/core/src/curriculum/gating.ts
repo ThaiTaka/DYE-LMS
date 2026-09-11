@@ -60,6 +60,13 @@ export interface GatingInput {
   overrides: readonly GatingOverride[];
   /** lessonId → progress state. Missing means NOT_STARTED. */
   progress: ReadonlyMap<string, ProgressState>;
+  /**
+   * lessonId → cached completion of the blocks required for this student,
+   * 0–100, as `syncLessonCompletion` last wrote it. Optional so a caller that
+   * only has states (older code, unit tests) keeps working: a missing entry
+   * falls back to 100 for a COMPLETED lesson and 0 otherwise.
+   */
+  percents?: ReadonlyMap<string, number>;
 }
 
 export type StatusSource = 'default' | 'class-override' | 'student-override';
@@ -87,6 +94,15 @@ export interface LessonAccess {
 
   state: ProgressState;
   completed: boolean;
+  /**
+   * How much of the REQUIRED work in this lesson is done, 0–100.
+   *
+   * A COMPLETED lesson is 100 by definition, whatever the cache says — the
+   * cache column was added after some rows were written, and a lesson the
+   * engine has already declared finished must not read as 0 because a stale
+   * row never got its number filled in.
+   */
+  percent: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -252,6 +268,7 @@ export function resolveGating(input: GatingInput): LessonAccess[] {
       teacherOverridden: explicitUnlock !== null,
       state,
       completed: state === 'COMPLETED',
+      percent: state === 'COMPLETED' ? 100 : (input.percents?.get(lesson.id) ?? 0),
     };
   });
 }
@@ -330,7 +347,7 @@ export async function loadCourseGating(
     }),
     db.lessonProgress.findMany({
       where: { studentId, lessonId: { in: lessonIds } },
-      select: { lessonId: true, state: true },
+      select: { lessonId: true, state: true, percent: true },
     }),
   ]);
 
@@ -342,6 +359,7 @@ export async function loadCourseGating(
     prerequisites: new Map(lessons.map((l) => [l.id, l.prerequisites.map((p) => p.requiredId)])),
     overrides,
     progress: new Map(progress.map((p) => [p.lessonId, p.state])),
+    percents: new Map(progress.map((p) => [p.lessonId, p.percent])),
   };
 }
 

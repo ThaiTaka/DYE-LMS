@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 
 import { currentActor, signOut } from '@/auth';
 import { db } from '@/lib/db';
-import { demCanhBaoChuaXuLy } from '@/lib/teacher-data';
+import { demCanhBaoChuaXuLy, demTuLuanChoCham } from '@/lib/teacher-data';
 
 async function dangXuat(): Promise<void> {
   'use server';
@@ -50,7 +50,11 @@ export async function VoGiaoVien({
    * a decorative count can never take down the page it decorates.
    */
   const actor = await currentActor();
-  const soCanhBao = actor ? await demCanhBaoChuaXuLy(actor) : 0;
+  // Both counts, in parallel: neither may fail the page (each answers 0 on
+  // error), and a badge that only shows on some pages is worse than none.
+  const [soCanhBao, soTuLuan] = actor
+    ? await Promise.all([demCanhBaoChuaXuLy(actor), demTuLuanChoCham(actor)])
+    : [0, 0];
 
   return (
     <>
@@ -78,6 +82,9 @@ export async function VoGiaoVien({
             <MucDieuHuong href="/giao-vien/giao-trinh">Giáo trình</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/hoc-sinh">Học sinh</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/ket-qua">Kết quả</MucDieuHuong>
+            <MucDieuHuong href="/giao-vien/tu-luan" huy={soTuLuan}>
+              Tự luận
+            </MucDieuHuong>
             <MucDieuHuong href="/giao-vien/thong-ke">Thống kê</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/canh-bao" huy={soCanhBao}>
               Cảnh báo

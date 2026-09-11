@@ -20,6 +20,14 @@ const lichSuNopStub = vi.hoisted(() => vi.fn());
 const noiDungBanStub = vi.hoisted(() => vi.fn());
 const khoiPhucStub = vi.hoisted(() => vi.fn());
 const chayThuStub = vi.hoisted(() => vi.fn());
+const refreshStub = vi.hoisted(() => vi.fn());
+
+// The workspace calls `router.refresh()` once a verdict lands, so the
+// server-rendered progress bar and block badge move without a reload. jsdom
+// has no app router mounted, so the hook has to be stubbed.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshStub }),
+}));
 
 vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
   tuDongLuu: luuStub,
@@ -33,6 +41,7 @@ vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
 }));
 
 beforeEach(() => {
+  refreshStub.mockReset();
   for (const s of [
     luuStub,
     nopStub,
@@ -523,6 +532,17 @@ describe('Khu làm bài', () => {
     // as the system having lost their work.
     expect(await screen.findByText(/Đang chờ chấm/i)).toBeInTheDocument();
     expect(await screen.findByText(/Đúng rồi/i, {}, { timeout: 8000 })).toBeInTheDocument();
+
+    // The numbers behind the verdict are shown, not only the label.
+    expect(screen.getByText(/6\/6 test/)).toBeInTheDocument();
+
+    /*
+     * And the lesson re-renders from the server. The ✓ on the block and the
+     * "Phần bắt buộc" bar are server-rendered from BlockProgress, which the
+     * judge writes on ACCEPTED; without this refresh the student saw "Đúng
+     * rồi" in the list and 0 / 5 on the bar until they reloaded by hand.
+     */
+    expect(refreshStub).toHaveBeenCalledTimes(1);
   }, 15_000);
 
   it('sân chơi không có nút nộp bài', async () => {

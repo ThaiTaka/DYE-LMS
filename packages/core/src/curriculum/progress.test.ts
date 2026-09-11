@@ -357,6 +357,43 @@ describe('Tiến độ đạt 100% theo lộ trình riêng của từng học si
     expect(progress.isComplete).toBe(false);
   });
 
+  it('làm dở một bài thì thanh tiến độ khoá học vẫn nhích, không đứng ở 0%', async () => {
+    /*
+     * The post-deployment report: "students submit, get ACCEPTED, and course
+     * progress stays at 0%". Under the old binary rule a lesson counted only
+     * when EVERY required block was done, so a student three challenges into
+     * Buổi 1 with the quiz untouched read 0/19 lessons = 0%. The bar now takes
+     * the mean of each lesson's own percent, which `syncLessonCompletion`
+     * writes on every accepted answer.
+     */
+    await setTier(fx.studentA1, 'CO_BAN');
+    const lessonId = lessonByOrder.get(1)!;
+    await fx.db.lessonProgress.upsert({
+      where: { studentId_lessonId: { studentId: fx.studentA1, lessonId } },
+      create: { studentId: fx.studentA1, lessonId, state: 'IN_PROGRESS', percent: 60 },
+      update: { state: 'IN_PROGRESS', percent: 60 },
+    });
+
+    const progress = await courseProgress(fx.db, fx.studentA1, fx.courseId);
+
+    // Nothing is finished…
+    expect(progress.required.completed).toBe(0);
+    expect(progress.isComplete).toBe(false);
+    // …but the work is visible: 60 / 19 lessons ≈ 3%, not 0.
+    expect(progress.required.percent).toBe(3);
+  });
+
+  it('bài đã HOÀN THÀNH luôn tính 100 dù ô percent cũ còn 0', async () => {
+    // Rows written before the `percent` column existed carry 0. A lesson the
+    // engine has already declared COMPLETED must not regress to 0% because
+    // its cache was never filled in.
+    await setTier(fx.studentA1, 'CO_BAN');
+    await completeThrough(fx.studentA1, 19); // writes state only, percent stays 0
+
+    const progress = await courseProgress(fx.db, fx.studentA1, fx.courseId);
+    expect(progress.required.percent).toBe(100);
+  });
+
   it('trả lời được câu hỏi "Tiếp theo làm gì?"', async () => {
     await setTier(fx.studentA1, 'CO_BAN');
     await completeThrough(fx.studentA1, 3);

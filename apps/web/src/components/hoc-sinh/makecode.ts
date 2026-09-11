@@ -29,6 +29,22 @@ export const GOC_MAKECODE = 'https://makecode.microbit.org';
  * own project storage in the student's browser rather than its cloud, so a
  * child's work is not silently syncing to a third party. `nocookiebanner=1`
  * removes a consent dialog that would sit on top of the workspace.
+ *
+ * ── The parameters go in the QUERY STRING, before `#editor` ──────────────────
+ * This used to build `/#editor?lang=vi`, with everything inside the fragment.
+ * Two URLs that differ only in their fragment are the SAME document to a
+ * browser: assigning one to an `<iframe src>` that holds the other performs a
+ * fragment navigation — no reload, no `load` event. So switching the language
+ * did not restart MakeCode. It fired `hashchange` inside a running editor,
+ * whose router re-entered `#editor` with the old language bundle still loaded,
+ * and the toolbox it had already rendered came apart. Our side then waited for
+ * a `workspaceloaded` that a fragment navigation never sends.
+ *
+ * With `lang` in the real query string, `vi` and `en` are different documents,
+ * and assigning the new `src` is a genuine navigation: MakeCode reloads with
+ * the right bundle and renders its toolbox from scratch, `load` fires, and the
+ * re-hydration path in khu-microbit.tsx runs exactly as designed. This is also
+ * the shape MakeCode's own embedding docs use (`/?lang=xx#editor`).
  */
 export function urlMakeCode(lang = 'vi'): string {
   const p = new URLSearchParams({
@@ -37,7 +53,7 @@ export function urlMakeCode(lang = 'vi'): string {
     nocookiebanner: '1',
     lang,
   });
-  return `${GOC_MAKECODE}/#editor?${p.toString()}`;
+  return `${GOC_MAKECODE}/?${p.toString()}#editor`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

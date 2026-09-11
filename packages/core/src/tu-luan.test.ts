@@ -11,7 +11,15 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 
 import { ForbiddenError } from './errors';
 import { actorFor, createFixture, type Fixture } from './testing/fixtures';
-import { chamTuLuan, moLaiTuLuan, nopTuLuan, trangThaiTuLuan, tuLuanChoCham } from './tu-luan';
+import {
+  chamTuLuan,
+  moLaiTuLuan,
+  nopTuLuan,
+  soTuLuanChoCham,
+  trangThaiTuLuan,
+  tuLuanChoCham,
+  tuLuanDaCham,
+} from './tu-luan';
 
 import type { Actor } from './session';
 
@@ -155,6 +163,54 @@ describe('Hàng chờ chấm', () => {
     expect(await tuLuanChoCham(fx.db, [fx.studentA1])).toHaveLength(1);
     await chamTuLuan(fx.db, teacherA, a.id, true);
     expect(await tuLuanChoCham(fx.db, [fx.studentA1])).toHaveLength(0);
+  });
+
+  it('huy hiệu đếm đúng số bài đang chờ, và về 0 khi chấm xong', async () => {
+    expect(await soTuLuanChoCham(fx.db, [fx.studentA1])).toBe(0);
+    await nopTuLuan(fx.db, hsA1, questionId, 'Bai cho dem');
+    expect(await soTuLuanChoCham(fx.db, [fx.studentA1])).toBe(1);
+
+    const a = await fx.db.answer.findFirstOrThrow({ where: { questionId } });
+    await chamTuLuan(fx.db, teacherA, a.id, true);
+    expect(await soTuLuanChoCham(fx.db, [fx.studentA1])).toBe(0);
+    // An empty scope is 0, never an unscoped count.
+    expect(await soTuLuanChoCham(fx.db, [])).toBe(0);
+  });
+});
+
+describe('Bài đã chấm', () => {
+  it('chấm xong thì sang danh sách đã chấm, mang đúng điểm và người thấy được', async () => {
+    await nopTuLuan(fx.db, hsA1, questionId, 'Bai da cham');
+    const a = await fx.db.answer.findFirstOrThrow({ where: { questionId } });
+
+    expect(await tuLuanDaCham(fx.db, [fx.studentA1])).toHaveLength(0);
+    await chamTuLuan(fx.db, teacherA, a.id, true);
+
+    const daCham = await tuLuanDaCham(fx.db, [fx.studentA1]);
+    expect(daCham).toHaveLength(1);
+    expect(daCham[0]?.answerId).toBe(a.id);
+    expect(daCham[0]?.dat).toBe(true);
+    expect(daCham[0]?.diem).toBe(daCham[0]?.diemToiDa);
+    expect(daCham[0]?.khoaViPham).toBe(false);
+    expect(daCham[0]?.chamLuc.getTime()).toBeGreaterThan(0);
+
+    /*
+     * The record is scoped exactly like the queue. A results list is the
+     * easiest place in an LMS to leak, because a missing WHERE reads as a
+     * working page rather than an error — so the other teacher gets nothing.
+     */
+    expect(await tuLuanDaCham(fx.db, [fx.studentB1])).toHaveLength(0);
+    expect(await tuLuanDaCham(fx.db, [])).toHaveLength(0);
+  });
+
+  it('mở lại thì rời khỏi cả danh sách đã chấm', async () => {
+    await nopTuLuan(fx.db, hsA1, questionId, 'Bai se mo lai');
+    const a = await fx.db.answer.findFirstOrThrow({ where: { questionId } });
+    await chamTuLuan(fx.db, teacherA, a.id, false);
+    expect(await tuLuanDaCham(fx.db, [fx.studentA1])).toHaveLength(1);
+
+    await moLaiTuLuan(fx.db, teacherA, a.id);
+    expect(await tuLuanDaCham(fx.db, [fx.studentA1])).toHaveLength(0);
   });
 });
 

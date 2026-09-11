@@ -31,7 +31,7 @@ import {
 import { parseNoiDung, type NoiDungKhoi } from './block-content';
 import { db } from './db';
 
-import type { BlockType, QuestionType, Tier } from '@prisma/client';
+import type { BlockType, QuestionType, Tier, Verdict } from '@prisma/client';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Dashboard
@@ -61,6 +61,33 @@ export interface DuLieuBangDieuKhien {
   tongBaiDaXong: number;
   huyHieu: Array<{ slug: string; name: string; iconEmoji: string }>;
   chuoiNgay: number;
+  /**
+   * The student's most recent hand-ins across every course, newest first.
+   *
+   * Lives on the dashboard because the per-block history inside a lesson only
+   * answers "how did I do on THIS exercise", and a student who wants to know
+   * "what did I hand in this week, and what happened to it" had nowhere to
+   * look. The rows the lock voided (`focus-lock:` in runnerError) are shown
+   * exactly like any other zero — hiding them would be hiding a consequence
+   * the student was told about.
+   */
+  baiNopGanDay: BaiNopGanDay[];
+}
+
+export interface BaiNopGanDay {
+  id: string;
+  attemptNo: number;
+  verdict: Verdict;
+  score: number;
+  totalPoints: number;
+  passedTests: number;
+  totalTests: number;
+  /** Still in the queue or on the worker. */
+  dangCho: boolean;
+  nopLuc: string;
+  problemTitle: string;
+  /** Null for a problem no longer attached to a lesson. */
+  lesson: { slug: string; title: string; order: number } | null;
 }
 
 /** Courses this student is actually enrolled in, with resolved progress. */
@@ -132,7 +159,7 @@ export async function duLieuBangDieuKhien(studentId: string): Promise<DuLieuBang
   const conGoiY = courses.find((c) => c.progress.nextLesson);
   const target = chuaXong ?? conGoiY ?? null;
 
-  const [tongBaiDaXong, badges, streak] = await Promise.all([
+  const [tongBaiDaXong, badges, streak, baiNop] = await Promise.all([
     db.lessonProgress.count({ where: { studentId, state: 'COMPLETED' } }),
     db.studentBadge.findMany({
       where: { studentId },
@@ -141,6 +168,22 @@ export async function duLieuBangDieuKhien(studentId: string): Promise<DuLieuBang
       take: 6,
     }),
     db.streak.findUnique({ where: { studentId }, select: { current: true } }),
+    db.submission.findMany({
+      where: { studentId },
+      orderBy: { createdAt: 'desc' },
+      take: 8,
+      select: {
+        id: true,
+        attemptNo: true,
+        verdict: true,
+        score: true,
+        passedTests: true,
+        totalTests: true,
+        createdAt: true,
+        problem: { select: { title: true, totalPoints: true } },
+        lesson: { select: { slug: true, title: true, order: true } },
+      },
+    }),
   ]);
 
   return {
@@ -158,6 +201,19 @@ export async function duLieuBangDieuKhien(studentId: string): Promise<DuLieuBang
     tongBaiDaXong,
     huyHieu: badges.map((b) => b.badge),
     chuoiNgay: streak?.current ?? 0,
+    baiNopGanDay: baiNop.map((s) => ({
+      id: s.id,
+      attemptNo: s.attemptNo,
+      verdict: s.verdict,
+      score: s.score,
+      totalPoints: s.problem.totalPoints,
+      passedTests: s.passedTests,
+      totalTests: s.totalTests,
+      dangCho: s.verdict === 'PENDING' || s.verdict === 'RUNNING',
+      nopLuc: s.createdAt.toISOString(),
+      problemTitle: s.problem.title,
+      lesson: s.lesson,
+    })),
   };
 }
 

@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
 
+import { useRouter } from 'next/navigation';
+
 import {
   chayThu,
   khoiPhuc,
@@ -127,10 +129,13 @@ export function KhuLamBai({
 
   const tuLuu = useTuLuu(blockId);
   const id = useId();
+  const router = useRouter();
   const maRef = useRef(ma);
   maRef.current = ma;
   /** Bounds the judging poll, so a stuck worker cannot poll forever. */
   const soLanHoi = useRef(0);
+  /** Was anything still being judged on the previous poll? */
+  const dangChoTruoc = useRef(false);
 
   const doiMa = useCallback(
     (moi: string) => {
@@ -163,6 +168,22 @@ export function KhuLamBai({
    */
   useEffect(() => {
     const dangCho = baiNop.some((s) => s.dangCho);
+
+    /*
+     * The verdict just landed: re-render the lesson from the server.
+     *
+     * Everything that says "done" on this page — the ✓ on the block header,
+     * the "Phần bắt buộc" bar, the next-lesson unlock — is server-rendered
+     * from BlockProgress, which the judge writes when it accepts. The poll
+     * above only refreshes this component's own list, so without this the
+     * student saw "Đúng rồi 🎉" in the history and 0 / 5 on the bar until they
+     * reloaded by hand — which read as the system not having recorded their
+     * work. `refresh()` keeps client state (the editor, this open panel) and
+     * re-fetches the server tree.
+     */
+    if (dangChoTruoc.current && !dangCho) router.refresh();
+    dangChoTruoc.current = dangCho;
+
     if (!dangCho || soLanHoi.current >= 30) return;
 
     const t = setTimeout(() => {
@@ -171,7 +192,7 @@ export function KhuLamBai({
     }, 2000);
 
     return () => clearTimeout(t);
-  }, [baiNop, napLichSu]);
+  }, [baiNop, napLichSu, router]);
 
   const xemBan = useCallback(
     async (version: number) => {
@@ -509,26 +530,33 @@ function LichSuNop({ baiNop }: { baiNop: BaiDaNopHienThi[] }) {
               <span className="ms-2 text-chu-phu">{gioPhut(s.nopLuc)}</span>
             </span>
 
-            <span
-              className={
-                s.dangCho
-                  ? 'text-chu-phu'
-                  : s.verdict === 'ACCEPTED'
-                    ? 'font-semibold text-dung'
-                    : 'text-thu-lai'
-              }
-            >
-              {s.dangCho ? <span aria-hidden="true">⏳ </span> : null}
-              {NHAN_KET_QUA[s.verdict] ?? s.verdict}
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+              <span
+                className={
+                  s.dangCho
+                    ? 'text-chu-phu'
+                    : s.verdict === 'ACCEPTED'
+                      ? 'font-semibold text-dung'
+                      : 'text-thu-lai'
+                }
+              >
+                {s.dangCho ? <span aria-hidden="true">⏳ </span> : null}
+                {NHAN_KET_QUA[s.verdict] ?? s.verdict}
+              </span>
+              {/*
+                The numbers behind the verdict. A student who sees "Chưa khớp
+                kết quả" and nothing else cannot tell whether they were one test
+                away or nowhere near; 4/5 tells them to look for one edge case.
+              */}
+              {!s.dangCho && s.totalTests > 0 ? (
+                <span className="text-chu-phu">
+                  {s.passedTests}/{s.totalTests} test · {s.score} điểm
+                </span>
+              ) : null}
             </span>
           </li>
         ))}
       </ul>
-
-      <p className="mt-3 mb-0 text-sm text-chu-nhat">
-        Phần chấm bài tự động đang được xây. Bài của em đã được lưu lại đầy đủ và sẽ được chấm ngay
-        khi tính năng này mở.
-      </p>
     </section>
   );
 }

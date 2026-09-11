@@ -20,8 +20,18 @@ import type { BlockType, PrismaClient, ProgressState, Tier } from '@prisma/clien
 
 export interface ProgressCounts {
   total: number;
+  /** Lessons (or blocks) that are entirely done. */
   completed: number;
-  /** 0–100, rounded. */
+  /**
+   * 0–100, rounded.
+   *
+   * At course level this is the MEAN of each required lesson's own percent,
+   * not `completed / total`. The two agree whenever every lesson is either
+   * untouched or finished; they differ — and this one is right — for the
+   * student who has passed three of the five challenges in Buổi 4. Under the
+   * binary rule that student sat at 0% for the whole lesson and then jumped,
+   * which read to them as "the system did not record my work".
+   */
   percent: number;
 }
 
@@ -59,14 +69,17 @@ export interface CourseProgress {
   lockedCount: number;
 }
 
-function counts(total: number, completed: number): ProgressCounts {
-  return {
-    total,
-    completed,
-    // No required work means the required bar is trivially satisfied; callers
-    // use `hasRequiredWork` to distinguish that from genuine completion.
-    percent: total === 0 ? 100 : Math.round((completed / total) * 100),
-  };
+function counts(total: number, completed: number, percents?: readonly number[]): ProgressCounts {
+  // No required work means the required bar is trivially satisfied; callers
+  // use `hasRequiredWork` to distinguish that from genuine completion.
+  if (total === 0) return { total, completed, percent: 100 };
+
+  const percent =
+    percents && percents.length === total
+      ? Math.round(percents.reduce((a, b) => a + b, 0) / total)
+      : Math.round((completed / total) * 100);
+
+  return { total, completed, percent };
 }
 
 /** Summarise already-resolved lesson access. Pure — no database. */
@@ -79,8 +92,16 @@ export function summariseProgress(
   const required = access.filter((a) => a.isRequired);
   const optional = access.filter((a) => !a.isRequired);
 
-  const requiredCounts = counts(required.length, required.filter((a) => a.completed).length);
-  const optionalCounts = counts(optional.length, optional.filter((a) => a.completed).length);
+  const requiredCounts = counts(
+    required.length,
+    required.filter((a) => a.completed).length,
+    required.map((a) => a.percent),
+  );
+  const optionalCounts = counts(
+    optional.length,
+    optional.filter((a) => a.completed).length,
+    optional.map((a) => a.percent),
+  );
 
   // Group by module, preserving the course's own module ordering.
   const byModule = new Map<string, LessonAccess[]>();
@@ -94,7 +115,11 @@ export function summariseProgress(
     .map(([moduleId, lessons]) => {
       const req = lessons.filter((l) => l.isRequired);
       const opt = lessons.filter((l) => !l.isRequired);
-      const reqCounts = counts(req.length, req.filter((l) => l.completed).length);
+      const reqCounts = counts(
+        req.length,
+        req.filter((l) => l.completed).length,
+        req.map((l) => l.percent),
+      );
 
       const meta = modules.get(moduleId);
       return {

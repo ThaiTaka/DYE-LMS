@@ -923,6 +923,7 @@ export async function chamBaiTuLuan(
     const kq = await chamTuLuan(db, actor, answerId, dung);
 
     revalidatePath('/giao-vien/ket-qua');
+    revalidatePath('/giao-vien/tu-luan');
 
     return {
       trangThai: 'thanh-cong',
@@ -953,6 +954,7 @@ export async function moLaiBaiTuLuan(
     const kq = await moLaiTuLuan(db, actor, answerId);
 
     revalidatePath('/giao-vien/ket-qua');
+    revalidatePath('/giao-vien/tu-luan');
 
     return {
       trangThai: 'thanh-cong',

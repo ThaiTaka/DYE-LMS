@@ -209,11 +209,17 @@ export const KhuMicrobit = memo(function KhuMicrobit({
   /*
    * The editor's language.
    *
-   * Changing this changes the iframe `src`, and changing `src` reloads the
-   * editor — there is no way to re-language a running MakeCode instance. The
-   * reload is therefore the mechanism, not a side effect, and everything below
-   * is built around surviving it: the blocks are pushed into `workspaceRef`
-   * before the switch, and `workspaceloaded` puts them back afterwards.
+   * There is no way to re-language a running MakeCode instance, so a switch
+   * is a RELOAD, and everything below is built around surviving one: the
+   * blocks are pushed into `workspaceRef` before the switch, and
+   * `workspaceloaded` puts them back afterwards.
+   *
+   * The reload is forced two ways, and both are needed. The `src` now differs
+   * in its query string rather than only its fragment (see `urlMakeCode`), so
+   * the browser treats it as a new document. And the frame is rendered with
+   * `key={locale}`, so React unmounts the old `<iframe>` and mounts a fresh
+   * one rather than writing `src` on the existing element — a guarantee that
+   * does not depend on how the URL happens to differ.
    */
   const [locale, setLocale] = useState<NgonNgu>('vi');
   const [dangDoiNgonNgu, setDangDoiNgonNgu] = useState(false);
@@ -405,8 +411,11 @@ export const KhuMicrobit = memo(function KhuMicrobit({
    * a button that quietly eats a child's work.
    *
    * MakeCode renders its own toolbox from its own bundle, so the categories
-   * come back in the new language by themselves; there is nothing of ours to
-   * re-inject.
+   * come back in the new language by themselves — PROVIDED the editor actually
+   * reloads. It once did not: the URL changed only in its fragment, the frame
+   * did a hash navigation instead of a load, and the toolbox vanished into a
+   * half-re-routed editor. `urlMakeCode` and the `key` on the frame both fix
+   * that; there is still nothing of ours to re-inject.
    */
   const doiNgonNgu = useCallback(
     (moi: NgonNgu) => {
@@ -463,7 +472,7 @@ export const KhuMicrobit = memo(function KhuMicrobit({
             </p>
           ) : null}
 
-          <KhungMakeCode src={src} onSanSang={sanSang} />
+          <KhungMakeCode key={locale} src={src} onSanSang={sanSang} />
         </div>
       )}
 

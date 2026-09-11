@@ -61,6 +61,7 @@ function bai(over: Partial<LessonAccess> = {}): LessonAccess {
     teacherOverridden: false,
     state: 'NOT_STARTED',
     completed: false,
+    percent: 0,
     ...over,
   };
 }

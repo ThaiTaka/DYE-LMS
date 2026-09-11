@@ -17,7 +17,7 @@ export default async function TrangDangNhap({
   const vuaDoiMatKhau = params['doi-mat-khau'] === 'xong';
 
   return (
-    <main className="relative isolate flex min-h-screen flex-col items-center justify-center bg-slate-950 px-4 py-16 text-slate-100 sm:px-6 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[linear-gradient(to_right,rgba(34,211,238,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(34,211,238,0.07)_1px,transparent_1px)] before:bg-[size:40px_40px] before:[mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,#000_40%,transparent_100%)] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-[radial-gradient(ellipse_50%_35%_at_50%_45%,rgba(34,211,238,0.14),transparent_70%)] after:content-['']">
+    <main className="relative isolate flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-[#0b1a33] px-4 py-16 text-slate-100 sm:px-6 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[linear-gradient(to_right,rgba(148,163,184,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.10)_1px,transparent_1px)] before:bg-[size:40px_40px] before:[mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,#000_30%,transparent_100%)] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-[radial-gradient(ellipse_55%_40%_at_50%_40%,rgba(56,189,248,0.10),transparent_70%)] after:content-['']">
       <div className="mb-8 w-full max-w-md text-center">
         <p aria-hidden="true" className="m-0 text-4xl">
           🐍
@@ -56,7 +56,7 @@ export default async function TrangDangNhap({
         </p>
       ) : null}
 
-      <div className="w-full max-w-md rounded-the border border-cyan-500/30 bg-white/5 p-6 shadow-[0_0_48px_-12px_rgba(34,211,238,0.35)] backdrop-blur-md">
+      <div className="w-full max-w-md rounded-the border border-white/15 bg-white/10 p-6 shadow-[0_8px_32px_-8px_rgba(2,6,23,0.6),0_0_0_1px_rgba(56,189,248,0.12)_inset] backdrop-blur-md">
         <h2 className="mt-0 mb-5 text-xl font-bold text-slate-50">Đăng nhập</h2>
         <FormDangNhap tiepTuc={tiepTuc} />
       </div>

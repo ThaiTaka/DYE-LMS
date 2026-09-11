@@ -91,6 +91,28 @@ describe('URL trình soạn thảo', () => {
     expect(url).toContain('ws=browser');
   });
 
+  it('đổi ngôn ngữ phải là một TÀI LIỆU khác, không chỉ khác phần #hash', () => {
+    /*
+     * The bug this guards: two URLs that differ only in their fragment are the
+     * same document to a browser, so assigning one to an <iframe src> holding
+     * the other is a hash navigation — no reload, no `load` event, and a
+     * MakeCode that re-routes in place with the wrong bundle and loses its
+     * toolbox. The language has to live before the `#`.
+     */
+    const vi = new URL(urlMakeCode('vi'));
+    const en = new URL(urlMakeCode('en'));
+
+    expect(vi.searchParams.get('lang')).toBe('vi');
+    expect(en.searchParams.get('lang')).toBe('en');
+    // Same origin + path + hash; only the query differs — that is what makes
+    // the browser treat it as a new document.
+    expect(vi.hash).toBe('#editor');
+    expect(en.hash).toBe('#editor');
+    expect(`${vi.origin}${vi.pathname}${vi.search}`).not.toBe(
+      `${en.origin}${en.pathname}${en.search}`,
+    );
+  });
+
   it('dùng https, không tạo nội dung hỗn hợp', () => {
     // Mixed content would break the page on an https deployment.
     expect(urlMakeCode()).toMatch(/^https:\/\//);
@@ -634,6 +656,27 @@ describe('Khu làm việc Micro:bit', () => {
       expect(container.querySelector('iframe')!.getAttribute('src')).toContain('lang=en'),
     );
     expect(screen.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('đổi ngôn ngữ thay HẲN phần tử iframe, không chỉ ghi lại src', async () => {
+    /*
+     * Writing `src` on an existing frame is what a hash-only URL turns into a
+     * no-op. `key={locale}` makes React discard the old element and mount a
+     * new one, which is a full load whatever the URL looks like — so the
+     * element identity is the thing to assert on.
+     */
+    const nguoiDung = userEvent.setup();
+    const { container } = await dung();
+    const truoc = container.querySelector('iframe');
+    expect(truoc).not.toBeNull();
+
+    await nguoiDung.click(screen.getByRole('button', { name: 'EN' }));
+    editorTraBlocks(BLOCKS);
+
+    await waitFor(() =>
+      expect(container.querySelector('iframe')!.getAttribute('src')).toContain('lang=en'),
+    );
+    expect(container.querySelector('iframe')).not.toBe(truoc);
   });
 
   it('đổi ngôn ngữ KHÔNG làm mất khối lệnh đang làm', async () => {
