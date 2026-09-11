@@ -33,6 +33,7 @@ import {
   xepHocSinhVaoLop,
   xoaTaiKhoanHocSinh,
   xoaTaiKhoanNhanVien,
+  huyLuotThi,
   moKhoaViPham,
   xuLyCanhBao,
   ForbiddenError,
@@ -1112,6 +1113,57 @@ export async function moKhoaBaiViPham(
       thongDiep:
         `Đã mở khoá cho ${kq.tenHocSinh}.` +
         (hoanLai ? ` Điểm của ${hoanLai} đã được trả lại như cũ.` : ''),
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Milestone exams
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Set an exam sitting aside so the student may sit again.
+ *
+ * The remedy for a wrong lock. Two strikes is a short fuse and the signal is
+ * noisy — a Vietnamese IME grabbing focus, a Windows notification — so this
+ * is expected to be used, not a break-glass control. It also covers a genuine
+ * lock the teacher has decided to forgive, which is their call.
+ *
+ * The note is required for the same reason the lock's unlock note is: a zero
+ * that appeared for a recorded reason and vanished for none is exactly what a
+ * parent asks about and nobody can answer. Nothing is deleted — the strikes,
+ * the zero and the time stay on the VOIDED row.
+ *
+ * `huyLuotThi` runs `authorize(student: manage)` inside, so a teacher cannot
+ * void a sitting of a child they do not teach by guessing its id.
+ */
+export async function huyLuotThiHocSinh(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const attemptId = String(form.get('attemptId') ?? '');
+    const ghiChu = String(form.get('ghiChu') ?? '').trim();
+    if (!attemptId) return { trangThai: 'loi', thongDiep: 'Thiếu lượt thi cần huỷ.' };
+    if (ghiChu.length < 3) {
+      return {
+        trangThai: 'loi',
+        thongDiep: 'Thầy cô ghi ngắn gọn lý do huỷ lượt giúp em nhé (ít nhất 3 ký tự).',
+      };
+    }
+
+    const kq = await huyLuotThi(db, actor, attemptId, ghiChu);
+
+    revalidatePath('/giao-vien/hoc-sinh/[id]', 'page');
+    revalidatePath('/khoa-hoc/[slug]', 'page');
+    revalidatePath('/kiem-tra/[slug]', 'page');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep: `Đã huỷ lượt thi "${kq.examTitle}" của ${kq.tenHocSinh}. Em có thể vào thi lại.`,
     };
   });
 }

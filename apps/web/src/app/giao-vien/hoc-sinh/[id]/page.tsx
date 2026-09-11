@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { HangCanThiep } from '@/components/giao-vien/dieu-khien-bai-hoc';
 import { DieuKhienNhanh } from '@/components/giao-vien/dieu-khien-nhanh';
+import { LuotThiHocSinh } from '@/components/giao-vien/luot-thi-hoc-sinh';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { XepLop } from '@/components/giao-vien/xep-lop';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
@@ -10,6 +11,7 @@ import { requireRole, xemDuoc } from '@/lib/guard';
 import {
   duLieuHocSinh,
   duLieuHocSinhChuaSanSang,
+  duLieuLuotThiHocSinh,
   duLieuTapTrungHocSinh,
   type HocSinhChuaSanSang,
 } from '@/lib/teacher-data';
@@ -45,7 +47,10 @@ export default async function TrangHocSinh({
 
   // Loaded only after `duLieuHocSinh` has proved this actor may see this child,
   // and guarded again inside on the same permission.
-  const tapTrung = await duLieuTapTrungHocSinh(actor, id);
+  const [tapTrung, luotThi] = await Promise.all([
+    duLieuTapTrungHocSinh(actor, id),
+    duLieuLuotThiHocSinh(actor, id),
+  ]);
 
   return (
     <VoGiaoVien tenHienThi={actor.displayName} vaiTro={actor.role === 'ADMIN' ? 'ADMIN' : 'TEACHER'}>
@@ -144,6 +149,8 @@ export default async function TrangHocSinh({
         the tab and nothing else. A teacher reading it at the end of a long day
         will fill in the missing half themselves otherwise.
       */}
+      <LuotThiHocSinh luot={luotThi} />
+
       {tapTrung && tapTrung.soLanRoi > 0 ? (
         <section
           aria-labelledby="tap-trung"

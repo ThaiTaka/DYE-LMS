@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
+import { TheKiemTra } from '@/components/hoc-sinh/the-kiem-tra';
 import { VoHocSinh } from '@/components/hoc-sinh/vo';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireSession } from '@/lib/guard';
@@ -69,6 +70,18 @@ export default async function BanDoKhoaHoc({ params }: { params: Promise<{ slug:
                     <MucBaiHoc bai={l} />
                   </li>
                 ))}
+                {/*
+                  A milestone exam sits in the map right where it sits in the
+                  course: after the last lesson it covers. Cards, not rows, so
+                  the checkpoints stand out when a student scans the page.
+                */}
+                {data.kiemTra
+                  .filter((k) => k.afterLessonOrder >= m.sessionFrom && k.afterLessonOrder <= m.sessionTo)
+                  .map((k) => (
+                    <li key={k.examId} className="pt-2">
+                      <TheKiemTra bai={k} />
+                    </li>
+                  ))}
               </ul>
             </section>
           </li>

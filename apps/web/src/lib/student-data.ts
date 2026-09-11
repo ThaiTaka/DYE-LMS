@@ -15,12 +15,14 @@ import 'server-only';
  */
 import {
   courseProgress,
+  danhSachKiemTra,
   khoaHienTai,
   lessonView,
   resolveCourseAccess,
   resolveLessonAccess,
   tuLuanCuaHocSinh,
   stageOf,
+  type BaiThiHienThi,
   type BlockAccess,
   type CourseProgress,
   type FlowStage,
@@ -242,6 +244,8 @@ export interface DuLieuBanDoKhoaHoc {
   iconEmoji: string;
   progress: CourseProgress;
   modules: MoDunBanDo[];
+  /** Milestone exams, each with the student's standing on it. */
+  kiemTra: BaiThiHienThi[];
 }
 
 export async function duLieuBanDoKhoaHoc(
@@ -286,6 +290,8 @@ export async function duLieuBanDoKhoaHoc(
     else byModule.set(item.moduleId, [item]);
   }
 
+  const kiemTra = await danhSachKiemTra(db, studentId, course.id);
+
   return {
     courseId: course.id,
     slug: course.slug,
@@ -309,6 +315,7 @@ export async function duLieuBanDoKhoaHoc(
         soDaXong: batBuoc.filter((l) => l.completed).length,
       };
     }),
+    kiemTra,
   };
 }
 

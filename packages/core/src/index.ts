@@ -149,6 +149,31 @@ export {
   type TomTatTapTrung,
 } from './giam-sat';
 
+// ── Question marking (shared by quiz, lock re-marking and exams) ─────────────
+export { chamMotCau, chuanHoaTraLoi, diemMotCau, tuChamDuoc, type CauHoiDeCham } from './cham-cau-hoi';
+
+// ── Milestone exams ──────────────────────────────────────────────────────────
+export {
+  batDauLamBai,
+  cauHoiChoBaiThi,
+  danhSachKiemTra,
+  DEDUP_VI_PHAM_MS,
+  ghiNhanViPham,
+  hetGioNeuQuaHan,
+  huyLuotThi,
+  luotThiCuaHocSinh,
+  luuTraLoi,
+  moBaiThi,
+  nopBaiThi,
+  TRE_NOP_MS,
+  type BaiThiHienThi,
+  type CauHoiThi,
+  type KetQuaBatDau,
+  type KetQuaViPham,
+  type LuotThiCuaHocSinh,
+  type LuotThiTomTat,
+} from './kiem-tra';
+
 // ── Auto-zero lock ───────────────────────────────────────────────────────────
 export {
   biKhoaViPham,

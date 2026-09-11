@@ -13,6 +13,7 @@ import type { CourseSpec } from '../types.ts';
 import { module1, module2 } from './python-co-ban-m1.ts';
 import { module3, module4 } from './python-co-ban-m2.ts';
 import { module5, module6 } from './python-co-ban-m3.ts';
+import { kiemTraPythonCoBan } from './python-co-ban-kiem-tra.ts';
 import { module7, module8, module9 } from './python-co-ban-m4.ts';
 
 export const pythonCoBan: CourseSpec = {
@@ -31,4 +32,5 @@ export const pythonCoBan: CourseSpec = {
   colorToken: 'emerald',
   iconEmoji: '🐍',
   modules: [module1, module2, module3, module4, module5, module6, module7, module8, module9],
+  exams: kiemTraPythonCoBan,
 };

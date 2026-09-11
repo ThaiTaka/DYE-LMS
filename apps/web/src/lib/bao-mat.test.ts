@@ -103,6 +103,15 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   // Same shape for integrity locks: the lock is re-read through `danhSachKhoa`,
   // which applies the teacher's relational scope, before anything is restored.
   'moKhoaViPham(': 'danhSachKhoa(',
+  // Milestone exams. Every student write loads the attempt through
+  // `luotDangMo`, which refuses any attempt that is not the session student's
+  // own; starting a sitting is refused by the gating engine until the lessons
+  // before it are done; voiding is a teacher write behind `authorize`.
+  'batDauLamBai(': 'exam-locked-by-lessons',
+  'luuTraLoi(': 'luotDangMo(',
+  'ghiNhanViPham(': 'luotDangMo(',
+  'nopBaiThi(': 'luotDangMo(',
+  'huyLuotThi(': 'authorize(',
 };
 
 const CACH_KIEM_QUYEN = [...KIEM_QUYEN_TRUC_TIEP, ...Object.keys(UY_QUYEN_CHO_CORE)];

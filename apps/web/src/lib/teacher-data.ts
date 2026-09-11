@@ -37,6 +37,7 @@ import {
   thongKeGiangDay,
   tierRank,
   tomTatTapTrung,
+  luotThiCuaHocSinh,
   tuLuanChoCham,
   tuLuanDaCham,
   soTuLuanChoCham,
@@ -48,6 +49,7 @@ import {
   type FlowStage,
   type KhoaHocChonDuoc,
   type LessonAccess,
+  type LuotThiCuaHocSinh,
   type TuLuanChoCham,
   type TuLuanDaCham,
   type ThongKeTongQuan,
@@ -1511,4 +1513,14 @@ export async function duLieuTapTrungHocSinh(
   if (!duocXem) return null;
 
   return tomTatTapTrung(db, studentId);
+}
+
+/** Every exam sitting by this student, with strike logs, for their detail page. */
+export async function duLieuLuotThiHocSinh(
+  actor: Actor,
+  studentId: string,
+): Promise<LuotThiCuaHocSinh[]> {
+  const duocXem = await can(db, actor, { resource: 'student', action: 'read', studentId });
+  if (!duocXem) return [];
+  return luotThiCuaHocSinh(db, studentId);
 }

@@ -179,6 +179,8 @@ enum NotificationType {
   /// Separate from FOCUS_ALERT because it demands a decision, not a check-in:
   /// only a teacher can lift it, and until one does the student cannot hand in.
   FOCUS_LOCK
+  /// A milestone-exam attempt auto-locked at zero on its second strike.
+  EXAM_LOCKED
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -201,34 +203,36 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  accounts          Account[]
-  sessions          Session[]
-  taughtClasses     Class[]           @relation("ClassTeacher")
-  enrollments       Enrollment[]
-  lessonProgress    LessonProgress[]
-  blockProgress     BlockProgress[]
-  submissions       Submission[]
-  codeDrafts        CodeDraft[]
-  codeSnapshots     CodeSnapshot[]
-  quizAttempts      QuizAttempt[]
-  trackAssignments  TrackAssignment[] @relation("TrackStudent")
-  tracksAssigned    TrackAssignment[] @relation("TrackAssigner")
-  overridesCreated  LessonOverride[]  @relation("OverrideAuthor")
-  overridesReceived LessonOverride[]  @relation("OverrideStudent")
-  xpEvents          XpEvent[]
-  earnedBadges      StudentBadge[]
-  streak            Streak?
-  gameProjects      GameProject[]
-  feedbackAuthored  Feedback[]        @relation("FeedbackAuthor")
-  auditLogs         AuditLog[]
-  notifications     Notification[]
-  announcements     Announcement[]    @relation("AnnouncementAuthor")
-  problemsAuthored  Problem[]         @relation("ProblemAuthor")
-  focusEvents       FocusEvent[]
-  focusAlerts       FocusAlert[]      @relation("FocusAlertStudent")
-  focusAlertsSeen   FocusAlert[]      @relation("FocusAlertReviewer")
-  focusLocks        FocusLock[]       @relation("FocusLockStudent")
-  focusLocksCleared FocusLock[]       @relation("FocusLockClearer")
+  accounts           Account[]
+  sessions           Session[]
+  taughtClasses      Class[]           @relation("ClassTeacher")
+  enrollments        Enrollment[]
+  lessonProgress     LessonProgress[]
+  blockProgress      BlockProgress[]
+  submissions        Submission[]
+  codeDrafts         CodeDraft[]
+  codeSnapshots      CodeSnapshot[]
+  quizAttempts       QuizAttempt[]
+  trackAssignments   TrackAssignment[] @relation("TrackStudent")
+  tracksAssigned     TrackAssignment[] @relation("TrackAssigner")
+  overridesCreated   LessonOverride[]  @relation("OverrideAuthor")
+  overridesReceived  LessonOverride[]  @relation("OverrideStudent")
+  xpEvents           XpEvent[]
+  earnedBadges       StudentBadge[]
+  streak             Streak?
+  gameProjects       GameProject[]
+  feedbackAuthored   Feedback[]        @relation("FeedbackAuthor")
+  auditLogs          AuditLog[]
+  notifications      Notification[]
+  announcements      Announcement[]    @relation("AnnouncementAuthor")
+  problemsAuthored   Problem[]         @relation("ProblemAuthor")
+  focusEvents        FocusEvent[]
+  focusAlerts        FocusAlert[]      @relation("FocusAlertStudent")
+  focusAlertsSeen    FocusAlert[]      @relation("FocusAlertReviewer")
+  focusLocks         FocusLock[]       @relation("FocusLockStudent")
+  focusLocksCleared  FocusLock[]       @relation("FocusLockClearer")
+  examAttempts       ExamAttempt[]     @relation("ExamAttemptStudent")
+  examAttemptsVoided ExamAttempt[]     @relation("ExamAttemptVoider")
 
   @@index([role, isActive])
 }
@@ -353,6 +357,7 @@ model Course {
   classCourses ClassCourse[]
   tracks       TrackAssignment[]
   gameProjects GameProject[]
+  exams        Exam[]
 
   @@index([order])
 }
@@ -741,6 +746,7 @@ model Quiz {
   questions Question[]
   attempts  QuizAttempt[]
   blocks    LessonBlock[]
+  exams     Exam[]
 }
 
 model Question {
@@ -1216,4 +1222,126 @@ model FocusLock {
   @@index([classId, state, createdAt])
   @@index([state, createdAt])
   @@index([studentId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MILESTONE EXAMS
+// ═══════════════════════════════════════════════════════════════════════════
+
+enum ExamAttemptState {
+  IN_PROGRESS
+  /// Handed in — by the student, or by the clock.
+  SUBMITTED
+  /// Auto-submitted at zero when strikes reached `Exam.maxStrikes`.
+  LOCKED_CHEATING
+  /// A teacher set this attempt aside; the student may start another.
+  VOIDED
+}
+
+/// What the browser reported as the departure.
+///
+/// Descriptive, like FocusEventType: the browser knows a window lost focus, not
+/// why. A teacher reviewing a locked attempt sees the kind and the time, and
+/// decides for themselves whether two WINDOW_BLURs eight seconds apart during
+/// a Unikey popup were cheating.
+enum ExamStrikeKind {
+  FULLSCREEN_EXIT
+  TAB_HIDDEN
+  WINDOW_BLUR
+}
+
+/// A milestone exam ("Bài kiểm tra lớn"), placed after lesson N of a course.
+///
+/// The questions are a Quiz — the same question bank, the same server-side
+/// marking, the same answer key that never reaches a browser. What the Exam adds
+/// is the frame around them: a clock, a passing line, a placement in the course,
+/// and the strike rule.
+model Exam {
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  courseId         String
+  quizId           String
+  title            String
+  description      String?
+  /// Sits after this lesson. Unlocks once every REQUIRED lesson up to and
+  /// including it is complete for the student's tier.
+  afterLessonOrder Int
+  durationMinutes  Int
+  /// Percent of maxScore needed to pass.
+  passingScore     Int      @default(60)
+  /// Departures tolerated before the attempt locks at zero. 2 means: one
+  /// warning, then the lock. Stored per exam so a teacher can run a gentler
+  /// rule for a first exam than for a final.
+  maxStrikes       Int      @default(2)
+  isPublished      Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  course   Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  quiz     Quiz          @relation(fields: [quizId], references: [id])
+  attempts ExamAttempt[]
+
+  @@unique([courseId, afterLessonOrder])
+  @@index([courseId, isPublished])
+}
+
+/// One sitting of an exam.
+///
+/// ── The deadline is stored, not derived ──────────────────────────────────────
+/// `deadlineAt` is written at start from the exam's duration and never re-read
+/// from it. Editing an exam's duration must not move the clock on a student who
+/// is mid-sitting, in either direction.
+///
+/// ── Answers live here, not in QuizAttempt ────────────────────────────────────
+/// QuizAttempt/Answer is the practice-quiz record and is keyed for that use.
+/// Exam answers are a JSON map written on every autosave and marked once, at
+/// submit, so an attempt is one row a teacher can read in one query.
+model ExamAttempt {
+  id           String           @id @default(cuid())
+  examId       String
+  studentId    String
+  attemptNo    Int              @default(1)
+  state        ExamAttemptState @default(IN_PROGRESS)
+  startedAt    DateTime         @default(now())
+  deadlineAt   DateTime
+  submittedAt  DateTime?
+  /// questionId → response (string | string[] | boolean).
+  answers      Json             @default("{}")
+  score        Int              @default(0)
+  maxScore     Int              @default(0)
+  isPassed     Boolean          @default(false)
+  /// Departures counted by the SERVER, after dedupe. Never the client's tally.
+  cheatStrikes Int              @default(0)
+  lockedAt     DateTime?
+  lockReason   String?
+  voidedById   String?
+  voidedAt     DateTime?
+  voidNote     String?
+
+  exam     Exam         @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student  User         @relation("ExamAttemptStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  voidedBy User?        @relation("ExamAttemptVoider", fields: [voidedById], references: [id], onDelete: SetNull)
+  strikes  ExamStrike[]
+
+  @@unique([examId, studentId, attemptNo])
+  @@index([studentId, state])
+  @@index([examId, state, startedAt])
+}
+
+/// One counted departure, append-only.
+///
+/// `cheatStrikes` on the attempt is the number; this is the evidence. A lock
+/// with only a counter behind it cannot be reviewed — "2" says nothing about
+/// whether both strikes landed inside the same three seconds.
+model ExamStrike {
+  id        String         @id @default(cuid())
+  attemptId String
+  kind      ExamStrikeKind
+  /// Ordinal as the server counted it: 1, 2, …
+  strikeNo  Int
+  createdAt DateTime       @default(now())
+
+  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, createdAt])
 }

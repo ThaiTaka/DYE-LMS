@@ -26,6 +26,31 @@ export interface CourseSpec {
   colorToken: string;
   iconEmoji: string;
   modules: ModuleSpec[];
+  /** Milestone exams, each placed after a lesson. Optional: most courses ship none at first. */
+  exams?: ExamSpec[];
+}
+
+/**
+ * A milestone exam.
+ *
+ * `quiz` is its own question bank — never a lesson quiz reused, because a
+ * lesson quiz is practice the student has already seen with its explanations.
+ * Assertions refuse SHORT_ANSWER in an exam bank: the exam marks itself at
+ * submit, and a question a machine cannot mark would be worth points nobody
+ * could award.
+ */
+export interface ExamSpec {
+  slug: string;
+  title: string;
+  description?: string;
+  /** Must match an existing lesson `order` in the course. */
+  afterLessonOrder: number;
+  durationMinutes: number;
+  /** Percent. */
+  passingScore?: number;
+  /** Departures before the attempt locks at zero. Default 2. */
+  maxStrikes?: number;
+  quiz: QuizSpec;
 }
 
 export interface ModuleSpec {

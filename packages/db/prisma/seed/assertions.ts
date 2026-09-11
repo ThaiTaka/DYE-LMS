@@ -75,6 +75,15 @@ function studentFacingStrings(course: CourseSpec): Array<{ where: string; text: 
       }
     }
   }
+
+  // Exams are student-facing too: the same language rule applies to them.
+  for (const exam of course.exams ?? []) {
+    out.push({ where: `exam:${exam.slug}.title`, text: exam.title });
+    if (exam.description) out.push({ where: `exam:${exam.slug}.description`, text: exam.description });
+    for (const q of exam.quiz.questions) {
+      out.push({ where: `exam:${exam.slug}.prompt`, text: q.prompt });
+    }
+  }
   return out;
 }
 
@@ -278,6 +287,51 @@ function assertProblemsAreTestable(course: CourseSpec): void {
         `${problem.slug} requests EGRESS_ALLOWLIST. Seeded problems must run with network disabled; ` +
           'use RuntimeImage.PY_WEB with mockFixtures instead.',
       );
+    }
+  }
+}
+
+/**
+ * Exams: placed on a real lesson, markable by a machine, big enough to mean
+ * something.
+ */
+function assertExams(course: CourseSpec): void {
+  const orders = new Set(course.modules.flatMap((m) => m.lessons.map((l) => l.order)));
+  const slugs = new Set<string>();
+
+  for (const exam of course.exams ?? []) {
+    if (slugs.has(exam.slug)) {
+      throw new CurriculumViolation('duplicate-exam-slug', `${course.slug}/${exam.slug}`);
+    }
+    slugs.add(exam.slug);
+
+    if (!orders.has(exam.afterLessonOrder)) {
+      throw new CurriculumViolation(
+        'exam-after-missing-lesson',
+        `${exam.slug} sits after lesson ${exam.afterLessonOrder}, which ${course.slug} does not have`,
+      );
+    }
+    if (exam.durationMinutes < 5) {
+      throw new CurriculumViolation('exam-too-short', `${exam.slug}: ${exam.durationMinutes} minutes`);
+    }
+    if (exam.quiz.questions.length < 5) {
+      throw new CurriculumViolation(
+        'exam-too-few-questions',
+        `${exam.slug} has ${exam.quiz.questions.length} questions; a milestone needs at least 5`,
+      );
+    }
+    const tuLuan = exam.quiz.questions.filter((q) => q.type === 'SHORT_ANSWER');
+    if (tuLuan.length > 0) {
+      throw new CurriculumViolation(
+        'exam-has-essay',
+        `${exam.slug} contains ${tuLuan.length} SHORT_ANSWER question(s); an exam marks itself at ` +
+          'submit and cannot award points a machine cannot judge',
+      );
+    }
+    for (const q of exam.quiz.questions) {
+      if ((q.type === 'MULTIPLE_CHOICE' || q.type === 'TRUE_FALSE') && !q.choices?.some((c) => c.isCorrect)) {
+        throw new CurriculumViolation('exam-question-no-key', `${exam.slug}: "${q.prompt.slice(0, 40)}"`);
+      }
     }
   }
 }
@@ -695,6 +749,7 @@ export function assertCurriculumCompliance(courses: CourseSpec[]): void {
     assertPedagogicalFlow(course);
     assertProblemsAreTestable(course);
     assertNoDeficitLanguage(course);
+    assertExams(course);
 
     switch (course.slug) {
       case 'python-co-ban':

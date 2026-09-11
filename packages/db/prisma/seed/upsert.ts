@@ -274,6 +274,29 @@ export async function seedCourse(db: PrismaClient, spec: CourseSpec): Promise<Se
     }
   }
 
+  // Milestone exams. Keyed on slug so a re-seed updates in place and never
+  // orphans a student's attempts; the question bank goes through the same
+  // upsert as a lesson quiz.
+  for (const exam of spec.exams ?? []) {
+    const quizId = await upsertQuiz(db, exam.quiz);
+    const examData = {
+      courseId: course.id,
+      quizId,
+      title: exam.title,
+      description: exam.description ?? null,
+      afterLessonOrder: exam.afterLessonOrder,
+      durationMinutes: exam.durationMinutes,
+      passingScore: exam.passingScore ?? 60,
+      maxStrikes: exam.maxStrikes ?? 2,
+      isPublished: true,
+    };
+    await db.exam.upsert({
+      where: { slug: exam.slug },
+      create: { slug: exam.slug, ...examData },
+      update: examData,
+    });
+  }
+
   const blocks = spec.modules.reduce(
     (n, m) => n + m.lessons.reduce((k, l) => k + l.blocks.length, 0),
     0,

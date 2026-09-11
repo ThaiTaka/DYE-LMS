@@ -35,9 +35,10 @@
  * a trap — and the warning is also the only part of this system that can change
  * the outcome, because it is the one moment a student can still choose to stay.
  */
+import { chamMotCau } from './cham-cau-hoi';
 import { ForbiddenError } from './errors';
 
-import type { FocusLockState, PrismaClient } from '@prisma/client';
+import type { FocusLockState, PrismaClient, QuestionType } from '@prisma/client';
 import type { Actor } from './session';
 
 /**
@@ -799,41 +800,18 @@ export async function moKhoaViPham(
 /**
  * Re-mark one answer from the question bank.
  *
- * A deliberately small copy of the marking rules in the quiz action rather than
- * an import: this runs inside a transaction in @dye/core, and reaching into the
- * web app's server action from here would invert the dependency. The two must
- * agree, which is what `khoa-vi-pham.test.ts` checks.
+ * The rules live in `cham-cau-hoi.ts`, shared with the quiz action and the
+ * milestone exam, so the three cannot drift.
  */
 function chamLai(
   question: {
-    type: string;
+    type: QuestionType;
+    points: number;
     acceptedAnswers: string[];
     matchMode: string;
     choices: Array<{ id: string; isCorrect: boolean }>;
   },
   response: unknown,
 ): boolean {
-  const traLoi = typeof response === 'string' ? response : String(response ?? '');
-
-  if (question.type === 'MULTIPLE_CHOICE' || question.type === 'TRUE_FALSE') {
-    return question.choices.some((c) => c.id === traLoi && c.isCorrect);
-  }
-
-  if (question.type === 'FILL_BLANK') {
-    const chuan = (t: string): string => {
-      const base = t.trim();
-      if (question.matchMode === 'exact') return base;
-      const lower = base.toLowerCase().replace(/\s+/g, ' ');
-      if (question.matchMode === 'insensitive') return lower;
-      return lower
-        .normalize('NFD')
-        .replace(/[̀-ͯ]/g, '')
-        .replace(/đ/g, 'd');
-    };
-    return question.acceptedAnswers.some((a) => chuan(a) === chuan(traLoi));
-  }
-
-  // SHORT_ANSWER is teacher-graded. Restoring it to "not correct" is right:
-  // it returns to the review queue rather than being auto-passed.
-  return false;
+  return chamMotCau(question, response);
 }
