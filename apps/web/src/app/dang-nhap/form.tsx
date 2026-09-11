@@ -6,7 +6,7 @@ import { useFormStatus } from 'react-dom';
 import { dangNhap, type TrangThaiDangNhap } from './actions';
 
 const O_NHAP =
-  'min-h-cham w-full rounded-nut border border-vien bg-the px-4 py-2.5 text-base text-chu';
+  'min-h-cham w-full rounded-nut border border-slate-500 bg-slate-900/70 px-4 py-2.5 text-base text-slate-100 outline-none transition-colors placeholder:text-slate-500 focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/40';
 
 function NutGui() {
   const { pending } = useFormStatus();
@@ -14,7 +14,7 @@ function NutGui() {
     <button
       type="submit"
       disabled={pending}
-      className="min-h-cham w-full rounded-nut bg-chinh px-5 py-3 text-base font-semibold text-white hover:bg-chinh-dam disabled:opacity-60"
+      className="min-h-cham w-full rounded-nut bg-gradient-to-r from-cyan-400 to-sky-500 px-5 py-3 text-base font-bold text-slate-950 shadow-lg shadow-cyan-500/25 transition hover:from-cyan-300 hover:to-sky-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:opacity-60"
     >
       {pending ? 'Đang đăng nhập…' : 'Đăng nhập'}
     </button>
@@ -31,14 +31,14 @@ export function FormDangNhap({ tiepTuc }: { tiepTuc: string }) {
       {trangThai.loi ? (
         <p
           role="alert"
-          className="m-0 rounded-nut border border-loi/30 bg-loi-nen p-3.5 text-sm font-medium text-loi"
+          className="m-0 rounded-nut border border-rose-400/30 bg-rose-400/10 p-3.5 text-sm font-medium text-rose-300"
         >
           {trangThai.loi}
         </p>
       ) : null}
 
       <div>
-        <label htmlFor="username" className="mb-1.5 block font-semibold">
+        <label htmlFor="username" className="mb-1.5 block font-semibold text-slate-100">
           Tên đăng nhập
         </label>
         <input
@@ -54,7 +54,7 @@ export function FormDangNhap({ tiepTuc }: { tiepTuc: string }) {
       </div>
 
       <div>
-        <label htmlFor="password" className="mb-1.5 block font-semibold">
+        <label htmlFor="password" className="mb-1.5 block font-semibold text-slate-100">
           Mật khẩu
         </label>
         <input

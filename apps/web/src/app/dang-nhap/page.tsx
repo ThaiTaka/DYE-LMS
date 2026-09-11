@@ -17,8 +17,8 @@ export default async function TrangDangNhap({
   const vuaDoiMatKhau = params['doi-mat-khau'] === 'xong';
 
   return (
-    <main className="mx-auto max-w-md px-4 py-16 sm:px-6">
-      <div className="mb-8 text-center">
+    <main className="relative isolate flex min-h-screen flex-col items-center justify-center bg-slate-950 px-4 py-16 text-slate-100 sm:px-6 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[linear-gradient(to_right,rgba(34,211,238,0.07)_1px,transparent_1px),linear-gradient(to_bottom,rgba(34,211,238,0.07)_1px,transparent_1px)] before:bg-[size:40px_40px] before:[mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,#000_40%,transparent_100%)] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-[radial-gradient(ellipse_50%_35%_at_50%_45%,rgba(34,211,238,0.14),transparent_70%)] after:content-['']">
+      <div className="mb-8 w-full max-w-md text-center">
         <p aria-hidden="true" className="m-0 text-4xl">
           🐍
         </p>
@@ -32,36 +32,36 @@ export default async function TrangDangNhap({
           middot just disappears into the gap.
         */}
         <div className="mt-2 mb-1 flex flex-wrap items-baseline justify-center gap-x-2.5 gap-y-0.5">
-          <h1 className="m-0 text-3xl font-bold">DYE LMS</h1>
-          <span aria-hidden="true" className="text-chu-nhat">
+          <h1 className="m-0 text-3xl font-bold tracking-tight text-slate-50">DYE LMS</h1>
+          <span aria-hidden="true" className="text-slate-500">
             ·
           </span>
-          <p className="m-0 text-sm text-chu-nhat">
+          <p className="m-0 text-sm text-slate-400">
             Phát triển bởi{' '}
-            <span className="bg-gradient-to-r from-chinh to-chinh-dam bg-clip-text font-bold text-transparent">
+            <span className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text font-bold text-transparent">
               Thái Taka
             </span>
           </p>
         </div>
 
-        <p className="m-0 text-chu-phu">Học lập trình Python cùng nhau</p>
+        <p className="m-0 text-slate-300">Học lập trình Python cùng nhau</p>
       </div>
 
       {vuaDoiMatKhau ? (
         <p
           role="status"
-          className="mb-5 rounded-nut border border-dung/30 bg-dung-nen p-4 text-center font-medium text-dung"
+          className="mb-5 w-full max-w-md rounded-nut border border-emerald-400/30 bg-emerald-400/10 p-4 text-center font-medium text-emerald-300"
         >
           ✓ Đã đổi mật khẩu. Em đăng nhập lại bằng mật khẩu mới nhé.
         </p>
       ) : null}
 
-      <div className="rounded-the border border-vien bg-the p-6">
-        <h2 className="mt-0 mb-5 text-xl font-bold">Đăng nhập</h2>
+      <div className="w-full max-w-md rounded-the border border-cyan-500/30 bg-white/5 p-6 shadow-[0_0_48px_-12px_rgba(34,211,238,0.35)] backdrop-blur-md">
+        <h2 className="mt-0 mb-5 text-xl font-bold text-slate-50">Đăng nhập</h2>
         <FormDangNhap tiepTuc={tiepTuc} />
       </div>
 
-      <p className="mt-6 text-center text-sm text-chu-nhat">
+      <p className="mt-6 w-full max-w-md text-center text-sm text-slate-400">
         Quên mật khẩu? Hãy nhờ thầy cô đặt lại giúp em.
       </p>
 
