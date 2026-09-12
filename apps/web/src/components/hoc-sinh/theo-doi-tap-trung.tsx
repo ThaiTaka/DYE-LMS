@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 
 import { ghiNhanRoiTab, khoaBaiViPham } from '@/app/bai-hoc/[slug]/giam-sat-actions';
 
+import { dangTrongIframe } from './tieu-diem';
+
 /**
  * Focus tracker for the lesson page.
  *
@@ -274,7 +276,25 @@ export function TheoDoiTapTrung({
       else quayLai();
     };
 
-    const onBlur = (): void => roiDi('WINDOW_BLUR');
+    /*
+     * A blur is judged one tick later, not on arrival.
+     *
+     * Clicking into the MakeCode iframe on this very page fires `blur` on the
+     * window exactly as switching to another app does. The two are told apart
+     * only by where focus LANDED, and that is not yet set when the event fires
+     * — see `dangTrongIframe`. A real departure loses nothing to the delay: a
+     * tab switch is caught by `visibilitychange` on its own, and a bare blur
+     * still opens the episode a millisecond later.
+     */
+    let henBlur: ReturnType<typeof setTimeout> | null = null;
+    const onBlur = (): void => {
+      if (henBlur !== null) clearTimeout(henBlur);
+      henBlur = setTimeout(() => {
+        henBlur = null;
+        if (dangTrongIframe()) return; // still in the lesson, inside the editor
+        roiDi('WINDOW_BLUR');
+      }, 0);
+    };
     const onFocus = (): void => quayLai();
 
     document.addEventListener('visibilitychange', onVisibility);
@@ -282,6 +302,7 @@ export function TheoDoiTapTrung({
     window.addEventListener('focus', onFocus);
 
     return () => {
+      if (henBlur !== null) clearTimeout(henBlur);
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
@@ -332,15 +353,18 @@ export function TheoDoiTapTrung({
  */
 function DaBiKhoa() {
   return (
-    <div role="alert" className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div
+      role="alert"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+    >
       <div className="w-full max-w-lg rounded-nut border-2 border-thu-lai bg-the p-6 text-center shadow-2xl">
         <p aria-hidden="true" className="m-0 text-4xl">
           🔒
         </p>
         <h2 className="mt-3 mb-2 text-2xl font-bold text-thu-lai">Bài này đã bị khoá</h2>
         <p className="m-0 text-chu">
-          Hệ thống ghi nhận em rời khỏi bài quá số lần cho phép, nên bài này bị tính 0 điểm. Thầy
-          cô đã nhận được thông báo — em nói với thầy cô để được mở lại nhé.
+          Hệ thống ghi nhận em rời khỏi bài quá số lần cho phép, nên bài này bị tính 0 điểm. Thầy cô
+          đã nhận được thông báo — em nói với thầy cô để được mở lại nhé.
         </p>
       </div>
     </div>
@@ -428,9 +452,9 @@ function CanhBaoRoiTab({
 
         <div id="canh-bao-roi-tab-noi-dung" className="mt-0 mb-5 space-y-3 text-chu">
           <p className="m-0">
-            Bạn đã rời khỏi màn hình làm bài <strong>{soLan} lần</strong>! Hệ thống DYE LMS đang
-            ghi nhận và giám sát quá trình làm bài. Số lần rời màn hình được gửi trực tiếp đến giáo
-            viên quản lý, và giáo viên sẽ xem xét bài làm của bạn!
+            Bạn đã rời khỏi màn hình làm bài <strong>{soLan} lần</strong>! Hệ thống DYE LMS đang ghi
+            nhận và giám sát quá trình làm bài. Số lần rời màn hình được gửi trực tiếp đến giáo viên
+            quản lý, và giáo viên sẽ xem xét bài làm của bạn!
           </p>
           <p className="m-0">
             Nếu bạn rời khỏi màn hình <strong>{gioiHan} lần</strong>, bài này sẽ{' '}

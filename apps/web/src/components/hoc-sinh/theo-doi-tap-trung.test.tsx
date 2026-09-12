@@ -333,6 +333,59 @@ describe('Theo dõi tập trung', () => {
     expect(chu).toContain('0 điểm');
   });
 
+  // ── Bấm vào trình soạn MakeCode không phải là rời khỏi bài ────────────────
+
+  it('focus vào iframe của trang (trình soạn MakeCode) KHÔNG tính là rời đi', async () => {
+    /*
+     * The lesson page embeds MakeCode in an iframe. Clicking a block moves
+     * focus into it and the window fires `blur` — indistinguishable from
+     * switching apps, except by where focus landed. With the lock now able to
+     * zero a lesson at NGUONG_KHOA, a student dragging blocks was being walked
+     * toward a zero for doing the lesson.
+     */
+    const { container } = await dung();
+    const khung = document.createElement('iframe');
+    container.appendChild(khung);
+
+    act(() => {
+      khung.focus();
+      expect(document.activeElement).toBe(khung);
+      window.dispatchEvent(new Event('blur'));
+    });
+    // The verdict lands one tick later; give it that tick.
+    await new Promise((r) => setTimeout(r, 5));
+
+    luc += 5000;
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+
+    expect(ghiNhanStub).not.toHaveBeenCalled();
+  });
+
+  it('mất focus sang ứng dụng khác vẫn tính là rời đi', async () => {
+    // The control: a blur with focus on nothing of ours still opens a
+    // departure, one tick late, and the return still closes it.
+    await dung();
+
+    act(() => {
+      (document.activeElement as HTMLElement | null)?.blur?.();
+      window.dispatchEvent(new Event('blur'));
+    });
+    await new Promise((r) => setTimeout(r, 5));
+    await waitFor(() =>
+      expect(ghiNhanStub).toHaveBeenCalledWith(expect.objectContaining({ loai: 'WINDOW_BLUR' })),
+    );
+
+    luc += 5000;
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+    await waitFor(() =>
+      expect(ghiNhanStub).toHaveBeenCalledWith(expect.objectContaining({ loai: 'RETURNED' })),
+    );
+  });
+
   it('không có vi phạm axe khi đang hiện cảnh báo', async () => {
     ghiNhanStub.mockResolvedValue({ ok: true, soLanRoi: NGUONG_NHAC });
     const { container } = await dung();

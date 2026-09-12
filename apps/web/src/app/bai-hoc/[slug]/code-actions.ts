@@ -203,6 +203,27 @@ export interface KetQuaChayThuUI {
   thoiGianMs: number;
   /** Human sentence when the run did not simply finish. */
   ghiChu: string;
+  /** What the program read on stdin, so the student can see what it was answering. */
+  dauVao: string;
+}
+
+/**
+ * The input a run gets when the caller has none to offer.
+ *
+ * Sample tests first, then any other visible test. Hidden tests are never read
+ * here: their input is what a submission is graded on, and a run button that
+ * quietly echoed it would hand the answer key to anyone who pressed it.
+ */
+async function dauVaoMau(problemId: string | null): Promise<string> {
+  if (!problemId) return '';
+
+  const mau = await db.testCase.findFirst({
+    where: { problemId, isHidden: false },
+    orderBy: [{ isSample: 'desc' }, { order: 'asc' }],
+    select: { input: true },
+  });
+
+  return mau?.input ?? '';
 }
 
 /**
@@ -220,14 +241,32 @@ export interface KetQuaChayThuUI {
  * learning. `ok` means "the sandbox ran your program and here is what happened";
  * it is false only when we could not run it at all.
  */
-export async function chayThu(blockId: string, code: string, stdin = ''): Promise<KetQuaChayThuUI> {
+export async function chayThu(
+  blockId: string,
+  code: string,
+  stdin?: string,
+): Promise<KetQuaChayThuUI> {
   try {
     const actor = await hocSinhHienTai();
-    await moKhoiCode(db, actor.id, blockId);
+    const khoi = await moKhoiCode(db, actor.id, blockId);
 
-    const kq = await chayThuTrongSandbox(code, stdin);
+    /*
+     * Feed the sample input when the caller sends none.
+     *
+     * The editor has no stdin box, so "Chạy thử" always arrived here with an
+     * empty string — and a program that calls `input()` then died on its first
+     * line with EOFError, which to a ten-year-old reads as "my code is broken".
+     * The problem's first sample test carries exactly the input the student is
+     * being taught to handle, so that is what the run reads.
+     *
+     * `undefined` means "no opinion", and gets the sample. An explicit `''`
+     * from a caller that wants an empty stdin is honoured as written.
+     */
+    const dauVao = stdin ?? (await dauVaoMau(khoi.problemId));
+
+    const kq = await chayThuTrongSandbox(code, dauVao);
     if (!kq.ok) {
-      return { ok: false, stdout: '', stderr: '', thoiGianMs: 0, ghiChu: kq.loi };
+      return { ok: false, stdout: '', stderr: '', thoiGianMs: 0, ghiChu: kq.loi, dauVao };
     }
 
     const r = kq.ketQua;
@@ -244,10 +283,17 @@ export async function chayThu(blockId: string, code: string, stdin = ''): Promis
                 ? 'Kết quả dài quá nên đã cắt bớt phần cuối.'
                 : '';
 
-    return { ok: true, stdout: r.stdout, stderr: r.stderr, thoiGianMs: r.thoiGianMs, ghiChu };
+    return {
+      ok: true,
+      stdout: r.stdout,
+      stderr: r.stderr,
+      thoiGianMs: r.thoiGianMs,
+      ghiChu,
+      dauVao,
+    };
   } catch (error) {
     const { thongDiep } = loiThanhThongDiep(error);
-    return { ok: false, stdout: '', stderr: '', thoiGianMs: 0, ghiChu: thongDiep };
+    return { ok: false, stdout: '', stderr: '', thoiGianMs: 0, ghiChu: thongDiep, dauVao: '' };
   }
 }
 

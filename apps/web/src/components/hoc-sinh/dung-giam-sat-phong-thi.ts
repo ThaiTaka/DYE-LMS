@@ -4,6 +4,8 @@ import { useEffect, useRef } from 'react';
 
 import { baoViPham, type KetQuaViPhamUI } from '@/app/kiem-tra/[slug]/actions';
 
+import { dangTrongIframe } from './tieu-diem';
+
 /**
  * The exam room's lockdown hook.
  *
@@ -99,7 +101,9 @@ export function useGiamSatPhongThi({ attemptId, onKetQua, goc }: TuyChonGiamSat)
       huyHenBlur();
       if (!dangVang.current) return;
       const veRoi =
-        document.visibilityState === 'visible' && document.hasFocus() && dangFullscreen(goc.current);
+        document.visibilityState === 'visible' &&
+        document.hasFocus() &&
+        dangFullscreen(goc.current);
       if (veRoi) dangVang.current = false;
     };
 
@@ -110,18 +114,31 @@ export function useGiamSatPhongThi({ attemptId, onKetQua, goc }: TuyChonGiamSat)
 
     const onBlur = (): void => {
       if (dangVang.current) return;
-      // Unambiguous departures were already caught by their own events. A
-      // blur that arrives with the page still visible and still fullscreen is
-      // the ambiguous case, and gets the grace period.
-      if (document.visibilityState === 'hidden' || !dangFullscreen(goc.current)) {
-        roiDi('WINDOW_BLUR');
-        return;
-      }
       huyHenBlur();
-      henBlur.current = setTimeout(() => {
-        henBlur.current = null;
-        if (!document.hasFocus()) roiDi('WINDOW_BLUR');
-      }, NGUONG_BLIP_MS);
+
+      /*
+       * Every blur is judged on a timer now, never on arrival.
+       *
+       * Where focus went is only knowable after a tick — the spec fires blur
+       * BEFORE the new focused area is set — and "into one of our own iframes"
+       * is the one destination that is not a departure at all: a student
+       * clicking a block in an embedded editor is inside the exam, not outside
+       * it. Reading `activeElement` synchronously here would never see it.
+       *
+       * The unambiguous case (page hidden, or fullscreen already gone) keeps
+       * its immediate verdict, one tick late. The ambiguous case — still
+       * visible, still fullscreen — keeps the full grace period, in which the
+       * page has to have genuinely lost focus before it counts.
+       */
+      const roRang = document.visibilityState === 'hidden' || !dangFullscreen(goc.current);
+      henBlur.current = setTimeout(
+        () => {
+          henBlur.current = null;
+          if (dangTrongIframe()) return;
+          if (roRang || !document.hasFocus()) roiDi('WINDOW_BLUR');
+        },
+        roRang ? 0 : NGUONG_BLIP_MS,
+      );
     };
 
     const onFocus = (): void => thuQuayLai();

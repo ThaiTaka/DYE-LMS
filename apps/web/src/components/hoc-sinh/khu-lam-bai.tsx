@@ -365,12 +365,22 @@ export function KhuLamBai({
             <p className="m-0 px-4 pb-3 text-sm text-chu-phu">Đang chạy trong sandbox…</p>
           ) : ketQuaChay ? (
             <div className="px-4 pb-4">
+              {ketQuaChay.dauVao ? (
+                // The program read this. Without it a student whose code prints
+                // "Tổng: 15" has no idea where 15 came from, and one whose
+                // `input()` crashed cannot tell that it was fed nothing.
+                <p className="mt-0 mb-2 text-xs text-chu-nhat">
+                  Chạy với đầu vào mẫu:{' '}
+                  <code className="rounded border border-vien bg-the-mo px-1.5 py-0.5 font-mono">
+                    {ketQuaChay.dauVao.replace(/\n/g, ' ⏎ ')}
+                  </code>
+                </p>
+              ) : null}
+
               {ketQuaChay.stdout || ketQuaChay.stderr ? (
                 <pre className="m-0 max-h-64 overflow-auto rounded-nut bg-the-mo p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
                   {ketQuaChay.stdout}
-                  {ketQuaChay.stderr ? (
-                    <span className="text-loi">{ketQuaChay.stderr}</span>
-                  ) : null}
+                  {ketQuaChay.stderr ? <span className="text-loi">{ketQuaChay.stderr}</span> : null}
                 </pre>
               ) : ketQuaChay.ok ? (
                 <p className="m-0 text-sm text-chu-phu">
@@ -380,9 +390,7 @@ export function KhuLamBai({
               ) : null}
 
               {ketQuaChay.ghiChu ? (
-                <p
-                  className={`mt-2 mb-0 text-sm ${ketQuaChay.ok ? 'text-thu-lai' : 'text-loi'}`}
-                >
+                <p className={`mt-2 mb-0 text-sm ${ketQuaChay.ok ? 'text-thu-lai' : 'text-loi'}`}>
                   {ketQuaChay.ghiChu}
                 </p>
               ) : null}

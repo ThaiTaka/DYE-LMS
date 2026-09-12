@@ -54,10 +54,19 @@ beforeEach(() => {
   fullscreenEl = null;
   ketQua.mockReset();
   baoStub.mockReset();
-  baoStub.mockResolvedValue({ ok: true, cheatStrikes: 1, maxStrikes: 2, biKhoa: false, trungLap: false });
+  baoStub.mockResolvedValue({
+    ok: true,
+    cheatStrikes: 1,
+    maxStrikes: 2,
+    biKhoa: false,
+    trungLap: false,
+  });
 
   Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => hienThi });
-  Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => fullscreenEl });
+  Object.defineProperty(document, 'fullscreenElement', {
+    configurable: true,
+    get: () => fullscreenEl,
+  });
   document.hasFocus = () => coFocus;
 });
 
@@ -174,7 +183,13 @@ describe('một lần rời đi là MỘT báo cáo', () => {
   });
 
   it('kết quả từ máy chủ được chuyển cho người gọi — kể cả lệnh khoá', async () => {
-    baoStub.mockResolvedValue({ ok: true, cheatStrikes: 2, maxStrikes: 2, biKhoa: true, trungLap: false });
+    baoStub.mockResolvedValue({
+      ok: true,
+      cheatStrikes: 2,
+      maxStrikes: 2,
+      biKhoa: true,
+      trungLap: false,
+    });
     dungTrongPhong();
     await act(async () => {
       an();
@@ -205,6 +220,46 @@ describe('blur trần được ân hạn; hidden và thoát fullscreen thì khô
     expect(baoStub).toHaveBeenCalledWith('a1', 'WINDOW_BLUR');
   });
 
+  it('focus vào iframe của trang (trình soạn MakeCode) → KHÔNG phải rời đi, không báo', async () => {
+    /*
+     * Clicking a block inside an embedded editor moves focus into the frame
+     * and fires `blur` on the window exactly as switching apps does — students
+     * dragging blocks were being struck for doing the exam. The parent's
+     * activeElement is the <iframe> element itself, and that is the signal.
+     *
+     * Not fullscreen on purpose: that is the branch that used to strike on
+     * arrival with no check at all. (In fullscreen `document.hasFocus()` was
+     * already covering it.)
+     */
+    const { container } = dungTrongPhong();
+    fullscreenEl = null;
+
+    const khung = document.createElement('iframe');
+    container.appendChild(khung);
+
+    await act(async () => {
+      khung.focus();
+      expect(document.activeElement).toBe(khung);
+      window.dispatchEvent(new Event('blur'));
+      vi.advanceTimersByTime(NGUONG_BLIP_MS + 50);
+    });
+    expect(baoStub).not.toHaveBeenCalled();
+  });
+
+  it('mất focus sang nơi khác khi không fullscreen → vẫn báo, một tick sau', async () => {
+    // The control for the test above: a blur whose focus went NOWHERE of ours
+    // is still a departure, and the deferral must not have swallowed it.
+    dungTrongPhong();
+    fullscreenEl = null;
+
+    await act(async () => {
+      matFocus();
+      vi.advanceTimersByTime(1);
+    });
+    expect(baoStub).toHaveBeenCalledTimes(1);
+    expect(baoStub).toHaveBeenCalledWith('a1', 'WINDOW_BLUR');
+  });
+
   it('tab bị ẩn thì báo ngay, không chờ', async () => {
     dungTrongPhong();
     await act(async () => {
@@ -219,7 +274,9 @@ describe('không rò rỉ', () => {
     const add = vi.spyOn(document, 'addEventListener');
     const addW = vi.spyOn(window, 'addEventListener');
     dungTrongPhong(null);
-    expect(add.mock.calls.filter(([t]) => t === 'visibilitychange' || t === 'fullscreenchange')).toHaveLength(0);
+    expect(
+      add.mock.calls.filter(([t]) => t === 'visibilitychange' || t === 'fullscreenchange'),
+    ).toHaveLength(0);
     expect(addW.mock.calls.filter(([t]) => t === 'blur' || t === 'focus')).toHaveLength(0);
   });
 
