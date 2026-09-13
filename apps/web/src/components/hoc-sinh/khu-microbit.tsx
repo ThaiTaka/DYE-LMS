@@ -15,12 +15,14 @@ import {
 import { nopMicrobit, type KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
 
 import {
+  coKhoiLenh,
   dangGiuEditor,
   docWorkspace,
   giuEditor,
   GIOI_HAN_WORKSPACE,
   laTinNhanHopLe,
   theoDoiChuEditor,
+  tomTatTinNhan,
   traEditor,
   urlMakeCode,
   yeuCau,
@@ -38,6 +40,21 @@ export interface KhuMicrobitProps {
 }
 
 type TrangThaiEditor = 'dang-tai' | 'san-sang' | 'khong-tai-duoc';
+
+/** Where a workspace we are about to submit actually came from. */
+type NguonWorkspace = 'trinh-soan' | 'bo-nho';
+
+interface KetQuaLayWorkspace {
+  xml: string;
+  /*
+   * 'trinh-soan' — the editor answered just now, so this IS the current state
+   *                and an empty result is a real empty workspace.
+   * 'bo-nho'     — the editor did not answer; this is the newest we were given
+   *                earlier. An empty result here means we never heard from the
+   *                editor at all, which is our problem and not the student's.
+   */
+  nguon: NguonWorkspace;
+}
 
 /**
  * The two languages the editor is offered in.
@@ -132,7 +149,21 @@ let khungDangMo: HTMLIFrameElement | null = null;
  * elapses when the editor is wedged, or was never really there because a school
  * network blocked it.
  */
-const CHO_LUU_TOI_DA = 2_500;
+const CHO_LUU_TOI_DA = 2_000;
+
+/**
+ * Console trace for the MakeCode conversation.
+ *
+ * Left ON in production, on purpose. This path failed in a school and could not
+ * be reproduced anywhere else, and the one question that matters — did the
+ * editor ever hand us a workspace at all — is unanswerable without seeing what
+ * arrived on a real machine. The volume is a handful of lines per submission,
+ * and the payload itself is never dumped: `tomTatTinNhan` reports its shape.
+ */
+function ghiLog(viec: string, chiTiet?: unknown): void {
+  if (chiTiet === undefined) console.log(`[microbit] ${viec}`);
+  else console.log(`[microbit] ${viec}`, chiTiet);
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // The workspace card
@@ -262,7 +293,16 @@ export const KhuMicrobit = memo(function KhuMicrobit({
    *     event reads the new blocks even though React has not re-rendered yet.
    */
   const ghiNhanWorkspace = useCallback((xml: string) => {
-    if (!xml || xml.length > GIOI_HAN_WORKSPACE) return;
+    if (!xml) {
+      ghiLog('bo qua: workspace rong, giu nguyen ban dang co');
+      return;
+    }
+    if (xml.length > GIOI_HAN_WORKSPACE) {
+      ghiLog('bo qua: workspace qua lon', { soKyTu: xml.length, gioiHan: GIOI_HAN_WORKSPACE });
+      return;
+    }
+
+    ghiLog('ghi nhan workspace', { soKyTu: xml.length, coKhoiLenh: coKhoiLenh(xml) });
 
     workspaceRef.current = xml;
     setWorkspace(xml);
@@ -287,17 +327,40 @@ export const KhuMicrobit = memo(function KhuMicrobit({
    */
   const layWorkspaceMoiNhat = useCallback(
     () =>
-      new Promise<string>((tra) => {
-        const hen = setTimeout(() => {
+      new Promise<KetQuaLayWorkspace>((tra) => {
+        const batDauCho = Date.now();
+        let xong = false;
+
+        /** Resolve exactly once, whichever path gets there first. */
+        const traLoi = (xml: string, nguon: NguonWorkspace): void => {
+          if (xong) return;
+          xong = true;
           choLuu.current = null;
-          tra(workspaceRef.current);
+          ghiLog('lay workspace xong', {
+            nguon,
+            soKyTu: xml.length,
+            msCho: Date.now() - batDauCho,
+          });
+          tra({ xml, nguon });
+        };
+
+        const hen = setTimeout(() => {
+          /*
+           * The editor did not answer in time. This is NOT an error and must
+           * never surface as an empty workspace: fall back to the newest blocks
+           * we were given earlier in the session. A student who pressed "Nộp
+           * bài" meant it, and work they saved a minute ago is a far truer
+           * answer than nothing.
+           */
+          traLoi(workspaceRef.current, 'bo-nho');
         }, CHO_LUU_TOI_DA);
 
         choLuu.current = (xml) => {
           clearTimeout(hen);
-          tra(xml);
+          traLoi(xml, 'trinh-soan');
         };
 
+        ghiLog('xin workspace moi nhat tu trinh soan (saveproject)');
         guiToiEditor('saveproject');
       }),
     [guiToiEditor],
@@ -323,6 +386,7 @@ export const KhuMicrobit = memo(function KhuMicrobit({
       if (!laTinNhanHopLe(e.origin, e.data)) return;
 
       const data = e.data;
+      ghiLog('nhan tin nhan', tomTatTinNhan(data));
 
       if (data.type === 'pxthost' && data.action === 'workspaceloaded') {
         setTrangThai('san-sang');
@@ -354,13 +418,15 @@ export const KhuMicrobit = memo(function KhuMicrobit({
         const ws = docWorkspace(data);
         // A null read means the shape was not recognised. Keeping the previous
         // value beats overwriting a student's work with an empty workspace.
-        if (ws) ghiNhanWorkspace(ws.xml);
+        if (!ws) ghiLog('workspacesave: KHONG doc duoc workspace tu tin nhan nay');
+        else ghiNhanWorkspace(ws.xml);
         return;
       }
 
       if (data.id && data.success === true) {
         const ws = docWorkspace(data);
-        if (ws) ghiNhanWorkspace(ws.xml);
+        if (!ws) ghiLog('phan hoi thanh cong nhung khong kem workspace', { id: data.id });
+        else ghiNhanWorkspace(ws.xml);
       }
     };
 
@@ -385,13 +451,38 @@ export const KhuMicrobit = memo(function KhuMicrobit({
       /*
        * Pull the newest blocks out of the editor and submit THOSE.
        *
-       * Reading component state here — after a fixed 400 ms and a hope — is
-       * what sent empty payloads to a server check that then, quite correctly,
-       * called the workspace empty.
+       * ── Three outcomes, and they are not the same thing ──────────────────
+       * The version before this reported all three as "your workspace is
+       * empty", including the two that are OUR fault. A child looking straight
+       * at their own blocks while being told there are none stops trusting the
+       * page, and then — reasonably — stops trying.
+       *
+       *   blocks in hand          → submit them
+       *   editor says it IS empty → their workspace really is empty. Say so
+       *                             gently, and skip the server round trip.
+       *   editor never answered   → our failure. Never blame the student and
+       *                             never claim their work is gone; say what to
+       *                             do next.
        */
-      const xml = await layWorkspaceMoiNhat();
+      const { xml, nguon } = await layWorkspaceMoiNhat();
 
+      if (!coKhoiLenh(xml)) {
+        ghiLog('KHONG nop: khong thay khoi lenh nao', { nguon, soKyTu: xml.length });
+
+        setThongBao({
+          ok: false,
+          chu:
+            nguon === 'trinh-soan'
+              ? 'Vùng làm việc đang trống. Em kéo vài khối lệnh vào rồi nộp nhé.'
+              : 'Chưa đọc được khối lệnh từ trình soạn. Em đợi trình soạn hiện đầy đủ rồi bấm "Nộp bài" lại giúp thầy cô nhé — bài của em vẫn còn nguyên.',
+        });
+        return;
+      }
+
+      ghiLog('gui bai nop', { soKyTu: xml.length, nguon });
       const kq: KetQuaNop = await nopMicrobit(blockId, xml);
+      ghiLog('may chu tra loi', { trangThai: kq.trangThai });
+
       setThongBao({ ok: kq.trangThai === 'da-nhan', chu: kq.thongDiep });
     });
   }, [blockId, layWorkspaceMoiNhat]);

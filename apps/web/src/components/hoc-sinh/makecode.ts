@@ -139,6 +139,80 @@ export function docWorkspace(data: TinNhanTuEditor): { xml: string; json: string
 /** Largest workspace we will accept back from the editor. */
 export const GIOI_HAN_WORKSPACE = 512 * 1024;
 
+/**
+ * Does this workspace actually contain blocks?
+ *
+ * ── Why `xml !== ''` was the wrong test ──────────────────────────────────────
+ * An empty MakeCode workspace is NOT an empty string. It is the Blockly
+ * wrapper with nothing inside it:
+ *
+ *     <xml xmlns="https://developers.google.com/blockly/xml"></xml>
+ *
+ * That is ~55 characters of perfectly truthy text, so the server's
+ * `!blocksXml.trim()` check passes it and an empty workspace is accepted as a
+ * real submission. The reverse mistake is worse and is the one students hit:
+ * treating an unfamiliar shape as empty would refuse work that exists.
+ *
+ * So this is deliberately ASYMMETRIC. It answers "no" only for shapes it
+ * positively recognises as empty — the wrapper alone, or a wrapper holding
+ * nothing but a variable declaration, which is not yet a program. Anything it
+ * does not recognise is treated as having blocks, because refusing a child's
+ * work on a guess is the failure that must never happen.
+ */
+export function coKhoiLenh(xml: string): boolean {
+  if (!xml.trim()) return false;
+
+  const ruot = xml
+    .replace(/<\?xml[\s\S]*?\?>/g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .trim();
+
+  if (!ruot) return false;
+
+  // <xml ... /> — unambiguously nothing.
+  if (/^<xml\b[^>]*\/>$/.test(ruot)) return false;
+
+  const khop = /^<xml\b[^>]*>([\s\S]*)<\/xml>$/.exec(ruot);
+  // Not wrapper-shaped. Unrecognised, so assume it is real work.
+  if (!khop) return true;
+
+  const trong = (khop[1] ?? '')
+    // A `<variables>` element is bookkeeping MakeCode writes on its own; a
+    // workspace holding only that has had nothing dragged into it yet.
+    .replace(/<variables\b[^>]*\/>/g, '')
+    .replace(/<variables\b[^>]*>[\s\S]*?<\/variables>/g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .trim();
+
+  return trong.length > 0;
+}
+
+/**
+ * A compact, safe description of an inbound message, for the console.
+ *
+ * Never the raw payload: a workspace runs to hundreds of kilobytes and dumping
+ * it makes the console useless exactly when someone is trying to read it. What
+ * actually answers "why did the submission come out empty" is which fields
+ * arrived and how big `main.blocks` was — so that is what this reports.
+ */
+export function tomTatTinNhan(data: TinNhanTuEditor): Record<string, unknown> {
+  const nguon = (data.resp ?? data.project) as Record<string, unknown> | undefined;
+  const text = nguon?.['text'] as Record<string, unknown> | undefined;
+  const xml = typeof text?.['main.blocks'] === 'string' ? (text['main.blocks'] as string) : null;
+
+  return {
+    type: data.type,
+    action: data.action ?? null,
+    id: data.id ?? null,
+    success: data.success ?? null,
+    coResp: data.resp !== undefined,
+    coProject: data.project !== undefined,
+    cacTep: text ? Object.keys(text) : null,
+    soKyTuXml: xml === null ? null : xml.length,
+    dauXml: xml === null ? null : xml.slice(0, 120),
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // One live editor per page
 // ═══════════════════════════════════════════════════════════════════════════

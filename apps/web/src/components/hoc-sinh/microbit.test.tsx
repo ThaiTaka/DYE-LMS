@@ -12,6 +12,7 @@ import axe from 'axe-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  coKhoiLenh,
   dangGiuEditor,
   docWorkspace,
   giuEditor,
@@ -141,6 +142,56 @@ describe('Đọc workspace từ phản hồi', () => {
     expect(docWorkspace({ type: 'pxthost' })).toBeNull();
     expect(docWorkspace({ type: 'pxthost', resp: {} })).toBeNull();
     expect(docWorkspace({ type: 'pxthost', resp: { text: {} } })).toBeNull();
+  });
+});
+
+describe('Workspace có khối lệnh hay không', () => {
+  const BOC = 'https://developers.google.com/blockly/xml';
+
+  it('vỏ <xml> rỗng KHÔNG phải là có bài làm', () => {
+    /*
+     * The whole point. An empty MakeCode workspace is not '' — it is the
+     * Blockly wrapper with nothing inside, ~55 truthy characters that sailed
+     * straight through the server's `!blocksXml.trim()` check and were accepted
+     * as a real submission.
+     */
+    expect(coKhoiLenh(`<xml xmlns="${BOC}"></xml>`)).toBe(false);
+    expect(coKhoiLenh(`<xml xmlns="${BOC}"/>`)).toBe(false);
+    expect(coKhoiLenh('<xml></xml>')).toBe(false);
+    expect(coKhoiLenh('  <xml>\n\n</xml>  ')).toBe(false);
+    expect(coKhoiLenh('')).toBe(false);
+    expect(coKhoiLenh('   ')).toBe(false);
+  });
+
+  it('chỉ có khai báo biến thì cũng chưa phải là chương trình', () => {
+    // MakeCode writes <variables> on its own; nothing has been dragged in yet.
+    expect(coKhoiLenh(`<xml xmlns="${BOC}"><variables></variables></xml>`)).toBe(false);
+    expect(coKhoiLenh(`<xml xmlns="${BOC}"><variables/></xml>`)).toBe(false);
+  });
+
+  it('có khối lệnh thì đúng là có bài làm', () => {
+    expect(coKhoiLenh(`<xml xmlns="${BOC}"><block type="device_forever"/></xml>`)).toBe(true);
+    expect(
+      coKhoiLenh(
+        `<xml xmlns="${BOC}"><variables><variable id="a">x</variable></variables>` +
+          '<block type="basic_show_icon"/></xml>',
+      ),
+    ).toBe(true);
+  });
+
+  it('dạng lạ thì coi như CÓ bài — không bao giờ từ chối bài của học sinh vì đoán', () => {
+    /*
+     * Asymmetric on purpose. Wrongly calling a workspace empty refuses a
+     * child's real work; wrongly calling it non-empty costs one server round
+     * trip that answers politely. Only the first is unacceptable.
+     */
+    expect(coKhoiLenh('<workspace><block/></workspace>')).toBe(true);
+    expect(coKhoiLenh('khong-phai-xml')).toBe(true);
+  });
+
+  it('bỏ qua phần khai báo XML và ghi chú', () => {
+    expect(coKhoiLenh(`<?xml version="1.0"?><xml xmlns="${BOC}"></xml>`)).toBe(false);
+    expect(coKhoiLenh(`<xml xmlns="${BOC}"><!-- trống --></xml>`)).toBe(false);
   });
 });
 
@@ -706,6 +757,55 @@ describe('Khu làm việc Micro:bit', () => {
     const nhap = timNhapBai(gui);
     expect(nhap).toBeDefined();
     expect(JSON.stringify(nhap![0])).toContain('basic_show_number');
+  });
+
+  // ── Hai kiểu "không nộp được" là HAI chuyện khác nhau ─────────────────────
+
+  it('trình soạn im lặng → KHÔNG nói bài trống, và không gọi máy chủ', async () => {
+    /*
+     * The production bug. The editor never answered, the fallback cache was
+     * also empty, and the student — looking straight at their own blocks — was
+     * told their workspace was empty. That message is now reserved for the case
+     * where the editor actually said so.
+     */
+    const nguoiDung = userEvent.setup();
+    await dung({ blocksXmlDaLuu: '', blocksXmlBanDau: '' });
+
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+
+    // No reply from the editor: the wait falls through to its timeout.
+    const loi = await screen.findByRole('status', {}, { timeout: 4000 });
+
+    expect(loi.textContent).toContain('Chưa đọc được khối lệnh');
+    expect(loi.textContent).not.toContain('Vùng làm việc đang trống');
+    // Nothing was sent: there was nothing to send, and saying so is not the
+    // server's job.
+    expect(nopStub).not.toHaveBeenCalled();
+  });
+
+  it('trình soạn trả về vỏ <xml> rỗng → ĐÚNG là bài trống, nói nhẹ nhàng', async () => {
+    const nguoiDung = userEvent.setup();
+    await dung({ blocksXmlDaLuu: '', blocksXmlBanDau: '' });
+
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    editorTraBlocks('<xml xmlns="https://developers.google.com/blockly/xml"></xml>');
+
+    const loi = await screen.findByRole('status');
+    expect(loi.textContent).toContain('Vùng làm việc đang trống');
+    expect(nopStub).not.toHaveBeenCalled();
+  });
+
+  it('trình soạn im lặng NHƯNG đã có bài lưu trước đó → vẫn nộp bản đó', async () => {
+    // The fallback doing its job: a student who built blocks a minute ago and
+    // whose editor has since gone quiet still gets their work handed in.
+    const nguoiDung = userEvent.setup();
+    await dung({ blocksXmlDaLuu: '', blocksXmlBanDau: '' });
+
+    editorTraBlocks(BLOCKS);
+
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    // Deliberately no answer to this saveproject.
+    await waitFor(() => expect(nopStub).toHaveBeenCalledWith('b1', BLOCKS), { timeout: 4000 });
   });
 
   it('không có vi phạm axe', async () => {
