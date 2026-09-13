@@ -21,8 +21,11 @@ import {
   laTinNhanHopLe,
   theoDoiChuEditor,
   traEditor,
+  traLoi,
+  traLoiDongBo,
   urlMakeCode,
   yeuCau,
+  yeuCauNapWorkspace,
 } from './makecode';
 
 const nopStub = vi.hoisted(() => vi.fn());
@@ -83,13 +86,20 @@ describe('Kiểm tra nguồn tin nhắn', () => {
 });
 
 describe('URL trình soạn thảo', () => {
-  it('bật chế độ điều khiển và lưu trong trình duyệt', () => {
+  it('bật chế độ điều khiển và dùng TRANG NÀY làm nơi lưu của trình soạn', () => {
     const url = urlMakeCode();
     expect(url.startsWith(GOC_MAKECODE)).toBe(true);
     expect(url).toContain('controller=1');
-    // Keeps a child's project in their own browser rather than a third-party
-    // cloud account.
-    expect(url).toContain('ws=browser');
+    /*
+     * `ws=iframe`, not `ws=browser`. With `browser` the editor owns its storage
+     * (IndexedDB) and never tells the host when it writes: the `workspacesave`
+     * the submit path waits for was simply never sent, and every hand-in fell
+     * through to "chưa đọc được khối lệnh từ trình soạn". With `iframe` the
+     * parent window is the store, every write is posted up, and the child's
+     * blocks still never go to a third-party cloud.
+     */
+    expect(url).toContain('ws=iframe');
+    expect(url).not.toContain('ws=browser');
   });
 
   it('đổi ngôn ngữ phải là một TÀI LIỆU khác, không chỉ khác phần #hash', () => {
@@ -206,6 +216,52 @@ describe('Mã yêu cầu', () => {
     expect(y.type).toBe('pxteditor');
     expect(y.action).toBe('saveproject');
     expect(y.id.length).toBeGreaterThan(0);
+    // The editor only ever posts `{ id, success }` back when asked to. Without
+    // this a submit cannot learn that its `saveproject` actually finished.
+    expect(y.response).toBe(true);
+  });
+});
+
+describe('Trả lời trình soạn — trang này là kho lưu của nó', () => {
+  it('phản hồi mang đúng type và id của yêu cầu, để trình soạn ghép được', () => {
+    /*
+     * The editor matches a reply to its request by `id`, and only looks for it
+     * on messages of its OWN type (`pxthost`, since it was the requester). A
+     * reply sent as `pxteditor` is silently dropped and the editor waits
+     * forever — on `workspacesync` that is a spinner it never gets past.
+     */
+    const t = traLoi('abc-1');
+    expect(t.type).toBe('pxthost');
+    expect(t.id).toBe('abc-1');
+    expect(t.success).toBe(true);
+  });
+
+  it('trả lời workspacesync bằng danh sách rỗng', () => {
+    const t = traLoiDongBo('abc-2');
+    expect(t.id).toBe('abc-2');
+    expect(t.success).toBe(true);
+    expect(t.projects).toEqual([]);
+  });
+
+  it('nạp lại bài bằng newproject + filesOverride, kèm main.ts trống', () => {
+    /*
+     * `importproject` installs what it is given as-is, so it needs a full
+     * `pxt.json`; the old payload sent only `main.blocks` and would have loaded
+     * as an invalid package. `newproject` builds the config from MakeCode's own
+     * template and lays our files over it — the same call the editor makes for
+     * "import a .blocks file".
+     */
+    const y = yeuCauNapWorkspace(BLOCKS);
+    expect(y.type).toBe('pxteditor');
+    expect(y.action).toBe('newproject');
+    expect(y.response).toBe(true);
+
+    const options = y.options as { filesOverride: Record<string, string> };
+    expect(options.filesOverride['main.blocks']).toBe(BLOCKS);
+    // Blank on purpose: the editor regenerates TypeScript from the blocks, and a
+    // program left here could only contradict them.
+    expect(options.filesOverride['main.ts']?.trim()).toBe('');
+    expect(JSON.stringify(y)).not.toContain('pxt.json');
   });
 });
 
@@ -336,9 +392,21 @@ describe('Khu làm việc Micro:bit', () => {
     return vi.spyOn(frame.contentWindow!, 'postMessage');
   }
 
-  /** The `importproject` request, if the wrapper sent one. */
+  /** The re-hydration request (`newproject` with the blocks), if the wrapper sent one. */
   function timNhapBai(gui: ReturnType<typeof nghePostMessage>) {
-    return gui.mock.calls.find(([tin]) => (tin as { action?: string }).action === 'importproject');
+    return gui.mock.calls.find(([tin]) => (tin as { action?: string }).action === 'newproject');
+  }
+
+  /** What the wrapper posted in answer to the editor request with this id. */
+  function timTraLoi(gui: ReturnType<typeof nghePostMessage>, id: string) {
+    return gui.mock.calls.find(([tin]) => (tin as { id?: string }).id === id);
+  }
+
+  /** Any message from the editor's side, from the origin the card trusts. */
+  function editorGui(data: Record<string, unknown>) {
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { origin: GOC_MAKECODE, data }));
+    });
   }
 
   /**
@@ -646,6 +714,97 @@ describe('Khu làm việc Micro:bit', () => {
     // Never '*': that would hand the student's work to whatever document
     // happens to occupy the frame.
     expect(nhap![1]).toBe(GOC_MAKECODE);
+  });
+
+  // ── Trang này là kho lưu của trình soạn (ws=iframe) ───────────────────────
+
+  it('trả lời workspacesync lúc trình soạn khởi động — không thì nó treo mãi', async () => {
+    /*
+     * In `ws=iframe` mode the editor's first act is to ask the host for its
+     * project list, and it awaits the answer before rendering anything. The
+     * reply has to carry the request's own `type` and `id`, or the editor's
+     * controller files it under "unknown request" and the spinner never ends.
+     */
+    const { container } = await dung();
+    const gui = nghePostMessage(container);
+
+    editorGui({ type: 'pxthost', action: 'workspacesync', id: 'sync-1', response: true });
+
+    const [tin, dich] = timTraLoi(gui, 'sync-1')!;
+    expect(tin).toMatchObject({ type: 'pxthost', id: 'sync-1', success: true, projects: [] });
+    expect(dich).toBe(GOC_MAKECODE);
+  });
+
+  it('xác nhận workspaceloaded và workspacereset khi trình soạn chờ trả lời', async () => {
+    const { container } = await dung();
+    const gui = nghePostMessage(container);
+
+    editorGui({ type: 'pxthost', action: 'workspaceloaded', id: 'loaded-1', response: true });
+    editorGui({ type: 'pxthost', action: 'workspacereset', id: 'reset-1', response: true });
+
+    expect(timTraLoi(gui, 'loaded-1')![0]).toMatchObject({ type: 'pxthost', success: true });
+    expect(timTraLoi(gui, 'reset-1')![0]).toMatchObject({ type: 'pxthost', success: true });
+  });
+
+  it('dự án trống trình soạn tự tạo lúc khởi động KHÔNG đè lên bài đã lưu', async () => {
+    /*
+     * The editor makes itself a blank project while booting and reports it
+     * through `workspacesave` like any other write — BEFORE `workspaceloaded`.
+     * Recording that would replace the saved blocks with an empty wrapper, and
+     * the restore a moment later would put the empty wrapper back: the student
+     * opens the lesson to an empty editor and their work looks gone.
+     */
+    const { container } = await dung();
+
+    editorTraBlocks('<xml xmlns="https://developers.google.com/blockly/xml"></xml>');
+    // The card must still believe it holds the saved work.
+    expect(screen.getByText(/sẵn sàng để nộp/i)).toBeInTheDocument();
+
+    const gui = nghePostMessage(container);
+    editorDaTai();
+
+    const nhap = timNhapBai(gui);
+    expect(nhap).toBeDefined();
+    expect(JSON.stringify(nhap![0])).toContain('device_forever');
+  });
+
+  it('sau khi đã tải, xoá hết khối lệnh là bài trống THẬT và được ghi nhận', async () => {
+    // The boot-time gate must not swallow a real "I deleted everything".
+    const nguoiDung = userEvent.setup();
+    await dung();
+    editorDaTai();
+
+    editorTraBlocks('<xml xmlns="https://developers.google.com/blockly/xml"></xml>');
+
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    editorTraBlocks('<xml xmlns="https://developers.google.com/blockly/xml"></xml>');
+
+    const loi = await screen.findByRole('status');
+    expect(loi.textContent).toContain('Vùng làm việc đang trống');
+    expect(nopStub).not.toHaveBeenCalled();
+  });
+
+  it('phản hồi của saveproject kết thúc việc chờ — không đợi hết thời gian', async () => {
+    /*
+     * The editor answers `saveproject` once the save is done. Any blocks that
+     * save produced were posted first (messages from one window keep their
+     * order), so on the reply the newest blocks we hold ARE the editor's state
+     * — the submit goes out now instead of sitting out the timeout.
+     */
+    const nguoiDung = userEvent.setup();
+    const { container } = await dung();
+    editorDaTai();
+
+    const gui = nghePostMessage(container);
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+
+    const luu = gui.mock.calls.find(([t]) => (t as { action?: string }).action === 'saveproject');
+    expect(luu).toBeDefined();
+    const { id } = luu![0] as { id: string };
+
+    editorGui({ type: 'pxteditor', id, success: true });
+
+    await waitFor(() => expect(nopStub).toHaveBeenCalledWith('b1', BLOCKS), { timeout: 1000 });
   });
 
   it('khung tải lại thì nạp lại khối lệnh MỚI NHẤT, không phải bản lúc mở trang', async () => {

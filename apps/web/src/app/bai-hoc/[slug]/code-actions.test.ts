@@ -27,6 +27,7 @@ vi.mock('@/auth', () => ({
 }));
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
+const { revalidatePath } = await import('next/cache');
 
 const {
   khoiPhuc,
@@ -293,5 +294,83 @@ describe('Nộp bài', () => {
     expect(kq.baiNop.length).toBeGreaterThan(0);
     expect(kq.baiNop[0]?.dangCho).toBe(true);
     expect(kq.baiNop[0]?.nopLuc).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe('Khi kết quả chấm vừa về', () => {
+  beforeEach(() => {
+    vi.mocked(revalidatePath).mockClear();
+  });
+
+  it('đọc lịch sử không kèm id đang chờ thì KHÔNG làm mới trang', async () => {
+    // Opening the history panel is a plain read. Re-rendering the lesson for
+    // every glance at the list would be a full page's worth of work each time.
+    await layLichSuNop(khoiMo);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('id đang chờ mà vẫn đang chờ thì cũng chưa làm mới', async () => {
+    const kq = await nop(khoiMo, 'print("van dang cho")\n');
+    await layLichSuNop(khoiMo, [kq.submissionId!]);
+    expect(revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('bài vừa được chấm ĐÚNG → tiến độ được ghi và các trang tiến độ được làm mới', async () => {
+    /*
+     * The worker writes the verdict, then progress, as separate statements.
+     * This plays the worst case: the poll lands after the first write and
+     * before the second. The action has to make the page it re-renders
+     * correct on its own, not hope the worker got there first.
+     */
+    const kq = await nop(khoiMo, 'print("dung roi")\n');
+    await db.submission.update({
+      where: { id: kq.submissionId! },
+      data: { verdict: 'ACCEPTED', score: 10, passedTests: 1, totalTests: 1, judgedAt: new Date() },
+    });
+
+    const ls = await layLichSuNop(khoiMo, [kq.submissionId!]);
+    expect(ls.trangThai).toBe('ok');
+    expect(ls.baiNop.find((s) => s.id === kq.submissionId)?.dangCho).toBe(false);
+
+    // Progress is on disk — the same rows the worker writes, through the same
+    // core call — before the page is re-read.
+    const tienDo = await db.blockProgress.findUnique({
+      where: { studentId_blockId: { studentId: hocSinh.id, blockId: khoiMo } },
+      select: { state: true },
+    });
+    expect(tienDo?.state).toBe('COMPLETED');
+
+    // Every page that shows progress, not only the one the student is on.
+    expect(revalidatePath).toHaveBeenCalledWith('/bai-hoc/[slug]', 'page');
+    expect(revalidatePath).toHaveBeenCalledWith('/khoa-hoc/[slug]', 'layout');
+    expect(revalidatePath).toHaveBeenCalledWith('/bang-dieu-khien');
+  });
+
+  it('bài vừa được chấm SAI → làm mới trang nhưng không ghi tiến độ', async () => {
+    const kq = await nop(khoiMo, 'print("sai")\n');
+    await db.submission.update({
+      where: { id: kq.submissionId! },
+      data: { verdict: 'WRONG_ANSWER', score: 0, judgedAt: new Date() },
+    });
+    // A student cannot earn the block through a wrong answer by naming its id.
+    await db.blockProgress.deleteMany({ where: { studentId: hocSinh.id, blockId: khoiMo } });
+
+    await layLichSuNop(khoiMo, [kq.submissionId!]);
+
+    const tienDo = await db.blockProgress.findUnique({
+      where: { studentId_blockId: { studentId: hocSinh.id, blockId: khoiMo } },
+    });
+    expect(tienDo).toBeNull();
+    // The list still has to re-render with the verdict in it.
+    expect(revalidatePath).toHaveBeenCalledWith('/bai-hoc/[slug]', 'page');
+  });
+
+  it('id lạ hoặc dữ liệu sai dạng từ client thì bị bỏ qua, không nổ', async () => {
+    const kq = await layLichSuNop(khoiMo, ['khong-ton-tai']);
+    expect(kq.trangThai).toBe('ok');
+    expect(revalidatePath).not.toHaveBeenCalled();
+
+    const la = await layLichSuNop(khoiMo, 'khong-phai-mang' as unknown as string[]);
+    expect(la.trangThai).toBe('ok');
   });
 });

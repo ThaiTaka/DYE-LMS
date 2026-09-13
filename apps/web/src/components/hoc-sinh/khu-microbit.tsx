@@ -20,12 +20,18 @@ import {
   docWorkspace,
   giuEditor,
   GIOI_HAN_WORKSPACE,
+  GOC_MAKECODE,
   laTinNhanHopLe,
   theoDoiChuEditor,
   tomTatTinNhan,
   traEditor,
+  traLoi,
+  traLoiDongBo,
   urlMakeCode,
   yeuCau,
+  yeuCauNapWorkspace,
+  type TinNhanToiEditor,
+  type TinNhanTraLoi,
 } from './makecode';
 
 export interface KhuMicrobitProps {
@@ -259,11 +265,14 @@ export const KhuMicrobit = memo(function KhuMicrobit({
   // render that is not a language change.
   const src = useMemo(() => urlMakeCode(locale), [locale]);
 
-  /** Send a request into the editor, targeted at the MakeCode origin only. */
-  const guiToiEditor = useCallback((action: string, them: Record<string, unknown> = {}) => {
+  /**
+   * Post one message into the editor — a request of ours, or our answer to one
+   * of its — targeted at the MakeCode origin only.
+   */
+  const guiToiEditor = useCallback((tin: TinNhanToiEditor | TinNhanTraLoi) => {
     // Never '*': that would broadcast the message to whatever document happens
     // to occupy the frame.
-    khungDangMo?.contentWindow?.postMessage(yeuCau(action, them), 'https://makecode.microbit.org');
+    khungDangMo?.contentWindow?.postMessage(tin, GOC_MAKECODE);
   }, []);
 
   /*
@@ -273,7 +282,24 @@ export const KhuMicrobit = memo(function KhuMicrobit({
    * free: a `workspacesave` nobody asked for finds no waiter and simply updates
    * state.
    */
-  const choLuu = useRef<((xml: string) => void) | null>(null);
+  const choLuu = useRef<((xml: string, nguon: NguonWorkspace) => void) | null>(null);
+
+  /** The id of that `saveproject`, so the editor's reply to it can be told apart. */
+  const idLuuDangCho = useRef<string | null>(null);
+
+  /**
+   * Has THIS boot of the editor been handed its starting workspace yet?
+   *
+   * In `ws=iframe` mode the editor makes itself a blank project while booting
+   * and reports it through `workspacesave` like any other write. Recording that
+   * one would overwrite `workspaceRef` — the saved blocks we are about to put
+   * back — with an empty wrapper, and the student would open the lesson to an
+   * empty editor with their work gone. So a blockless write is ignored until
+   * `workspaceloaded`, which is where the restore happens (the handler names
+   * the two other signs that the editor is plainly past boot). Reset for every
+   * new frame: opening the editor, and each language switch.
+   */
+  const daNapWorkspace = useRef(false);
 
   /**
    * Record a workspace the editor gave us — the one place this state changes.
@@ -309,7 +335,7 @@ export const KhuMicrobit = memo(function KhuMicrobit({
 
     const cho = choLuu.current;
     choLuu.current = null;
-    cho?.(xml);
+    cho?.(xml, 'trinh-soan');
   }, []);
 
   /**
@@ -332,10 +358,11 @@ export const KhuMicrobit = memo(function KhuMicrobit({
         let xong = false;
 
         /** Resolve exactly once, whichever path gets there first. */
-        const traLoi = (xml: string, nguon: NguonWorkspace): void => {
+        const ketThuc = (xml: string, nguon: NguonWorkspace): void => {
           if (xong) return;
           xong = true;
           choLuu.current = null;
+          idLuuDangCho.current = null;
           ghiLog('lay workspace xong', {
             nguon,
             soKyTu: xml.length,
@@ -352,16 +379,30 @@ export const KhuMicrobit = memo(function KhuMicrobit({
            * bài" meant it, and work they saved a minute ago is a far truer
            * answer than nothing.
            */
-          traLoi(workspaceRef.current, 'bo-nho');
+          ketThuc(workspaceRef.current, 'bo-nho');
         }, CHO_LUU_TOI_DA);
 
-        choLuu.current = (xml) => {
+        /*
+         * Two things can settle this, and they arrive in this order:
+         *
+         *   1. `workspacesave` — the editor writing the project as part of the
+         *      save. Carries the blocks; `ghiNhanWorkspace` records them and
+         *      calls through here.
+         *   2. The reply to `saveproject` itself, posted once the save has
+         *      finished. Whatever the editor had to say it has said by then, so
+         *      the newest blocks we hold ARE its current state — and that is
+         *      true even when the save carried no blocks file (a save from the
+         *      JavaScript view), which `ghiNhanWorkspace` rightly ignores.
+         */
+        choLuu.current = (xml, nguon) => {
           clearTimeout(hen);
-          traLoi(xml, 'trinh-soan');
+          ketThuc(xml, nguon);
         };
 
-        ghiLog('xin workspace moi nhat tu trinh soan (saveproject)');
-        guiToiEditor('saveproject');
+        const tin = yeuCau('saveproject');
+        idLuuDangCho.current = tin.id;
+        ghiLog('xin workspace moi nhat tu trinh soan (saveproject)', { id: tin.id });
+        guiToiEditor(tin);
       }),
     [guiToiEditor],
   );
@@ -388,45 +429,116 @@ export const KhuMicrobit = memo(function KhuMicrobit({
       const data = e.data;
       ghiLog('nhan tin nhan', tomTatTinNhan(data));
 
-      if (data.type === 'pxthost' && data.action === 'workspaceloaded') {
-        setTrangThai('san-sang');
+      /*
+       * ── `pxthost`: the editor talking to its storage, which is us ──────────
+       *
+       * In `ws=iframe` mode this page IS the editor's database. Three of these
+       * are requests the editor blocks on until we answer; the fourth,
+       * `workspacesave`, is how every write reaches us. See `urlMakeCode`.
+       */
+      if (data.type === 'pxthost') {
+        // Boot: "what projects do you have?" Unanswered, the editor never
+        // gets past its loading screen.
+        if (data.action === 'workspacesync') {
+          if (data.id) guiToiEditor(traLoiDongBo(data.id));
+          return;
+        }
+
+        if (data.action === 'workspaceloaded') {
+          if (data.id && data.response) guiToiEditor(traLoi(data.id));
+          setTrangThai('san-sang');
+
+          /*
+           * The editor is up, holding the blank project it made for itself.
+           * From here on its writes are the student's, and worth keeping.
+           */
+          daNapWorkspace.current = true;
+
+          /*
+           * Put back the freshest workspace we hold, not the props.
+           *
+           * The props are what the SERVER had when the page rendered. Handing
+           * the editor to another task and taking it back re-fires this event,
+           * and seeding from props there re-imported that page-load snapshot
+           * over everything the student had built since — their blocks visibly
+           * reverted to an earlier attempt, or to nothing at all.
+           */
+          const hat = workspaceRef.current || blocksXmlDaLuu || blocksXmlBanDau;
+          if (hat) {
+            ghiLog('nap lai workspace vao trinh soan', { soKyTu: hat.length });
+            guiToiEditor(yeuCauNapWorkspace(hat));
+          }
+          return;
+        }
 
         /*
-         * Seed from the freshest workspace we hold, not from the props.
-         *
-         * The props are what the SERVER had when the page rendered. Handing the
-         * editor to another task and taking it back re-fires this event, and
-         * seeding from props there re-imported that page-load snapshot over
-         * everything the student had built since — their blocks visibly
-         * reverted to an earlier attempt, or to nothing at all.
+         * A write. The autosave the editor emits whenever a block is added,
+         * moved or deleted, AND the write behind a `saveproject` we asked for
+         * — both look the same from here, and both go through
+         * `ghiNhanWorkspace`, which holds the "never record an empty
+         * workspace" rule in one place.
          */
-        const hat = workspaceRef.current || blocksXmlDaLuu || blocksXmlBanDau;
-        if (hat) {
-          guiToiEditor('importproject', { project: { text: { 'main.blocks': hat } } });
+        if (data.action === 'workspacesave') {
+          const ws = docWorkspace(data);
+          // A null read means the shape was not recognised. Keeping the
+          // previous value beats overwriting a student's work with nothing.
+          if (!ws) {
+            ghiLog('workspacesave: KHONG doc duoc workspace tu tin nhan nay');
+            return;
+          }
+
+          /*
+           * The blank project the editor makes for itself while booting comes
+           * through here too, and it must not be recorded — see
+           * `daNapWorkspace`. It is told apart by WHEN it arrives: before
+           * `workspaceloaded`, holding no blocks, and not in answer to a
+           * `saveproject` of ours (a submit only ever finds a running editor).
+           * A save that carries blocks is the student's whatever the timing,
+           * so a `workspaceloaded` that somehow never came cannot cost them
+           * their work.
+           */
+          const cuaHocSinh =
+            daNapWorkspace.current || choLuu.current !== null || coKhoiLenh(ws.xml);
+          if (!cuaHocSinh) {
+            ghiLog('bo qua: workspacesave cua du an trong luc khoi dong');
+            return;
+          }
+
+          daNapWorkspace.current = true;
+          ghiNhanWorkspace(ws.xml);
+          return;
         }
+
+        // Anything else the editor is waiting on — `workspacereset` — is
+        // acknowledged, so it is never left hanging on us.
+        if (data.id && data.response) guiToiEditor(traLoi(data.id));
         return;
       }
 
       /*
-       * The two ways the editor hands a workspace back: the autosave it emits
-       * whenever a block is added, moved or deleted, and the reply to a
-       * `saveproject` we asked for. Both go through `ghiNhanWorkspace`, which
-       * holds the "never record an empty workspace" rule in one place — the
-       * check used to be duplicated here and got it wrong in both copies.
+       * ── `pxteditor`: the editor answering a request of ours ────────────────
+       *
+       * The only reply that matters is the one to the `saveproject` a submit is
+       * waiting on. By the time it arrives the editor has finished the save,
+       * and the `workspacesave` that write produced (if it produced one) has
+       * already been delivered — messages from one window arrive in order. So
+       * the newest blocks we hold are the editor's current state, and the wait
+       * ends now rather than at the timeout.
        */
-      if (data.type === 'pxthost' && data.action === 'workspacesave') {
-        const ws = docWorkspace(data);
-        // A null read means the shape was not recognised. Keeping the previous
-        // value beats overwriting a student's work with an empty workspace.
-        if (!ws) ghiLog('workspacesave: KHONG doc duoc workspace tu tin nhan nay');
-        else ghiNhanWorkspace(ws.xml);
-        return;
-      }
+      if (data.type === 'pxteditor' && data.id && data.id === idLuuDangCho.current) {
+        idLuuDangCho.current = null;
+        const cho = choLuu.current;
+        choLuu.current = null;
 
-      if (data.id && data.success === true) {
-        const ws = docWorkspace(data);
-        if (!ws) ghiLog('phan hoi thanh cong nhung khong kem workspace', { id: data.id });
-        else ghiNhanWorkspace(ws.xml);
+        if (data.success === true) {
+          ghiLog('trinh soan xac nhan da luu', { id: data.id });
+          cho?.(workspaceRef.current, 'trinh-soan');
+        } else {
+          // A failed save is the editor's problem, not the student's: hand
+          // back what we have, labelled as such.
+          ghiLog('trinh soan bao loi khi luu', { id: data.id });
+          cho?.(workspaceRef.current, 'bo-nho');
+        }
       }
     };
 
@@ -437,6 +549,10 @@ export const KhuMicrobit = memo(function KhuMicrobit({
   // The editor is third-party and sometimes simply does not arrive. Only armed
   // while this card actually holds the frame.
   useEffect(() => {
+    // A new frame is booting (first open, or a language switch): its early
+    // writes are its own blank project again, until `workspaceloaded`.
+    daNapWorkspace.current = false;
+
     if (!dangMo) return;
     const t = setTimeout(() => {
       setTrangThai((cu) => (cu === 'dang-tai' ? 'khong-tai-duoc' : cu));

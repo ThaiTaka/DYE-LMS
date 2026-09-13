@@ -25,10 +25,33 @@ export const GOC_MAKECODE = 'https://makecode.microbit.org';
 /**
  * Editor URL.
  *
- * `controller=1` enables the embedding protocol. `ws=browser` keeps MakeCode's
- * own project storage in the student's browser rather than its cloud, so a
- * child's work is not silently syncing to a third party. `nocookiebanner=1`
- * removes a consent dialog that would sit on top of the workspace.
+ * `controller=1` enables the embedding protocol. `nocookiebanner=1` removes a
+ * consent dialog that would sit on top of the workspace.
+ *
+ * ── `ws=iframe`: the HOST is the editor's storage ────────────────────────────
+ * MakeCode picks its project store from `ws`. This used to say `browser`, which
+ * keeps projects in the editor's own IndexedDB — and an editor that owns its
+ * storage has no reason to tell anyone when it writes. In that mode the
+ * `workspacesave` event this page waits for is NEVER posted to the parent: the
+ * submit path asked for a save, the editor saved to IndexedDB, and our side sat
+ * out the timeout and reported "chưa đọc được khối lệnh từ trình soạn" while
+ * the blocks were right there on screen. `workspaceloaded` never arrived either,
+ * so a saved workspace was never put back after a reload.
+ *
+ * With `ws=iframe` the editor keeps projects in memory and treats the parent
+ * window as the database. Every write becomes a `workspacesave` message
+ * carrying the whole project, and the editor asks the host three things it
+ * MUST answer (each is sent with `response: true` and awaited):
+ *
+ *   • `workspacesync`   on boot — "what projects do you have?" Answered with an
+ *                       empty list; the editor then creates a blank project. An
+ *                       unanswered sync leaves the editor on its spinner forever.
+ *   • `workspaceloaded` once the editor is up — the moment to put a saved
+ *                       workspace back.
+ *   • `workspacereset`  if the student resets the editor.
+ *
+ * The student's blocks still never touch MakeCode's cloud: the only store is
+ * this page, and this page saves to our own server.
  *
  * ── The parameters go in the QUERY STRING, before `#editor` ──────────────────
  * This used to build `/#editor?lang=vi`, with everything inside the fragment.
@@ -49,7 +72,7 @@ export const GOC_MAKECODE = 'https://makecode.microbit.org';
 export function urlMakeCode(lang = 'vi'): string {
   const p = new URLSearchParams({
     controller: '1',
-    ws: 'browser',
+    ws: 'iframe',
     nocookiebanner: '1',
     lang,
   });
@@ -65,6 +88,12 @@ export interface TinNhanTuEditor {
   type: string;
   action?: string;
   id?: string;
+  /**
+   * The editor is waiting on an answer carrying this `id`. True on
+   * `workspacesync`, `workspaceloaded` and `workspacereset`; the promise behind
+   * each of them never settles until we reply.
+   */
+  response?: boolean;
   /** Present on a response to one of our requests. */
   success?: boolean;
   resp?: unknown;
@@ -77,6 +106,27 @@ export interface TinNhanToiEditor {
   type: 'pxteditor';
   id: string;
   action: string;
+  /**
+   * Always asked for. The editor only posts `{ id, success }` back when this is
+   * set, and that reply is what tells a waiting submit that a `saveproject`
+   * has genuinely finished rather than merely been sent.
+   */
+  response: true;
+  [key: string]: unknown;
+}
+
+/**
+ * Our answer to a request the editor made with `response: true`.
+ *
+ * Shaped the way the editor's controller matches replies to requests: the
+ * request's own `type` (`pxthost` — the editor was the requester) and its `id`.
+ * A reply with any other `type` is dropped as an unknown request and the
+ * editor keeps waiting.
+ */
+export interface TinNhanTraLoi {
+  type: 'pxthost';
+  id: string;
+  success: boolean;
   [key: string]: unknown;
 }
 
@@ -105,7 +155,50 @@ export function idYeuCau(): string {
 }
 
 export function yeuCau(action: string, them: Record<string, unknown> = {}): TinNhanToiEditor {
-  return { type: 'pxteditor', id: idYeuCau(), action, ...them };
+  return { type: 'pxteditor', id: idYeuCau(), action, response: true, ...them };
+}
+
+/** Answer an editor request. `them` carries any payload the request expects. */
+export function traLoi(id: string, them: Record<string, unknown> = {}): TinNhanTraLoi {
+  return { type: 'pxthost', id, success: true, ...them };
+}
+
+/**
+ * The reply to `workspacesync`.
+ *
+ * An empty list, on purpose. The editor asks this before it has rendered
+ * anything, and a project handed over here would have to be a complete
+ * `pxt.workspace.Project` — header with ids and timestamps, `pxt.json`, every
+ * file — built by us, from a schema that is MakeCode's to change. Instead the
+ * editor makes itself a blank project from its own template, and once it says
+ * `workspaceloaded` the saved blocks go in through `yeuCauNapWorkspace`.
+ *
+ * `controllerId` only names the host in MakeCode's telemetry.
+ */
+export function traLoiDongBo(id: string): TinNhanTraLoi {
+  return traLoi(id, { projects: [], controllerId: 'dye-lms' });
+}
+
+/**
+ * Put a saved workspace back into a freshly booted editor.
+ *
+ * `newproject` with `filesOverride` rather than `importproject`. An imported
+ * project is installed exactly as given, so it has to carry a valid `pxt.json`
+ * — dependencies, file list, preferred editor — or MakeCode loads it as an
+ * invalid package and shows an empty toolbox. The earlier code sent only
+ * `main.blocks`, which was never going to load; it went unnoticed because in
+ * `ws=browser` mode the `workspaceloaded` that triggers it never fired.
+ *
+ * `newproject` builds the config from the target's OWN blocks template and lays
+ * our files over it. It is the same call MakeCode makes for "import a .blocks
+ * file", down to the blank `main.ts`: the editor regenerates the TypeScript
+ * from the blocks the moment they load, so a stale program there could only
+ * ever contradict them.
+ */
+export function yeuCauNapWorkspace(xml: string): TinNhanToiEditor {
+  return yeuCau('newproject', {
+    options: { filesOverride: { 'main.blocks': xml, 'main.ts': '  ' } },
+  });
 }
 
 /**
@@ -220,26 +313,25 @@ export function tomTatTinNhan(data: TinNhanTuEditor): Record<string, unknown> {
 /**
  * Why a page may hold only ONE MakeCode editor.
  *
- * The editor is loaded with `ws=browser`, which keeps a student's projects in
- * their own browser rather than in MakeCode's cloud. That storage carries a
- * session, and the editor claims it on boot. A second editor booting on the
- * same page claims the same session, and every earlier instance then fails its
- * next storage read with:
+ * This registry was born when the editor ran with `ws=browser`. That mode keeps
+ * projects in the editor's own IndexedDB behind a session the editor claims on
+ * boot; a second editor on the same page claimed the same session, and every
+ * earlier instance then failed its next storage read with:
  *
  *     pxtapp.js: Uncaught (in promise) Error: trying to access outdated session
  *
- * which the editor surfaces as its own crash screen — "Rất tiếc, chúng tôi phát
- * hiện có lỗi" — sitting inside our lesson page.
+ * which the editor surfaced as its own crash screen — "Rất tiếc, chúng tôi phát
+ * hiện có lỗi" — sitting inside our lesson page. Micro:bit Buổi 1 ships ten
+ * hardware tasks, so ten editors booted at once and nine were guaranteed to
+ * break.
  *
- * This became reachable the moment a lesson carried more than one hardware
- * task. Micro:bit Buổi 1 now ships ten, so ten editors booted at once and nine
- * of them were guaranteed to break. It is not a re-render problem and `memo`
- * cannot fix it: the instances are all legitimately mounted.
- *
- * The fix is a single-owner registry. At most one component holds the editor;
- * the others render a placeholder and can take it over. Ten iframes also meant
- * ten copies of a ~10 MB third-party app on a school laptop, so this is a large
- * win for a machine that has to survive a whole lesson.
+ * With `ws=iframe` there is no shared session — each frame keeps its projects
+ * in its own memory and talks only to this page — so that crash is gone. The
+ * registry stays for the other reason it was worth having: ten frames meant ten
+ * copies of a ~10 MB third-party app on a school laptop that has to survive a
+ * whole lesson, and ten `message` listeners all answering the same
+ * `workspacesync`. At most one component holds the editor; the others render a
+ * placeholder and can take it over.
  *
  * Module scope, not React state, on purpose: ownership is a property of the
  * PAGE, and the components competing for it are siblings with no shared parent

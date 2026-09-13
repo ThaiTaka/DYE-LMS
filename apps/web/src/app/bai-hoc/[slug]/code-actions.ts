@@ -14,6 +14,7 @@
  */
 import {
   docNhap,
+  ghiNhanDatBai,
   khoiPhucBanLuu,
   lichSuMa,
   lichSuNopBai,
@@ -27,6 +28,8 @@ import {
   type BaiDaNop,
   type BanLuu,
 } from '@dye/core';
+
+import { revalidatePath } from 'next/cache';
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
@@ -369,8 +372,65 @@ export interface BaiDaNopHienThi {
   dangCho: boolean;
 }
 
+/**
+ * Re-read every page that shows progress, once a verdict has landed.
+ *
+ * Everything that says "done" — the ✓ on the block header, the "Phần bắt buộc"
+ * bar, the next-lesson unlock on the course map, the course cards on the
+ * dashboard — is a server component reading BlockProgress / LessonProgress.
+ * The judge writes those rows from ANOTHER PROCESS, so nothing on the web
+ * server ever learns that a rendered tree has gone stale, and the App Router
+ * keeps handing out what it has. A `router.refresh()` from the browser was not
+ * enough on its own: it is a separate GET after the fact, and it only touches
+ * the route the tab is on.
+ *
+ * `revalidatePath` from inside a server action is the one signal that reaches
+ * every cache at once. The server re-renders the current page in THIS response
+ * — the same round trip that carried the verdict — and the client's Router
+ * Cache is purged, so the course map and the dashboard are fetched fresh on
+ * the next navigation, including Back.
+ *
+ * Route patterns rather than concrete slugs, as everywhere else in this app:
+ * the action holds a block id, not the lesson's URL, and the pattern form
+ * covers every lesson at once. The course map is revalidated as a layout so
+ * anything rendered beneath it is included.
+ */
+function lamMoiTrangTienDo(): void {
+  revalidatePath('/bai-hoc/[slug]', 'page');
+  revalidatePath('/khoa-hoc/[slug]', 'layout');
+  revalidatePath('/bang-dieu-khien');
+}
+
+/**
+ * A student's attempts on this block — and, when the caller says which ones it
+ * is still waiting on, the moment the judge finishes with them.
+ *
+ * ── `dangDoi`: the ids the client last saw as pending ─────────────────────────
+ * The workspace polls this while a submission is being judged. A server action
+ * has no memory between calls, so the client says what it is waiting for; any
+ * of those ids that now carries a final verdict has JUST been graded, and that
+ * is the one moment the pages showing progress have to be re-read. Opening the
+ * history panel passes nothing and is a plain read.
+ *
+ * ── Why progress is written here as well as in the worker ────────────────────
+ * The worker stores the verdict first and BlockProgress / LessonProgress
+ * afterwards, in separate statements. A poll that lands between the two sees a
+ * final verdict and re-renders a page whose progress rows are still the old
+ * ones — and because nothing is pending any more, it never polls again. The
+ * student is left on 0% with "Đúng rồi 🎉" in the list underneath.
+ *
+ * `ghiNhanDatBai` is idempotent — upserts, then a recomputation — and it is the
+ * same call the worker and a teacher grading by hand both make. Running it here
+ * for an ACCEPTED verdict closes the race from the other side: whichever
+ * process gets there second finds the rows already correct. It also means a
+ * worker whose progress write failed AFTER the verdict was stored (a stale
+ * Prisma client, a dropped connection) no longer leaves the lesson stuck. The
+ * verdict is read from the database, never taken from the client, so this
+ * cannot be used to claim progress that was not earned.
+ */
 export async function layLichSuNop(
   blockId: string,
+  dangDoi: readonly string[] = [],
 ): Promise<{ trangThai: 'ok' | 'tu-choi'; baiNop: BaiDaNopHienThi[] }> {
   try {
     const actor = await hocSinhHienTai();
@@ -378,6 +438,20 @@ export async function layLichSuNop(
     if (!khoi.problemId) return { trangThai: 'ok', baiNop: [] };
 
     const ls = await lichSuNopBai(db, actor.id, khoi.problemId);
+
+    // Arrived over the wire; shape it before trusting it.
+    const choDoi = new Set(
+      Array.isArray(dangDoi) ? dangDoi.filter((x): x is string => typeof x === 'string') : [],
+    );
+    const vuaCham = ls.filter((s) => !s.dangCho && choDoi.has(s.id));
+
+    if (vuaCham.length > 0) {
+      if (vuaCham.some((s) => s.verdict === 'ACCEPTED')) {
+        await ghiNhanDatBai(db, actor.id, khoi.problemId);
+      }
+      lamMoiTrangTienDo();
+    }
+
     return {
       trangThai: 'ok',
       baiNop: ls.map((s) => ({

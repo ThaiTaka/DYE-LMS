@@ -167,7 +167,8 @@ export function KhuLamBai({
    * attempts so a stuck worker cannot leave the tab polling forever.
    */
   useEffect(() => {
-    const dangCho = baiNop.some((s) => s.dangCho);
+    const dangDoi = baiNop.filter((s) => s.dangCho).map((s) => s.id);
+    const dangCho = dangDoi.length > 0;
 
     /*
      * The verdict just landed: re-render the lesson from the server.
@@ -175,11 +176,17 @@ export function KhuLamBai({
      * Everything that says "done" on this page — the ✓ on the block header,
      * the "Phần bắt buộc" bar, the next-lesson unlock — is server-rendered
      * from BlockProgress, which the judge writes when it accepts. The poll
-     * above only refreshes this component's own list, so without this the
-     * student saw "Đúng rồi 🎉" in the history and 0 / 5 on the bar until they
-     * reloaded by hand — which read as the system not having recorded their
-     * work. `refresh()` keeps client state (the editor, this open panel) and
-     * re-fetches the server tree.
+     * below only refreshes this component's own list.
+     *
+     * The server does the heavy lifting: told which ids were pending (see the
+     * poll below), `layLichSuNop` re-syncs progress and calls `revalidatePath`
+     * for the lesson, the course map and the dashboard, so the fresh tree
+     * arrives in the very response that carried the verdict and the router
+     * cache for the other pages is dropped. `refresh()` here is the
+     * client-side half: it re-fetches the current route through the router,
+     * keeps client state (the editor, this open panel) and only swaps the
+     * server-rendered parts. It stays as the fallback for any path the server
+     * revalidation did not reach.
      */
     if (dangChoTruoc.current && !dangCho) router.refresh();
     dangChoTruoc.current = dangCho;
@@ -188,11 +195,17 @@ export function KhuLamBai({
 
     const t = setTimeout(() => {
       soLanHoi.current += 1;
-      void napLichSu();
+      /*
+       * Ask about the attempts still being judged, BY ID. That is what lets the
+       * server tell "just graded" from "graded a while ago": a server action has
+       * no memory between calls, and it is on that transition — and only there —
+       * that it writes progress and busts the caches.
+       */
+      void layLichSuNop(blockId, dangDoi).then((kq) => setBaiNop(kq.baiNop));
     }, 2000);
 
     return () => clearTimeout(t);
-  }, [baiNop, napLichSu, router]);
+  }, [baiNop, blockId, router]);
 
   const xemBan = useCallback(
     async (version: number) => {

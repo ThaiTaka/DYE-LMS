@@ -520,9 +520,16 @@ describe('Khu làm bài', () => {
     };
     const daCham = { ...dangCho, verdict: 'ACCEPTED' as const, passedTests: 6, totalTests: 6, dangCho: false };
 
-    lichSuNopStub
-      .mockResolvedValueOnce({ trangThai: 'ok', baiNop: [dangCho] })
-      .mockResolvedValue({ trangThai: 'ok', baiNop: [daCham] });
+    /*
+     * Answer by the SHAPE of the call, not by its order. The plain reads (right
+     * after submit, and again when the history panel opens) still see the
+     * attempt pending; only the poll — the call that names what it is waiting
+     * on — sees the verdict. Ordered `mockResolvedValueOnce`s let the panel's
+     * own read deliver the verdict, and the poll was never exercised at all.
+     */
+    lichSuNopStub.mockImplementation((_: string, dangDoi?: string[]) =>
+      Promise.resolve({ trangThai: 'ok', baiNop: [dangDoi?.length ? daCham : dangCho] }),
+    );
 
     const nguoiDung = userEvent.setup();
     await dungKhu();
@@ -535,6 +542,16 @@ describe('Khu làm bài', () => {
 
     // The numbers behind the verdict are shown, not only the label.
     expect(screen.getByText(/6\/6 test/)).toBeInTheDocument();
+
+    /*
+     * The poll names the attempts it is waiting on. A server action has no
+     * memory between calls, so this is how `layLichSuNop` tells "just graded"
+     * from "graded a while ago" — and it is on that transition that it writes
+     * progress and revalidates the lesson, the course map and the dashboard.
+     * Without the ids the server would never know a verdict had just landed,
+     * and the bar stayed at 0% while the list underneath said "Đúng rồi".
+     */
+    expect(lichSuNopStub).toHaveBeenCalledWith('b1', ['s1']);
 
     /*
      * And the lesson re-renders from the server. The ✓ on the block and the
