@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { currentActor } from '@/auth';
+import { DauHieu } from '@/components/dau-hieu';
 
 import { FormDangNhap } from './form';
 
@@ -19,9 +20,20 @@ export default async function TrangDangNhap({
   return (
     <main className="relative isolate flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-[#0b1a33] px-4 py-16 text-slate-100 sm:px-6 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[linear-gradient(to_right,rgba(148,163,184,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.10)_1px,transparent_1px)] before:bg-[size:40px_40px] before:[mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,#000_30%,transparent_100%)] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-[radial-gradient(ellipse_55%_40%_at_50%_40%,rgba(56,189,248,0.10),transparent_70%)] after:content-['']">
       <div className="mb-8 w-full max-w-md text-center">
-        <p aria-hidden="true" className="m-0 text-4xl">
-          🐍
-        </p>
+        {/*
+          The mark sits on a lit tile rather than being tinted itself.
+
+          The gradient is the same cyan-to-sky as the author name below, but
+          applied as the tile's background with the glyph drawn over it in dark
+          ink (`text-slate-900`, which the SVG picks up through
+          `currentColor`). Gradient-filling the strokes themselves would need
+          an SVG paint server, and at 32px the result is a thin line washing
+          through three shades — legible as a shape only by accident. A solid
+          glyph on a glowing tile reads at any size and carries the same accent.
+        */}
+        <span className="inline-flex rounded-nut bg-gradient-to-br from-cyan-300 to-sky-400 p-2.5 text-slate-900 shadow-[0_0_24px_-4px_rgba(56,189,248,0.55)]">
+          <DauHieu className="h-8 w-8" />
+        </span>
 
         {/*
           Product name and author on one line.
@@ -44,7 +56,7 @@ export default async function TrangDangNhap({
           </p>
         </div>
 
-        <p className="m-0 text-slate-300">Học lập trình Python cùng nhau</p>
+        <p className="m-0 text-slate-300">Nền tảng học lập trình và STEM Robotics</p>
       </div>
 
       {vuaDoiMatKhau ? (
@@ -64,7 +76,6 @@ export default async function TrangDangNhap({
       <p className="mt-6 w-full max-w-md text-center text-sm text-slate-400">
         Quên mật khẩu? Hãy nhờ thầy cô đặt lại giúp em.
       </p>
-
     </main>
   );
 }

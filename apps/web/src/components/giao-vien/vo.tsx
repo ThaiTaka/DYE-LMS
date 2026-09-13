@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { currentActor, signOut } from '@/auth';
+import { DauHieu } from '@/components/dau-hieu';
 import { db } from '@/lib/db';
 import { demCanhBaoChuaXuLy, demTuLuanChoCham } from '@/lib/teacher-data';
 
@@ -68,7 +69,7 @@ export async function VoGiaoVien({
             href="/giao-vien"
             className="flex items-center gap-2 rounded text-lg font-bold text-chu"
           >
-            <span aria-hidden="true">🐍</span>
+            <DauHieu className="h-5 w-5 text-chinh" />
             <span>DYE LMS</span>
             <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh">
               {vaiTro === 'ADMIN' ? 'Quản trị' : 'Giáo viên'}

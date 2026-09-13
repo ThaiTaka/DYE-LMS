@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { currentActor, signOut } from '@/auth';
+import { DauHieu } from '@/components/dau-hieu';
 import { db } from '@/lib/db';
 
 import { KIEU_NHANH } from '../ui/nhanh';
@@ -57,7 +58,7 @@ export function VoHocSinh({
             href="/bang-dieu-khien"
             className="flex items-center gap-2 rounded text-lg font-bold text-chu"
           >
-            <span aria-hidden="true">🐍</span>
+            <DauHieu className="h-5 w-5 text-chinh" />
             <span>DYE LMS</span>
           </Link>
 
@@ -105,7 +106,7 @@ export function VoHocSinh({
       </main>
 
       <footer className="mx-auto max-w-5xl px-4 pb-10 text-sm text-chu-nhat sm:px-6">
-        DYE LMS · Học lập trình Python cùng nhau
+        DYE LMS · Nền tảng học lập trình và STEM Robotics
       </footer>
     </>
   );
