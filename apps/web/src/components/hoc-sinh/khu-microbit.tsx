@@ -12,6 +12,8 @@ import {
   useTransition,
 } from 'react';
 
+import { useRouter } from 'next/navigation';
+
 import { nopMicrobit, type KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
 
 import { TaiLenHex } from './tai-len-hex';
@@ -214,6 +216,26 @@ export const KhuMicrobit = memo(function KhuMicrobit({
   const [workspace, setWorkspace] = useState<string>(blocksXmlDaLuu || blocksXmlBanDau);
   const [thongBao, setThongBao] = useState<{ ok: boolean; chu: string } | null>(null);
   const [dangGui, batDau] = useTransition();
+  const router = useRouter();
+
+  /**
+   * A submission landed: show its message and re-render the lesson.
+   *
+   * Handing in completes the block (`ghiNhanNoLuc` in @dye/core), but the ✓
+   * on the block header, the "Phần bắt buộc" bar and the next-lesson unlock are
+   * all server-rendered. A Python block gets re-rendered by the judging poll;
+   * a Micro:bit block is never judged, so without this refresh the student
+   * kept seeing 0% until a hard reload. `refresh()` re-fetches only the
+   * server-rendered parts and keeps this editor's state — the MakeCode frame
+   * is not remounted.
+   */
+  const daNop = useCallback(
+    (kq: KetQuaNop) => {
+      setThongBao({ ok: kq.trangThai === 'da-nhan', chu: kq.thongDiep });
+      if (kq.trangThai === 'da-nhan') router.refresh();
+    },
+    [router],
+  );
 
   /*
    * The newest workspace we have been handed, written the moment the editor
@@ -601,9 +623,9 @@ export const KhuMicrobit = memo(function KhuMicrobit({
       const kq: KetQuaNop = await nopMicrobit(blockId, xml);
       ghiLog('may chu tra loi', { trangThai: kq.trangThai });
 
-      setThongBao({ ok: kq.trangThai === 'da-nhan', chu: kq.thongDiep });
+      daNop(kq);
     });
-  }, [blockId, layWorkspaceMoiNhat]);
+  }, [blockId, daNop, layWorkspaceMoiNhat]);
 
   const sanSang = useCallback(() => {
     setTrangThai((cu) => (cu === 'dang-tai' ? 'san-sang' : cu));
@@ -746,10 +768,7 @@ export const KhuMicrobit = memo(function KhuMicrobit({
             Trình soạn không mở được? Nộp tệp .hex thay thế
           </summary>
           <div className="mt-3">
-            <TaiLenHex
-              blockId={blockId}
-              onDaNop={(kq) => setThongBao({ ok: true, chu: kq.thongDiep })}
-            />
+            <TaiLenHex blockId={blockId} onDaNop={daNop} />
           </div>
         </details>
       ) : null}

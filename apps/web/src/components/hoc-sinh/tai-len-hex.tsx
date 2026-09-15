@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useId, useRef, useState, useTransition } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
 
-import { nopMicrobitHex, type KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
+import { batDauChonTep, ketThucChonTep } from './tieu-diem';
+
+import type { KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
 
 /**
  * Hand in a .hex file by hand — the fallback when the MakeCode frame will not.
@@ -21,6 +23,20 @@ import { nopMicrobitHex, type KetQuaNop } from '@/app/bai-hoc/[slug]/code-action
  * a round trip. Then on the server, fully: every record's checksum. This
  * component never claims the file is valid — only that it was worth sending.
  *
+ * ── A plain POST, not a server action ────────────────────────────────────────
+ * The file goes to `/api/khoi/[blockId]/hex` as multipart form data. It used
+ * to go through a server action, and a server action's body is capped at 1 MB
+ * by Next.js — a universal .hex is ~1.8 MB, so every real file was refused
+ * before the action ran and the student was told to check their network. The
+ * route handler has no such cap and answers the same `KetQuaNop` shape the
+ * action did, so nothing below the request line changed.
+ *
+ * ── The picker pauses the focus tracker ──────────────────────────────────────
+ * Opening the OS file dialog hides the tab on Android and takes focus from the
+ * window everywhere. The lesson's tab-switch tracker must not count that, so
+ * the click that opens the dialog flags it (`batDauChonTep`) and the dialog
+ * closing — a file chosen, cancelled, or focus simply coming back — clears it.
+ *
  * ── Built for a ten-year-old ─────────────────────────────────────────────────
  * One big target that is both a button and a drop zone. The chosen file is
  * named back to them in large text before they commit. Every refusal says
@@ -30,6 +46,75 @@ import { nopMicrobitHex, type KetQuaNop } from '@/app/bai-hoc/[slug]/code-action
 const MB = 1024 * 1024;
 /** Mirrors GIOI_HAN_HEX_BYTE in @dye/core. */
 const GIOI_HAN_MB = 4;
+
+const LOI_MANG: KetQuaNop = {
+  trangThai: 'loi',
+  submissionId: null,
+  attemptNo: null,
+  thongDiep: 'Chưa gửi được. Em kiểm tra mạng rồi thử lại nhé.',
+};
+
+/** The only states the route answers with; anything else is not its answer. */
+const TRANG_THAI_NOP: readonly KetQuaNop['trangThai'][] = ['da-nhan', 'tu-choi', 'loi'];
+
+/**
+ * POST the file and read back the server's answer.
+ *
+ * Every answer the route gives is a JSON `KetQuaNop`, whatever the status, so
+ * the status is not consulted — `trangThai` says what happened. The two things
+ * that are NOT an answer from the route are told apart: a redirect means the
+ * session expired and the middleware sent the request to the login page; a
+ * body that is not JSON (a proxy's 413 page, a dropped connection) is the one
+ * case that really is the network.
+ */
+async function guiTep(blockId: string, file: File): Promise<KetQuaNop> {
+  const fd = new FormData();
+  fd.set('tep', file);
+
+  let res: Response;
+  try {
+    res = await fetch(`/api/khoi/${encodeURIComponent(blockId)}/hex`, {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      cache: 'no-store',
+    });
+  } catch {
+    return LOI_MANG;
+  }
+
+  if (res.redirected) {
+    return {
+      ...LOI_MANG,
+      trangThai: 'tu-choi',
+      thongDiep: 'Phiên đăng nhập đã hết hạn. Em đăng nhập lại rồi nộp tệp nhé.',
+    };
+  }
+
+  try {
+    const kq = (await res.json()) as Partial<KetQuaNop> | null;
+    const trangThai = TRANG_THAI_NOP.find((t) => t === kq?.trangThai);
+    if (kq && trangThai && typeof kq.thongDiep === 'string') {
+      return {
+        trangThai,
+        submissionId: typeof kq.submissionId === 'string' ? kq.submissionId : null,
+        attemptNo: typeof kq.attemptNo === 'number' ? kq.attemptNo : null,
+        thongDiep: kq.thongDiep,
+      };
+    }
+  } catch {
+    // Not JSON: fall through.
+  }
+
+  if (res.status === 413) {
+    return {
+      ...LOI_MANG,
+      trangThai: 'tu-choi',
+      thongDiep: `Tệp lớn hơn ${GIOI_HAN_MB} MB — không phải tệp .hex của micro:bit.`,
+    };
+  }
+  return LOI_MANG;
+}
 
 interface TepDaChon {
   file: File;
@@ -72,7 +157,24 @@ export function TaiLenHex({
   const input = useRef<HTMLInputElement | null>(null);
   const id = useId();
 
+  /*
+   * The dialog closed with nothing chosen. React does not forward `cancel`
+   * from an <input>, so it is bound natively; and the pause is ended on
+   * unmount too, so a block that disappears mid-dialog cannot leave the
+   * tracker switched off.
+   */
+  useEffect(() => {
+    const el = input.current;
+    el?.addEventListener('cancel', ketThucChonTep);
+    return () => {
+      el?.removeEventListener('cancel', ketThucChonTep);
+      ketThucChonTep();
+    };
+  }, []);
+
   const nhanTep = useCallback(async (file: File | undefined) => {
+    // The dialog has closed, whichever way. The tracker is back on.
+    ketThucChonTep();
     setKetQua(null);
     if (!file) return;
     setChon({ file, lyDoTuChoi: await kiemTraSoBo(file) });
@@ -81,14 +183,7 @@ export function TaiLenHex({
   const gui = useCallback(() => {
     if (!chon || chon.lyDoTuChoi) return;
     batDau(async () => {
-      const fd = new FormData();
-      fd.set('tep', chon.file);
-      const kq = await nopMicrobitHex(blockId, fd).catch<KetQuaNop>(() => ({
-        trangThai: 'loi',
-        submissionId: null,
-        attemptNo: null,
-        thongDiep: 'Chưa gửi được. Em kiểm tra mạng rồi thử lại nhé.',
-      }));
+      const kq = await guiTep(blockId, chon.file);
       setKetQua(kq);
       if (kq.trangThai === 'da-nhan') {
         setChon(null);
@@ -144,6 +239,11 @@ export function TaiLenHex({
           type="file"
           accept=".hex,application/octet-stream"
           className="sr-only"
+          // `click` fires before the dialog opens, on a real click and on the
+          // label's synthetic one alike. The dialog closed empty is `cancel`,
+          // bound natively in the effect above — React only wires that event
+          // on <dialog>, so an `onCancel` prop here would never fire.
+          onClick={batDauChonTep}
           onChange={(e) => void nhanTep(e.target.files?.[0])}
         />
       </label>

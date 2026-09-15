@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { ghiNhanRoiTab, khoaBaiViPham } from '@/app/bai-hoc/[slug]/giam-sat-actions';
 
-import { dangTrongIframe } from './tieu-diem';
+import { dangMoHopChonTep } from './tieu-diem';
 
 /**
  * Focus tracker for the lesson page.
@@ -40,30 +40,48 @@ import { dangTrongIframe } from './tieu-diem';
  * wrongly costs a child an interruption, while a lock applied wrongly costs them
  * their work. The two are trusted differently on purpose.
  *
- * ── What the browser actually gives us ───────────────────────────────────────
- * Two events, and they overlap:
+ * ── What the browser is asked, and what it is not ────────────────────────────
+ * ONE signal: `visibilitychange`, and only its `hidden` state. A tab switch, a
+ * minimise, a phone screen lock — everything that means the lesson is no
+ * longer on the student's screen — arrives as `hidden`.
  *
- *   visibilitychange → hidden    tab switch, minimise, phone screen lock
- *   blur                          another window took focus, ours still visible
+ * `window.blur` is deliberately NOT listened to any more. It fires for the
+ * address bar, a bookmark, a browser extension popup, the OS file picker, a
+ * Vietnamese IME candidate window, a notification toast, and every click into
+ * the MakeCode iframe — none of which is a student leaving the lesson, and
+ * every one of which was being posted to the server as a departure the moment
+ * it fired. The blip filter that followed only dropped the RETURNED row; the
+ * leave row had already been counted. That is how a child who never left the
+ * page reached "5 lần" and the dialog. What blur adds over `hidden` — a second
+ * window on a second monitor — is not worth a false accusation at a
+ * ten-year-old.
  *
- * A single alt-tab commonly fires BOTH. Counting that as two departures would
- * put a student over a threshold of three after leaving twice, so this
- * collapses them: one "away" state, entered by whichever event arrives first,
- * and a matching `RETURNED` on the way back carrying the duration.
+ * ── Nothing is posted until the departure is confirmed ───────────────────────
+ * `hidden` starts a timer, and only if the tab is STILL hidden after
+ * NGUONG_VANG_MS does the leave go on the wire. A transient hide — the OS
+ * switcher flashing past, a system dialog, a phone notification shade pulled
+ * and let go — comes back inside the grace and is never a row anywhere. The
+ * matching `RETURNED` on the way back carries the duration; the two are one
+ * trip, and the trip is the unit the thresholds count.
+ *
+ * ── The file picker ──────────────────────────────────────────────────────────
+ * "Nộp tệp .hex" opens the OS file dialog, which on Android hides the tab.
+ * The upload component flags that through `batDauChonTep` and the `hidden`
+ * it causes is ignored here — see `dangMoHopChonTep` in tieu-diem.ts.
  *
  * The server dedupes again on its own clock (`DEDUP_MS` in @dye/core). Both
  * layers are needed — this one keeps the request count sane, that one is the
  * one that cannot be edited in devtools.
- *
- * ── Why short blips are dropped ──────────────────────────────────────────────
- * A click on the taskbar, a notification toast stealing focus for 400 ms, a
- * password manager popping up — none of those are a student leaving the lesson,
- * and all of them fire `blur`. Anything under NGUONG_VANG_MS is discarded
- * client-side and never becomes a row.
  */
 
-/** Below this, the student did not go anywhere. */
-const NGUONG_VANG_MS = 1200;
+/**
+ * How long the tab must stay hidden before it counts as leaving.
+ *
+ * Nothing at all is sent below this — not the leave, not the return. The old
+ * value (1 200 ms) only suppressed the RETURNED row after a leave had already
+ * been posted, which is the bug this rewrite exists for.
+ */
+export const NGUONG_VANG_MS = 1500;
 
 /** Matches DEDUP_MS in @dye/core: one alt-tab must never post twice. */
 const CHONG_TRUNG_MS = 1500;
@@ -130,7 +148,12 @@ export function TheoDoiTapTrung({
    * component is a leaf — nothing of the editor is below it, so the re-render
    * stops here.
    */
+  /** When the tab went hidden. Null while it is on screen. */
   const roiLuc = useRef<number | null>(null);
+  /** The grace timer for the current hide; fires only if still hidden. */
+  const henXacNhan = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** The current departure was confirmed and posted; a RETURNED must follow. */
+  const daBaoRoi = useRef(false);
   const guiLanCuoi = useRef(0);
   const demRef = useRef(0);
   /** Set once the lock has been asked for, so it is asked for exactly once. */
@@ -193,7 +216,7 @@ export function TheoDoiTapTrung({
      * request as "zero tab-outs".
      */
     const gui = async (
-      loai: 'TAB_HIDDEN' | 'WINDOW_BLUR' | 'RETURNED',
+      loai: 'TAB_HIDDEN' | 'RETURNED',
       awaySeconds?: number,
     ): Promise<number | null> => {
       const now = Date.now();
@@ -221,22 +244,53 @@ export function TheoDoiTapTrung({
       }
     };
 
-    const roiDi = (loai: 'TAB_HIDDEN' | 'WINDOW_BLUR'): void => {
+    const huyHen = (): void => {
+      if (henXacNhan.current !== null) {
+        clearTimeout(henXacNhan.current);
+        henXacNhan.current = null;
+      }
+    };
+
+    /**
+     * The grace period ran out with the tab still hidden: this is a departure.
+     *
+     * Checked against the live `visibilityState` rather than trusted from the
+     * timer alone — a `visible` that raced the timer is not a trip.
+     */
+    const xacNhanRoiDi = (): void => {
+      henXacNhan.current = null;
+      if (roiLuc.current === null || document.visibilityState !== 'hidden') return;
+      daBaoRoi.current = true;
+      void gui('TAB_HIDDEN');
+    };
+
+    const roiDi = (): void => {
       if (roiLuc.current !== null) return; // already away
+      // The OS file dialog covering the tab. The student is doing what the
+      // page asked; nothing starts, and the return below has nothing to close.
+      if (dangMoHopChonTep()) return;
       roiLuc.current = Date.now();
-      void gui(loai);
+      daBaoRoi.current = false;
+      huyHen();
+      henXacNhan.current = setTimeout(xacNhanRoiDi, NGUONG_VANG_MS);
     };
 
     const quayLai = (): void => {
       const luc = roiLuc.current;
       if (luc === null) return;
       roiLuc.current = null;
+      huyHen();
 
       const vangMs = Date.now() - luc;
-      // Too short to be a departure. The leave event has already been posted by
-      // the time we know that, which is unavoidable — the server's own cap and
-      // the teacher-facing wording both assume some of these are innocent.
-      if (vangMs < NGUONG_VANG_MS) return;
+      const daBao = daBaoRoi.current;
+      daBaoRoi.current = false;
+
+      /*
+       * Back inside the grace: nothing was posted, so there is nothing to
+       * close and nothing to count. This is the whole point of the timer — a
+       * blink is not a row anywhere, not on the server and not in this tab.
+       */
+      if (!daBao || vangMs < NGUONG_VANG_MS) return;
 
       void gui('RETURNED', Math.round(vangMs / 1000)).then((tuMayChu) => {
         /*
@@ -271,41 +325,22 @@ export function TheoDoiTapTrung({
       });
     };
 
+    /*
+     * The only listener. `window.blur` / `window.focus` are gone on purpose —
+     * see the header comment for the list of innocent things that fire blur.
+     */
     const onVisibility = (): void => {
-      if (document.visibilityState === 'hidden') roiDi('TAB_HIDDEN');
+      if (document.visibilityState === 'hidden') roiDi();
       else quayLai();
     };
 
-    /*
-     * A blur is judged one tick later, not on arrival.
-     *
-     * Clicking into the MakeCode iframe on this very page fires `blur` on the
-     * window exactly as switching to another app does. The two are told apart
-     * only by where focus LANDED, and that is not yet set when the event fires
-     * — see `dangTrongIframe`. A real departure loses nothing to the delay: a
-     * tab switch is caught by `visibilitychange` on its own, and a bare blur
-     * still opens the episode a millisecond later.
-     */
-    let henBlur: ReturnType<typeof setTimeout> | null = null;
-    const onBlur = (): void => {
-      if (henBlur !== null) clearTimeout(henBlur);
-      henBlur = setTimeout(() => {
-        henBlur = null;
-        if (dangTrongIframe()) return; // still in the lesson, inside the editor
-        roiDi('WINDOW_BLUR');
-      }, 0);
-    };
-    const onFocus = (): void => quayLai();
-
     document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('blur', onBlur);
-    window.addEventListener('focus', onFocus);
 
     return () => {
-      if (henBlur !== null) clearTimeout(henBlur);
+      huyHen();
       document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('blur', onBlur);
-      window.removeEventListener('focus', onFocus);
+      roiLuc.current = null;
+      daBaoRoi.current = false;
     };
   }, [lessonId, bat, nguongNhac, nguongKhoa, xinKhoa]);
 

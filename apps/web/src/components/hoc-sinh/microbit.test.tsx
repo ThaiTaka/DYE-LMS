@@ -29,6 +29,7 @@ import {
 } from './makecode';
 
 const nopStub = vi.hoisted(() => vi.fn());
+const refreshStub = vi.hoisted(() => vi.fn());
 
 vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
   nopMicrobit: nopStub,
@@ -41,8 +42,16 @@ vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
   nop: vi.fn(),
 }));
 
+// The workspace calls `router.refresh()` once a hand-in lands, so the ✓ and
+// the progress bar — server-rendered — catch up. Without a mounted app router
+// that throws in jsdom.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ refresh: refreshStub }),
+}));
+
 beforeEach(() => {
   nopStub.mockReset();
+  refreshStub.mockReset();
   nopStub.mockResolvedValue({
     trangThai: 'da-nhan',
     submissionId: 's1',
@@ -489,6 +498,40 @@ describe('Khu làm việc Micro:bit', () => {
     // Promising an automatic verdict that is never coming would leave a student
     // waiting on a spinner forever.
     expect(await screen.findByText(/thầy cô sẽ xem/i)).toBeInTheDocument();
+  });
+
+  it('nộp xong thì làm mới trang để ✓ và thanh tiến độ cập nhật', async () => {
+    /*
+     * Handing in completes the block on the server, but the ✓ on the header
+     * and the "Phần bắt buộc" bar are server-rendered. A Python block gets
+     * re-rendered by the judging poll; a Micro:bit block is never judged, so
+     * without this refresh the student sat on 0% until a hard reload.
+     */
+    const nguoiDung = userEvent.setup();
+    await dung();
+
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    editorTraBlocks(BLOCKS);
+    await screen.findByText(/thầy cô sẽ xem/i);
+
+    expect(refreshStub).toHaveBeenCalledTimes(1);
+  });
+
+  it('bị từ chối thì KHÔNG làm mới trang — không có gì mới để hiện', async () => {
+    nopStub.mockResolvedValue({
+      trangThai: 'tu-choi',
+      submissionId: null,
+      attemptNo: null,
+      thongDiep: 'Bài học này đã bị khoá.',
+    });
+    const nguoiDung = userEvent.setup();
+    await dung();
+
+    await nguoiDung.click(screen.getByRole('button', { name: /nộp bài cho thầy cô/i }));
+    editorTraBlocks(BLOCKS);
+    await screen.findByText(/đã bị khoá/i);
+
+    expect(refreshStub).not.toHaveBeenCalled();
   });
 
   it('không có nút nộp khi bài không chấm điểm', async () => {

@@ -88,6 +88,26 @@ const nextConfig = {
   // we do not use and warn that it is missing.
   serverExternalPackages: ['@prisma/client', '@node-rs/argon2', 'bullmq'],
 
+  /*
+   * Server-action request bodies.
+   *
+   * Next.js caps a server action's body at 1 MB by default and answers an
+   * oversized one BEFORE the action runs, so the client sees a rejected
+   * promise and nothing in this codebase ever logs it. That is exactly how the
+   * .hex hand-in failed: a universal micro:bit .hex is ~1.8 MB. It now goes
+   * through a route handler (`/api/khoi/[blockId]/hex`), which has no such
+   * cap — but the project-file actions in app/du-an/actions.ts still take a
+   * File in FormData and allow GIOI_HAN_TEP_BYTE (5 MB) per file. Sized to
+   * that limit plus multipart framing, so the framework's cap can never be
+   * the tighter one again. The reverse proxy's `client_max_body_size` (25 MB
+   * in the deployment guide) sits above both.
+   */
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '6mb',
+    },
+  },
+
   /**
    * Security headers.
    *
