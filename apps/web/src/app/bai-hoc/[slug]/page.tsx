@@ -85,19 +85,19 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
           Buổi {bai.order} · khoảng {bai.estimatedMinutes} phút
         </p>
         <h1 className="mt-1 mb-3 text-3xl leading-tight font-bold sm:text-4xl">{bai.title}</h1>
-        <p className="m-0 text-lg text-chu-phu">{bai.summary}</p>
+        <p className="m-0 text-lg leading-relaxed text-chu-phu">{bai.summary}</p>
       </header>
 
       {/* "What will I learn?" — the objectives double as a checklist. */}
       {bai.objectives.length > 0 ? (
         <section
           aria-labelledby="muc-tieu-bai-hoc"
-          className="mb-6 rounded-the border border-vien bg-the p-5"
+          className="mb-6 rounded-the border border-vien bg-the p-5 shadow-sm sm:p-6"
         >
-          <h2 id="muc-tieu-bai-hoc" className="mt-0 mb-3 text-base font-bold">
+          <h2 id="muc-tieu-bai-hoc" className="mt-0 mb-3 text-lg font-bold">
             Sau bài này em sẽ
           </h2>
-          <ul className="m-0 list-none space-y-2 p-0">
+          <ul className="m-0 list-none space-y-2 p-0 text-lg leading-relaxed">
             {bai.objectives.map((m, i) => (
               <li key={i} className="flex gap-2.5">
                 <span aria-hidden="true" className="text-chinh">
@@ -155,7 +155,7 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
         <ThanhChang blocks={bai.blocks} />
       </div>
 
-      <div className="mb-6 rounded-the border border-vien bg-the p-5">
+      <div className="mb-6 rounded-the border border-vien bg-the p-5 shadow-sm">
         <ThanhTienDo
           nhan="Phần bắt buộc trong bài này"
           phanTram={

@@ -83,7 +83,7 @@ export function BaiTracNghiem({
   }, [xongHet, blockId]);
 
   return (
-    <div className="rounded-nut border border-vien bg-the p-4 sm:p-5">
+    <div className="rounded-the border border-vien bg-the p-5 shadow-sm sm:p-6">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="m-0 text-base font-bold">{tracNghiem.title}</h3>
         <p aria-live="polite" className="m-0 text-sm text-chu-phu">
@@ -231,7 +231,7 @@ function CauHoi({
 
   return (
     <fieldset className="m-0 border-0 p-0">
-      <legend className="mb-3 p-0 text-base font-semibold">
+      <legend className="mb-3 p-0 text-lg leading-relaxed font-semibold">
         <span className="text-chu-nhat">Câu {soThuTu}.</span> {cau.prompt}
       </legend>
 

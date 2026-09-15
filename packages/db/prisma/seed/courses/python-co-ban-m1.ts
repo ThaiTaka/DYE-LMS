@@ -15,6 +15,7 @@
  * program runs from a file rather than in the REPL.
  */
 import type { ModuleSpec } from '../types.ts';
+import { khoiRobotB05 } from './python-co-ban-b05-robot.ts';
 import { thangBaiTapB06 } from './python-co-ban-b06-thang.ts';
 import {
   challenge,
@@ -1048,6 +1049,9 @@ export const module2: ModuleSpec = {
             },
           ],
         }),
+        // Grade-5 pass: robot-framed theory, a fill-in quiz, and ONE Thử thách
+        // task at the very end. See python-co-ban-b05-robot.ts.
+        ...khoiRobotB05,
       ],
     },
 

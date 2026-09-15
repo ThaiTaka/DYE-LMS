@@ -576,6 +576,8 @@ describe('Khu làm bài', () => {
       stderr: '',
       thoiGianMs: 42,
       ghiChu: '',
+      dauVao: '',
+      thieuDauVao: false,
     });
 
     const nguoiDung = userEvent.setup();
@@ -585,7 +587,85 @@ describe('Khu làm bài', () => {
     expect(await screen.findByText(/Xin chao/)).toBeInTheDocument();
     // The code that was sent must be what is in the editor, not the last saved
     // draft — running is how a student checks an edit they have not saved yet.
-    expect(chayThuStub).toHaveBeenCalledWith('b1', 'print("hien tai")\n');
+    expect(chayThuStub).toHaveBeenCalledWith('b1', 'print("hien tai")\n', undefined);
+  });
+
+  it('ô dữ liệu đầu vào luôn hiện, và nội dung gõ vào được gửi làm stdin', async () => {
+    chayThuStub.mockResolvedValue({
+      ok: true,
+      stdout: 'Tong: 8\n',
+      stderr: '',
+      thoiGianMs: 5,
+      ghiChu: '',
+      dauVao: '3\n5\n',
+      thieuDauVao: false,
+    });
+    const nguoiDung = userEvent.setup();
+    await dungKhu({ maBanDau: 'a = int(input())\nb = int(input())\nprint("Tong:", a + b)\n' });
+
+    const o = screen.getByLabelText(/Nhập dữ liệu đầu vào \(stdin\)/);
+    expect(o).toBeInTheDocument();
+    await nguoiDung.type(o, '3{Enter}5');
+    await nguoiDung.click(screen.getByRole('button', { name: /chạy thử/i }));
+
+    // One line per input(), newline-terminated the way Enter would.
+    expect(chayThuStub).toHaveBeenCalledWith('b1', expect.any(String), '3\n5\n');
+    expect(await screen.findByText(/Tong: 8/)).toBeInTheDocument();
+    expect(screen.getByText(/Chạy với dữ liệu em nhập/)).toBeInTheDocument();
+  });
+
+  it('ô trống thì gửi undefined — để máy chủ dùng dữ liệu mẫu của bài', async () => {
+    chayThuStub.mockResolvedValue({
+      ok: true,
+      stdout: '',
+      stderr: '',
+      thoiGianMs: 1,
+      ghiChu: '',
+      dauVao: '',
+      thieuDauVao: false,
+    });
+    const nguoiDung = userEvent.setup();
+    await dungKhu({ coDauVaoMau: true, maBanDau: 'x = input()\n' });
+    await nguoiDung.click(screen.getByRole('button', { name: /chạy thử/i }));
+    expect(chayThuStub).toHaveBeenCalledWith('b1', 'x = input()\n', undefined);
+  });
+
+  it('có input() nhưng ô trống và bài KHÔNG có mẫu → nhắc ngay, không chạy, đưa con trỏ vào ô', async () => {
+    /*
+     * The EOFError, caught before it happens. A playground has no sample
+     * input, so a blank box here really is an empty stdin — and the child can
+     * fix it without waiting for a traceback that never says "input".
+     */
+    const nguoiDung = userEvent.setup();
+    await dungKhu({ coBaiTap: false, coDauVaoMau: false, maBanDau: 'ten = input()\nprint(ten)\n' });
+
+    await nguoiDung.click(screen.getByRole('button', { name: /chạy thử/i }));
+
+    const nhac = await screen.findByRole('alert');
+    expect(nhac).toHaveTextContent(/Em quên nhập dữ liệu đầu vào \(stdin\) kìa/);
+    expect(chayThuStub).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByLabelText(/Nhập dữ liệu đầu vào/));
+  });
+
+  it('máy chủ báo thiếu dữ liệu (EOFError) → nhắc bằng lời, cạnh ô nhập', async () => {
+    chayThuStub.mockResolvedValue({
+      ok: true,
+      stdout: '',
+      stderr: 'Traceback (most recent call last):\n  File "main.py", line 2\nEOFError: EOF when reading a line\n',
+      thoiGianMs: 3,
+      ghiChu:
+        'Chương trình gọi input() nhiều lần hơn số dòng dữ liệu em đưa vào. Em thêm mỗi dòng cho một lần input() rồi chạy lại nhé.',
+      dauVao: '3\n',
+      thieuDauVao: true,
+    });
+    const nguoiDung = userEvent.setup();
+    await dungKhu({ maBanDau: 'a = input()\nb = input()\n' });
+    await nguoiDung.type(screen.getByLabelText(/Nhập dữ liệu đầu vào/), '3');
+    await nguoiDung.click(screen.getByRole('button', { name: /chạy thử/i }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/nhiều lần hơn số dòng/);
+    // The traceback is still there for the student who wants it.
+    expect(screen.getByText(/EOFError/)).toBeInTheDocument();
   });
 
   it('lỗi Python hiện nguyên văn stderr thay vì bị nuốt', async () => {

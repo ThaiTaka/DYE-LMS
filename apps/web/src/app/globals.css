@@ -17,7 +17,7 @@
 
 @theme {
   /* ── Surfaces ─────────────────────────────────────────────────────────── */
-  --color-nen: #f6f8fc; /* page background */
+  --color-nen: #f8fafc; /* page background — slate-50: soft, no glare on a projector */
   --color-the: #ffffff; /* card */
   --color-the-mo: #f1f5f9; /* muted card */
   --color-vien: #dbe3ee; /* border, 3.1:1 on --color-the */
@@ -70,7 +70,7 @@
   --text-xs: 0.9375rem; /* 15px — labels only, never paragraphs */
 
   /* ── Shape ────────────────────────────────────────────────────────────── */
-  --radius-the: 0.875rem;
+  --radius-the: 1rem; /* cards — rounded-2xl */
   --radius-nut: 0.625rem;
 
   /* Minimum interactive size. */
@@ -94,7 +94,12 @@ body {
   color: var(--color-chu);
   font-family: var(--font-sans);
   font-size: var(--text-base);
-  line-height: 1.65;
+  /*
+   * 1.7, not 1.5. At 18px a ten-year-old tracks lines with a finger or a
+   * ruler; the extra leading is what stops the eye slipping a line on the
+   * way back. Prose blocks go a touch further below.
+   */
+  line-height: 1.7;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -153,6 +158,9 @@ body {
 .van-ban ul,
 .van-ban ol {
   margin: 0 0 1.1em;
+  /* Reading copy: one size up from UI chrome, and roomier. */
+  font-size: 1.1875rem; /* 19px */
+  line-height: 1.75;
 }
 
 .van-ban h2,

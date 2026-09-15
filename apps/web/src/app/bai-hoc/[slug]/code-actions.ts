@@ -214,6 +214,15 @@ export interface KetQuaChayThuUI {
   thoiGianMs: number;
   /** Human sentence when the run did not simply finish. */
   ghiChu: string;
+  /**
+   * The program asked for input and there was none left to give.
+   *
+   * Set from the traceback (`EOFError`), which is the one Python error a
+   * ten-year-old cannot possibly decode: it says nothing about input, nothing
+   * about stdin, and points at a line that looks fine. The editor uses this to
+   * open the input box and say what happened in words.
+   */
+  thieuDauVao: boolean;
   /** What the program read on stdin, so the student can see what it was answering. */
   dauVao: string;
 }
@@ -277,12 +286,26 @@ export async function chayThu(
 
     const kq = await chayThuTrongSandbox(code, dauVao);
     if (!kq.ok) {
-      return { ok: false, stdout: '', stderr: '', thoiGianMs: 0, ghiChu: kq.loi, dauVao };
+      return {
+        ok: false,
+        stdout: '',
+        stderr: '',
+        thoiGianMs: 0,
+        ghiChu: kq.loi,
+        dauVao,
+        thieuDauVao: false,
+      };
     }
 
     const r = kq.ketQua;
-    const ghiChu =
-      r.ketThuc === 'het-gio'
+    const thieuDauVao = /\bEOFError\b/.test(r.stderr);
+    const ghiChu = thieuDauVao
+      ? dauVao
+        ? 'Chương trình gọi input() nhiều lần hơn số dòng dữ liệu em đưa vào. ' +
+          'Em thêm mỗi dòng cho một lần input() rồi chạy lại nhé.'
+        : 'Em quên nhập dữ liệu đầu vào (stdin) kìa! Chương trình có input() nhưng chưa có gì để đọc. ' +
+          'Em gõ vào ô "Dữ liệu đầu vào" rồi bấm Chạy thử lại nhé.'
+      : r.ketThuc === 'het-gio'
         ? 'Chương trình chạy quá lâu nên đã bị dừng. Em xem lại vòng lặp có thoát được chưa nhé.'
         : r.ketThuc === 'het-bo-nho'
           ? 'Chương trình dùng hết bộ nhớ cho phép nên đã bị dừng.'
@@ -301,10 +324,19 @@ export async function chayThu(
       thoiGianMs: r.thoiGianMs,
       ghiChu,
       dauVao,
+      thieuDauVao,
     };
   } catch (error) {
     const { thongDiep } = loiThanhThongDiep(error);
-    return { ok: false, stdout: '', stderr: '', thoiGianMs: 0, ghiChu: thongDiep, dauVao: '' };
+    return {
+      ok: false,
+      stdout: '',
+      stderr: '',
+      thoiGianMs: 0,
+      ghiChu: thongDiep,
+      dauVao: '',
+      thieuDauVao: false,
+    };
   }
 }
 

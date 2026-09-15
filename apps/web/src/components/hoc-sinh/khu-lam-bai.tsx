@@ -98,6 +98,12 @@ export interface KhuLamBaiProps {
   coBaiTap: boolean;
   nhan: string;
   mucTieu?: string | undefined;
+  /**
+   * The problem ships a sample input the server will feed when the box is
+   * blank. Lets the editor know whether an empty box + `input()` is a
+   * problem to warn about now, or one the server already handles.
+   */
+  coDauVaoMau?: boolean | undefined;
 }
 
 /**
@@ -115,6 +121,7 @@ export function KhuLamBai({
   coBaiTap,
   nhan,
   mucTieu,
+  coDauVaoMau = false,
 }: KhuLamBaiProps) {
   const [ma, setMa] = useState(maBanDau);
   const [moLichSu, setMoLichSu] = useState(false);
@@ -125,6 +132,11 @@ export function KhuLamBai({
   const [thongBao, setThongBao] = useState('');
   const [ketQuaChay, setKetQuaChay] = useState<KetQuaChayThuUI | null>(null);
   const [dangChay, setDangChay] = useState(false);
+  /** What the program will read from stdin. One line per `input()`. */
+  const [dauVao, setDauVao] = useState('');
+  /** The friendly "you forgot the input" note, shown by the box that fixes it. */
+  const [nhacDauVao, setNhacDauVao] = useState('');
+  const oDauVao = useRef<HTMLTextAreaElement | null>(null);
   const [dangGui, batDauGui] = useTransition();
 
   const tuLuu = useTuLuu(blockId);
@@ -239,17 +251,57 @@ export function KhuLamBai({
    * writing a draft revision for each press would bury the meaningful saves —
    * the ones made when they submitted — under dozens of keystroke-level ones.
    */
+  /**
+   * Run with whatever is in the input box.
+   *
+   * ── Blank box ────────────────────────────────────────────────────────────
+   * Sent as `undefined`, not `''`: the server treats "no opinion" as "use the
+   * problem's sample input", which is the right default for a graded exercise
+   * and what made "Chạy thử" stop crashing on `input()` in the first place. A
+   * playground has no sample, so there a blank box genuinely means empty
+   * stdin — and if the code calls `input()`, the run is refused BEFORE the
+   * round trip with the same sentence the server would have sent back. That
+   * is the one case the child can fix without waiting for a traceback.
+   *
+   * ── EOFError coming back ─────────────────────────────────────────────────
+   * The server names it (`thieuDauVao`). The editor repeats the note next to
+   * the box and puts the cursor in it, because the fix is typing there and a
+   * ten-year-old should not have to work out which of two panels to look at.
+   */
   const chayThuMa = useCallback(() => {
+    const code = maRef.current;
+    const goiInput = /\binput\s*\(/.test(code);
+    const dauVaoGo = dauVao.replace(/\r\n/g, '\n');
+    const trong = dauVaoGo.trim() === '';
+
+    setNhacDauVao('');
+
+    if (goiInput && trong && !coDauVaoMau) {
+      setNhacDauVao(
+        'Em quên nhập dữ liệu đầu vào (stdin) kìa! Chương trình có input() nên cần dữ liệu để đọc — ' +
+          'em gõ vào ô bên dưới, mỗi dòng cho một lần input(), rồi bấm Chạy thử lại nhé.',
+      );
+      oDauVao.current?.focus();
+      return;
+    }
+
     setDangChay(true);
     setKetQuaChay(null);
     void (async () => {
       try {
-        setKetQuaChay(await chayThu(blockId, maRef.current));
+        // A trailing newline so the last `input()` is terminated the way a
+        // person pressing Enter would terminate it.
+        const kq = await chayThu(blockId, code, trong ? undefined : `${dauVaoGo.replace(/\n$/, '')}\n`);
+        setKetQuaChay(kq);
+        if (kq.thieuDauVao) {
+          setNhacDauVao(kq.ghiChu);
+          oDauVao.current?.focus();
+        }
       } finally {
         setDangChay(false);
       }
     })();
-  }, [blockId]);
+  }, [blockId, dauVao, coDauVaoMau]);
 
   const nopBaiLam = useCallback(() => {
     batDauGui(async () => {
@@ -280,7 +332,7 @@ export function KhuLamBai({
     <div
       data-testid="khu-lam-bai"
       data-block-id={blockId}
-      className="rounded-nut border border-vien bg-the"
+      className="overflow-hidden rounded-the border border-vien bg-the shadow-sm"
     >
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-vien px-4 py-2.5">
         <span className="text-sm font-semibold">{nhan}</span>
@@ -318,6 +370,48 @@ export function KhuLamBai({
         </kbd>{' '}
         để ra khỏi khung soạn thảo
       </p>
+
+      {/*
+        Input for the program.
+
+        Sits right above the buttons, always visible, because the failure it
+        prevents is invisible: a student who wrote `input()` and pressed Run got
+        a traceback that never mentioned input. The box is small (two rows) so
+        it does not compete with the editor, and the helper line says the one
+        rule that matters — one line per `input()`.
+      */}
+      <div className="border-t border-vien px-4 py-3">
+        <label htmlFor={`${id}-dau-vao`} className="mb-1 block text-sm font-semibold">
+          <span aria-hidden="true">⌨️ </span>Nhập dữ liệu đầu vào (stdin) — nếu bài yêu cầu
+        </label>
+        <p id={`${id}-dau-vao-mo-ta`} className="mt-0 mb-2 text-sm text-chu-phu">
+          Mỗi dòng là một lần <code className="font-mono">input()</code> sẽ đọc.
+          {coDauVaoMau ? ' Để trống thì chương trình chạy với dữ liệu mẫu của bài.' : ''}
+        </p>
+        <textarea
+          ref={oDauVao}
+          id={`${id}-dau-vao`}
+          aria-describedby={`${id}-dau-vao-mo-ta`}
+          aria-invalid={nhacDauVao ? true : undefined}
+          value={dauVao}
+          onChange={(e) => {
+            setDauVao(e.target.value);
+            if (nhacDauVao) setNhacDauVao('');
+          }}
+          rows={2}
+          spellCheck={false}
+          placeholder={coDauVaoMau ? '(đang dùng dữ liệu mẫu — gõ vào đây để thử dữ liệu khác)' : 'Ví dụ:\n5'}
+          className={`min-h-cham w-full rounded-nut border bg-the px-3 py-2 font-mono text-base leading-relaxed text-chu placeholder:text-chu-nhat ${
+            nhacDauVao ? 'border-thu-lai ring-2 ring-thu-lai/30' : 'border-vien'
+          }`}
+        />
+        {nhacDauVao ? (
+          <p role="alert" className="mt-2 mb-0 rounded-nut bg-thu-lai-nen p-3 text-base font-medium text-thu-lai">
+            <span aria-hidden="true">💡 </span>
+            {nhacDauVao}
+          </p>
+        ) : null}
+      </div>
 
       <div className="flex flex-wrap items-center gap-3 border-t border-vien px-4 py-3">
         <button
@@ -383,7 +477,7 @@ export function KhuLamBai({
                 // "Tổng: 15" has no idea where 15 came from, and one whose
                 // `input()` crashed cannot tell that it was fed nothing.
                 <p className="mt-0 mb-2 text-xs text-chu-nhat">
-                  Chạy với đầu vào mẫu:{' '}
+                  {dauVao.trim() ? 'Chạy với dữ liệu em nhập:' : 'Chạy với đầu vào mẫu:'}{' '}
                   <code className="rounded border border-vien bg-the-mo px-1.5 py-0.5 font-mono">
                     {ketQuaChay.dauVao.replace(/\n/g, ' ⏎ ')}
                   </code>

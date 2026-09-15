@@ -33,8 +33,8 @@ export function KhoiNoiDung({
       aria-labelledby={`khoi-${khoi.blockId}`}
       className={
         khamPha
-          ? 'rounded-the border-2 border-dashed border-mo-rong bg-mo-rong-nen p-5 sm:p-6'
-          : 'rounded-the border border-vien bg-the p-5 sm:p-6'
+          ? 'rounded-the border-2 border-dashed border-mo-rong bg-mo-rong-nen p-5 shadow-sm sm:p-6'
+          : 'rounded-the border border-vien bg-the p-5 shadow-sm sm:p-6'
       }
     >
       <header className="mb-4">
@@ -62,7 +62,7 @@ export function KhoiNoiDung({
           ) : null}
         </div>
 
-        <h2 id={`khoi-${khoi.blockId}`} className="mt-0 mb-1 text-xl leading-snug font-bold">
+        <h2 id={`khoi-${khoi.blockId}`} className="mt-0 mb-1 text-2xl leading-snug font-bold">
           {khoi.title}
         </h2>
 
@@ -463,6 +463,7 @@ function ThuThachLapTrinh({ khoi }: { khoi: KhoiHienThi }) {
         coBanNhap={khoi.coBanNhap}
         luuLucBanDau={khoi.luuLucBanDau}
         coBaiTap={baiTap !== null}
+        coDauVaoMau={(baiTap?.viDu.length ?? 0) > 0}
         nhan="Bài làm của em"
       />
 
