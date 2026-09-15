@@ -16,6 +16,13 @@
  */
 import type { ModuleSpec } from '../types.ts';
 import { khoiRobotB05 } from './python-co-ban-b05-robot.ts';
+import {
+  thuThachB01,
+  thuThachB02,
+  thuThachB03,
+  thuThachB04,
+  thuThachB06,
+} from './python-co-ban-thu-thach-b01-b06.ts';
 import { thangBaiTapB06 } from './python-co-ban-b06-thang.ts';
 import {
   challenge,
@@ -444,7 +451,9 @@ export const module1: ModuleSpec = {
           'Ghi lại một câu',
           'Em muốn tự làm được điều gì sau khoá học này? Viết một câu ngắn — cuối khoá chúng ta sẽ đọc lại.',
         ),
-      ],
+              // Nhánh Thử thách — one scaffolded task, appended last.
+        thuThachB01,
+],
     },
 
     {
@@ -580,7 +589,9 @@ export const module1: ModuleSpec = {
             },
           ],
         }),
-      ],
+              // Nhánh Thử thách — one scaffolded task, appended last.
+        thuThachB02,
+],
     },
 
     {
@@ -760,7 +771,9 @@ export const module1: ModuleSpec = {
             },
           ],
         }),
-      ],
+              // Nhánh Thử thách — one scaffolded task, appended last.
+        thuThachB03,
+],
     },
 
     {
@@ -895,7 +908,9 @@ export const module1: ModuleSpec = {
             },
           ],
         }),
-      ],
+              // Nhánh Thử thách — one scaffolded task, appended last.
+        thuThachB04,
+],
     },
   ],
 };
@@ -1267,7 +1282,9 @@ export const module2: ModuleSpec = {
          * exploration rather than as a wall.
          */
         ...thangBaiTapB06,
-      ],
+              // Nhánh Thử thách — one scaffolded task, appended last.
+        thuThachB06,
+],
     },
 
     {
