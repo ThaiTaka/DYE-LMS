@@ -14,6 +14,8 @@ import {
 
 import { nopMicrobit, type KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
 
+import { TaiLenHex } from './tai-len-hex';
+
 import {
   coKhoiLenh,
   dangGiuEditor,
@@ -728,6 +730,28 @@ export const KhuMicrobit = memo(function KhuMicrobit({
           <span aria-hidden="true">{thongBao.ok ? '✓ ' : '! '}</span>
           {thongBao.chu}
         </p>
+      ) : null}
+
+      {/*
+        The way in when the editor will not load.
+
+        Always offered for a graded block, not only after a failure: a student
+        who did the work at home on makecode.microbit.org should not have to
+        make the frame fail here first to find the door. It is collapsed by
+        default so the ordinary path stays the obvious one.
+      */}
+      {coBaiTap ? (
+        <details className="border-t border-vien px-4 py-3">
+          <summary className="min-h-cham cursor-pointer text-sm font-semibold text-chu-phu hover:text-chinh">
+            Trình soạn không mở được? Nộp tệp .hex thay thế
+          </summary>
+          <div className="mt-3">
+            <TaiLenHex
+              blockId={blockId}
+              onDaNop={(kq) => setThongBao({ ok: true, chu: kq.thongDiep })}
+            />
+          </div>
+        </details>
       ) : null}
 
       <HuongDanNap id={`${id}-nap`} />

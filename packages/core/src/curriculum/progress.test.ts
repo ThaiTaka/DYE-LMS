@@ -64,6 +64,11 @@ async function completeThrough(studentId: string, upTo: number): Promise<void> {
   }
 }
 
+/** Flip the fixture course between the two presentations. */
+async function datNhanh(branching: 'STRICT' | 'INTERLEAVED'): Promise<void> {
+  await fx.db.course.update({ where: { id: fx.courseId }, data: { branching } });
+}
+
 async function resetStudent(studentId: string): Promise<void> {
   await fx.db.lessonProgress.deleteMany({ where: { studentId } });
   await fx.db.lessonOverride.deleteMany({ where: { studentId } });
@@ -142,9 +147,10 @@ describe('Học sinh khác nhánh có lộ trình bắt buộc khác nhau', () =
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('Định tuyến khối nội dung theo nhánh (phân hoá)', () => {
-  it('khối lượng giác buổi 17 là KHÁM PHÁ với Cơ bản, BẮT BUỘC với Nâng cao', async () => {
+  it('NHÁNH NGHIÊM (mặc định): Cơ bản KHÔNG thấy khối lượng giác buổi 17; Nâng cao thấy, và thấy SAU phần cốt lõi', async () => {
     const lessonId = lessonByOrder.get(17);
     expect(lessonId).toBeDefined();
+    await datNhanh('STRICT');
 
     await setTier(fx.studentA1, 'CO_BAN');
     await setTier(fx.studentA2, 'NANG_CAO');
@@ -152,19 +158,39 @@ describe('Định tuyến khối nội dung theo nhánh (phân hoá)', () => {
     const coBan = await lessonView(fx.db, fx.studentA1, lessonId!);
     const nangCao = await lessonView(fx.db, fx.studentA2, lessonId!);
 
-    const trigCoBan = coBan?.blocks.filter((b) => b.tier === 'NANG_CAO') ?? [];
     const trigNangCao = nangCao?.blocks.filter((b) => b.tier === 'NANG_CAO') ?? [];
-
     // Buổi 17 thực sự có khối Nâng cao — nếu không, test này vô nghĩa.
-    expect(trigCoBan.length).toBeGreaterThan(0);
+    expect(trigNangCao.length).toBeGreaterThan(0);
 
-    // Với học sinh Cơ bản: mọi khối lượng giác đều là KHÁM PHÁ, không tính điểm.
-    expect(trigCoBan.every((b) => b.access === 'EXPLORATION')).toBe(true);
+    // Cơ bản: the trigonometry blocks are not in the view at all.
+    expect(coBan?.blocks.some((b) => b.tier === 'NANG_CAO')).toBe(false);
+    expect(coBan?.blocks.some((b) => b.access === 'EXPLORATION' || b.access === 'HIDDEN')).toBe(false);
+    expect(coBan?.explorationTotal).toBe(0);
 
-    // Với học sinh Nâng cao: đã vào tầm, nên không còn khối nào là KHÁM PHÁ.
+    // Nâng cao: in scope, so REQUIRED/OPTIONAL — and appended AFTER every core block.
     expect(trigNangCao.every((b) => b.access !== 'EXPLORATION')).toBe(true);
-    // Và ít nhất phần lý thuyết + ví dụ trở thành bắt buộc.
     expect(trigNangCao.filter((b) => b.access === 'REQUIRED').length).toBeGreaterThanOrEqual(2);
+    const tiers = nangCao!.blocks.map((b) => (b.tier === 'CO_BAN' ? 0 : 1));
+    const dauTienNangCao = tiers.indexOf(1);
+    expect(dauTienNangCao).toBeGreaterThan(0);
+    expect(tiers.slice(dauTienNangCao).every((t) => t === 1)).toBe(true);
+  });
+
+  it('NHÁNH XEN KẼ: giữ luật cũ — Cơ bản thấy khối lượng giác là KHÁM PHÁ, đúng vị trí soạn', async () => {
+    const lessonId = lessonByOrder.get(17)!;
+    await datNhanh('INTERLEAVED');
+    try {
+      await setTier(fx.studentA1, 'CO_BAN');
+      const coBan = await lessonView(fx.db, fx.studentA1, lessonId);
+      const trig = coBan?.blocks.filter((b) => b.tier === 'NANG_CAO') ?? [];
+      expect(trig.length).toBeGreaterThan(0);
+      expect(trig.every((b) => b.access === 'EXPLORATION')).toBe(true);
+      // Authored order, untouched.
+      const orders = coBan!.blocks.map((b) => b.order);
+      expect(orders).toEqual([...orders].sort((a, b) => a - b));
+    } finally {
+      await datNhanh('STRICT');
+    }
   });
 
   it('khối đánh dấu tuỳ chọn KHÔNG trở thành bắt buộc dù học sinh ở nhánh cao', async () => {
@@ -181,16 +207,19 @@ describe('Định tuyến khối nội dung theo nhánh (phân hoá)', () => {
     expect(optional?.every((b) => b.title.includes('cột cờ'))).toBe(true);
   });
 
-  it('không khối nào bị giấu — cả hai nhánh thấy cùng số khối', async () => {
+  it('nhánh nghiêm: Nâng cao thấy NHIỀU khối hơn Cơ bản, và mọi khối Cơ bản thấy thì Nâng cao cũng thấy', async () => {
     const lessonId = lessonByOrder.get(17)!;
+    await datNhanh('STRICT');
     await setTier(fx.studentA1, 'CO_BAN');
     await setTier(fx.studentA2, 'NANG_CAO');
 
     const coBan = await lessonView(fx.db, fx.studentA1, lessonId);
     const nangCao = await lessonView(fx.db, fx.studentA2, lessonId);
 
-    expect(coBan?.blocks.length).toBe(nangCao?.blocks.length);
-    // Khác nhau ở PHÂN LOẠI, không phải ở khả năng nhìn thấy.
+    expect(nangCao!.blocks.length).toBeGreaterThan(coBan!.blocks.length);
+    // Tiers are cumulative: the core is the same core for both.
+    const idNangCao = new Set(nangCao!.blocks.map((b) => b.blockId));
+    expect(coBan!.blocks.every((b) => idNangCao.has(b.blockId))).toBe(true);
     expect(coBan?.required.total).toBeLessThan(nangCao?.required.total ?? 0);
   });
 
@@ -212,10 +241,10 @@ describe('Định tuyến khối nội dung theo nhánh (phân hoá)', () => {
     const done = await syncLessonCompletion(fx.db, fx.studentA1, lessonId);
     expect(done).toBe(true);
 
-    // Khối lượng giác vẫn chưa làm — và điều đó hoàn toàn ổn.
+    // Khối lượng giác vẫn chưa làm — và, dưới nhánh nghiêm, em còn không thấy nó.
     const after = await lessonView(fx.db, fx.studentA1, lessonId);
     expect(after?.explorationCompleted).toBe(0);
-    expect(after?.explorationTotal).toBeGreaterThan(0);
+    expect(after?.blocks.some((b) => b.tier === 'NANG_CAO')).toBe(false);
     expect(after?.isComplete).toBe(true);
   });
 });

@@ -4,9 +4,9 @@ import {
   authorize,
   biKhoaViPham,
   ForbiddenError,
+  ghiNhanNoLuc,
   moKhoiCode,
   nopTuLuan,
-  syncLessonCompletion,
 } from '@dye/core';
 
 import { revalidatePath } from 'next/cache';
@@ -222,26 +222,22 @@ export async function nopBaiTuLuan(
  * `moKhoiCode` is the same guard every other code action uses: it re-resolves
  * access through Phase 4 and throws for a locked lesson.
  */
-export async function danhDauKhoiXong(blockId: string): Promise<{ baiXong: boolean }> {
+export async function danhDauKhoiXong(
+  blockId: string,
+): Promise<{ baiXong: boolean; daGhi: boolean }> {
   const actor = await currentActor();
-  if (!actor || actor.role !== 'STUDENT') return { baiXong: false };
+  if (!actor || actor.role !== 'STUDENT') return { baiXong: false, daGhi: false };
 
-  let block: { lessonId: string };
   try {
-    block = await moKhoiCode(db, actor.id, blockId);
+    await moKhoiCode(db, actor.id, blockId);
   } catch {
     // Locked, unknown, or not theirs. Returning false rather than throwing keeps
     // this callable from a client component without producing a crash page.
-    return { baiXong: false };
+    return { baiXong: false, daGhi: false };
   }
 
-  await db.blockProgress.upsert({
-    where: { studentId_blockId: { studentId: actor.id, blockId } },
-    create: { studentId: actor.id, blockId, state: 'COMPLETED', completedAt: new Date() },
-    update: { state: 'COMPLETED', completedAt: new Date() },
-  });
-
-  const baiXong = await syncLessonCompletion(db, actor.id, block.lessonId);
+  // The one completion rule, shared with every hand-in path: effort counts.
+  const { baiXong } = await ghiNhanNoLuc(db, actor.id, blockId);
 
   /*
    * Re-read the lesson so the progress bar moves now rather than on the next
@@ -257,5 +253,5 @@ export async function danhDauKhoiXong(blockId: string): Promise<{ baiXong: boole
   revalidatePath('/khoa-hoc/[slug]', 'page');
   revalidatePath('/bang-dieu-khien');
 
-  return { baiXong };
+  return { baiXong, daGhi: true };
 }

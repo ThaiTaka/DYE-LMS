@@ -273,11 +273,14 @@ export async function datCanThiepBaiHoc(
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Grade a Micro:bit submission by hand.
+ * Grade a submission by hand — Micro:bit, Python, any of them.
  *
- * The one path in the system where a human sets a verdict. `chamTay` in
- * @dye/core refuses it for anything the sandbox CAN judge, so this cannot be
- * used to set an IO_MATCH result without a single test having run.
+ * The one path in the system where a human sets a verdict. It used to be
+ * limited to work the sandbox cannot judge; it now covers auto-judged work
+ * too, because a teacher who disagrees with a sandbox verdict — a trailing
+ * space, a Vietnamese diacritic the expected output lacked — needs somewhere
+ * to say so. `chamTay` attributes the override on the row and requires a
+ * note, so it stays distinguishable from a machine verdict.
  */
 export async function chamBaiMicrobit(
   _truoc: KetQuaHanhDong,
@@ -310,6 +313,9 @@ export async function chamBaiMicrobit(
 
     revalidatePath('/giao-vien/microbit');
     revalidatePath(`/giao-vien/microbit/${submissionId}`);
+    // The same form is now mounted on the results page for every submission.
+    revalidatePath('/giao-vien/ket-qua');
+    revalidatePath('/bai-hoc/[slug]', 'page');
 
     return {
       trangThai: 'thanh-cong',

@@ -46,6 +46,12 @@ enum Tier {
   MO_RONG
 }
 
+/// See Course.branching.
+enum Branching {
+  STRICT
+  INTERLEAVED
+}
+
 /// Lesson flow must be THEORY -> INTERACTIVE_EXAMPLE -> PLAYGROUND -> MINI_CHALLENGE.
 /// Enforced by assertPedagogicalFlow() in @dye/core on every write.
 enum BlockType {
@@ -338,19 +344,33 @@ model Enrollment {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Course {
-  id            String   @id @default(cuid())
-  slug          String   @unique
+  id            String    @id @default(cuid())
+  slug          String    @unique
   title         String
   subtitle      String?
   description   String
   /// 30 for all three courses in the DYE curriculum.
   totalSessions Int
   order         Int
-  colorToken    String   @default("indigo")
-  iconEmoji     String   @default("🐍")
-  isPublished   Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  colorToken    String    @default("indigo")
+  iconEmoji     String    @default("🐍")
+  isPublished   Boolean   @default(true)
+  /// How tiers are presented inside a lesson.
+  ///
+  /// STRICT (the default): a student sees only the blocks at or below their
+  /// track; blocks above it are not rendered at all. Blocks above CO_BAN are
+  /// moved after the core ones, so a lesson reads as "the core, then the
+  /// advanced part" rather than the two interleaved. This is the rule for the
+  /// Grade-5 audience: a "bonus quest" card in the middle of the core flow
+  /// reads as "am I supposed to do this?", and the honest answer — "no, but
+  /// you may" — is one more decision than a ten-year-old needs mid-lesson.
+  ///
+  /// INTERLEAVED: the original design. Above-track blocks stay visible as
+  /// EXPLORATION in their authored position. Kept per course so an older
+  /// cohort can be given the richer view without a code change.
+  branching     Branching @default(STRICT)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   modules      Module[]
   lessons      Lesson[]

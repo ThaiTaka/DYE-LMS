@@ -3,6 +3,7 @@ import type { DuLieuBaiHoc, KhoiHienThi } from '@/lib/student-data';
 
 import { BaiTracNghiem } from './bai-trac-nghiem';
 import { BiKhoaViPham } from './bi-khoa-vi-pham';
+import { NutDaDocXong } from './nut-da-doc-xong';
 import { KhuLamBai } from './khu-lam-bai';
 import { KhuMicrobit } from './khu-microbit';
 import { KIEU_NHANH, KIEU_TRUY_CAP } from '../ui/nhanh';
@@ -142,6 +143,7 @@ function NoiDungTheoLoai({
               </ul>
             </aside>
           ) : null}
+          <NutDaDocXong blockId={khoi.blockId} daXong={khoi.completed} />
         </>
       );
 
@@ -243,7 +245,12 @@ function NoiDungTheoLoai({
           <VanBan>{nd.markdown}</VanBan>
           {khoi.tracNghiem ? (
             <div className="mt-4">
-              <BaiTracNghiem tracNghiem={khoi.tracNghiem} kieu="kiem-tra" />
+              <BaiTracNghiem
+                tracNghiem={khoi.tracNghiem}
+                kieu="kiem-tra"
+                blockId={khoi.blockId}
+                daXong={khoi.completed}
+              />
             </div>
           ) : null}
         </>
@@ -272,6 +279,8 @@ function NoiDungTheoLoai({
                 tracNghiem={khoi.tracNghiem}
                 kieu="luyen-tap"
                 anhMinhHoa={nd.imageUrl}
+                blockId={khoi.blockId}
+                daXong={khoi.completed}
               />
             </div>
           ) : (
@@ -292,6 +301,8 @@ function NoiDungTheoLoai({
                 tracNghiem={khoi.tracNghiem}
                 kieu="luyen-tap"
                 anhMinhHoa={nd.imageUrl}
+                blockId={khoi.blockId}
+                daXong={khoi.completed}
               />
             </div>
           ) : (
@@ -304,16 +315,20 @@ function NoiDungTheoLoai({
 
     case 'reflection':
       return (
-        <div className="rounded-nut border border-vien bg-the-mo p-4">
-          <p className="m-0">{nd.prompt}</p>
-          <p className="mt-3 mb-0 text-sm text-chu-nhat">
-            Em có thể ghi câu trả lời vào vở — phần nộp bài suy ngẫm sẽ có ở bản cập nhật sau.
-          </p>
-        </div>
+        <>
+          <div className="rounded-nut border border-vien bg-the-mo p-4">
+            <p className="m-0">{nd.prompt}</p>
+            <p className="mt-3 mb-0 text-sm text-chu-nhat">
+              Em ghi câu trả lời vào vở, rồi bấm nút bên dưới nhé.
+            </p>
+          </div>
+          <NutDaDocXong blockId={khoi.blockId} daXong={khoi.completed} nhan="Em đã suy nghĩ xong" />
+        </>
       );
 
     case 'resource':
       return (
+        <>
         <ul className="m-0 list-none space-y-2 p-0">
           {nd.links.map((l, i) => (
             <li key={i}>
@@ -330,6 +345,8 @@ function NoiDungTheoLoai({
             </li>
           ))}
         </ul>
+        <NutDaDocXong blockId={khoi.blockId} daXong={khoi.completed} nhan="Em đã xem xong" />
+        </>
       );
 
     case 'project':
@@ -371,6 +388,7 @@ function NoiDungTheoLoai({
               ) : null}
             </a>
           ) : null}
+          <NutDaDocXong blockId={khoi.blockId} daXong={khoi.completed} nhan="Em đã xem xong" />
         </>
       );
 

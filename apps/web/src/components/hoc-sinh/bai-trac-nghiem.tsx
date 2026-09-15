@@ -1,8 +1,9 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 import {
+  danhDauKhoiXong,
   kiemTraCauTraLoi,
   nopBaiTuLuan,
   type KetQuaTraLoi,
@@ -35,17 +36,51 @@ export function BaiTracNghiem({
   tracNghiem,
   kieu = 'kiem-tra',
   anhMinhHoa = null,
+  blockId = null,
+  daXong = false,
 }: {
   tracNghiem: TracNghiemHienThi;
   kieu?: 'kiem-tra' | 'luyen-tap';
   anhMinhHoa?: string | null;
+  /** The block this quiz completes. Null for a quiz rendered outside a lesson. */
+  blockId?: string | null;
+  /** Already complete on the server, so the page does not re-record it. */
+  daXong?: boolean;
 }) {
   const [ketQua, setKetQua] = useState<Record<string, KetQuaTraLoi>>({});
+  /*
+   * Every question that has an answer — right, wrong, or an essay handed in.
+   *
+   * `ketQua` only holds machine-marked answers; an essay never produces one
+   * (it goes to a teacher), so a quiz with an essay in it could never reach
+   * "all answered" and its block could never complete. Essays already
+   * submitted on a previous visit are seeded from the server state.
+   */
+  const [daTraLoiIds, setDaTraLoiIds] = useState<Set<string>>(
+    () =>
+      new Set(
+        tracNghiem.questions
+          .filter((q) => q.tuLuan && q.tuLuan.trangThai !== 'chua-nop')
+          .map((q) => q.id),
+      ),
+  );
+  const daGhiRef = useRef(daXong);
 
-  const daTraLoi = Object.keys(ketQua).length;
+  const daTraLoi = daTraLoiIds.size;
   const daDung = Object.values(ketQua).filter((k) => k.dung).length;
   const tong = tracNghiem.questions.length;
-  const xongHet = daTraLoi === tong;
+  const xongHet = tong > 0 && daTraLoi === tong;
+
+  /*
+   * Effort counts: every question answered — not every question right — is
+   * what completes the block. Recorded once per mount; the server upsert is
+   * idempotent anyway, so a double call would cost a query, not a bug.
+   */
+  useEffect(() => {
+    if (!xongHet || !blockId || daGhiRef.current) return;
+    daGhiRef.current = true;
+    void danhDauKhoiXong(blockId).catch(() => undefined);
+  }, [xongHet, blockId]);
 
   return (
     <div className="rounded-nut border border-vien bg-the p-4 sm:p-5">
@@ -80,15 +115,25 @@ export function BaiTracNghiem({
               cau={cau}
               soThuTu={i + 1}
               ketQua={ketQua[cau.id]}
-              onTraLoi={(kq) => setKetQua((truoc) => ({ ...truoc, [cau.id]: kq }))}
-              onLamLai={() =>
+              onTraLoi={(kq) => {
+                setKetQua((truoc) => ({ ...truoc, [cau.id]: kq }));
+                setDaTraLoiIds((truoc) => new Set(truoc).add(cau.id));
+              }}
+              onNop={() => setDaTraLoiIds((truoc) => new Set(truoc).add(cau.id))}
+              onLamLai={() => {
                 setKetQua((truoc) => {
                   // Remove the key entirely. Leaving it as `undefined` would keep
                   // the question counted in "đã trả lời" while rendering as unanswered.
                   const { [cau.id]: _bo, ...conLai } = truoc;
                   return conLai;
-                })
-              }
+                });
+                // And un-count it, or the counter reads 1/2 with nothing answered.
+                setDaTraLoiIds((truoc) => {
+                  const moi = new Set(truoc);
+                  moi.delete(cau.id);
+                  return moi;
+                });
+              }}
             />
           </li>
         ))}
@@ -141,12 +186,15 @@ function CauHoi({
   ketQua,
   onTraLoi,
   onLamLai,
+  onNop,
 }: {
   cau: CauHoiHienThi;
   soThuTu: number;
   ketQua: KetQuaTraLoi | undefined;
   onTraLoi: (kq: KetQuaTraLoi) => void;
   onLamLai: () => void;
+  /** An essay was handed in: counts as answered for completion. */
+  onNop: () => void;
 }) {
   const [dangGui, setDangGui] = useState(false);
   const [nhapTay, setNhapTay] = useState('');
@@ -176,6 +224,7 @@ function CauHoi({
         // Server state wins over anything this component has in memory: it is
         // what makes the lock survive a reload.
         banDau={cau.tuLuan ?? { trangThai: 'chua-nop' }}
+        onNop={onNop}
       />
     );
   }
@@ -345,10 +394,12 @@ function CauTuLuan({
   cau,
   soThuTu,
   banDau,
+  onNop,
 }: {
   cau: CauHoiHienThi;
   soThuTu: number;
   banDau: NonNullable<CauHoiHienThi['tuLuan']>;
+  onNop: () => void;
 }) {
   const [trangThai, setTrangThai] = useState(banDau);
   const [nhap, setNhap] = useState('');
@@ -369,6 +420,7 @@ function CauTuLuan({
           noiDung: nhap.trim(),
           nopLuc: new Date(),
         });
+        onNop();
       }
     } finally {
       setDangGui(false);

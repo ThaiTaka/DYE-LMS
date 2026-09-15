@@ -74,6 +74,7 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   'khoiPhucBanLuu(': 'moKhoiCode',
   'nopBai(': 'moKhoiCode',
   'nopBaiMicrobit(': 'moKhoiCode',
+  'nopBaiMicrobitHex(': 'moKhoiCode',
   'ghiNhanXet(': 'moDuAn',
   'chamTay(': 'ForbiddenError',
   'phanCongLopHoc(': 'requireQuanTriPhanCongLop',

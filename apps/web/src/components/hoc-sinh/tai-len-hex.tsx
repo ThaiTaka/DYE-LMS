@@ -1,0 +1,208 @@
+'use client';
+
+import { useCallback, useId, useRef, useState, useTransition } from 'react';
+
+import { nopMicrobitHex, type KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
+
+/**
+ * Hand in a .hex file by hand — the fallback when the MakeCode frame will not.
+ *
+ * ── Why this exists ──────────────────────────────────────────────────────────
+ * The embedded editor is a third-party page loaded from makecode.microbit.org.
+ * A school network that blocks it, a browser it dislikes, an afternoon it is
+ * simply down — each leaves a student with finished blocks and no way to hand
+ * them in. MakeCode's own site (and its desktop app) export a .hex; this takes
+ * that file and makes it a first-class submission: same attempt numbering,
+ * same teacher queue, same completion.
+ *
+ * ── Checked twice ────────────────────────────────────────────────────────────
+ * Here, before upload: extension, size, and the first byte (a .hex starts with
+ * `:`). Cheap, instant, and enough to catch "I picked the wrong file" without
+ * a round trip. Then on the server, fully: every record's checksum. This
+ * component never claims the file is valid — only that it was worth sending.
+ *
+ * ── Built for a ten-year-old ─────────────────────────────────────────────────
+ * One big target that is both a button and a drop zone. The chosen file is
+ * named back to them in large text before they commit. Every refusal says
+ * what to do next, in the second person, without the word "lỗi".
+ */
+
+const MB = 1024 * 1024;
+/** Mirrors GIOI_HAN_HEX_BYTE in @dye/core. */
+const GIOI_HAN_MB = 4;
+
+interface TepDaChon {
+  file: File;
+  /** Set when the pre-check refused it; the file is shown but not sendable. */
+  lyDoTuChoi: string | null;
+}
+
+async function kiemTraSoBo(file: File): Promise<string | null> {
+  if (!/\.hex$/i.test(file.name)) {
+    return 'Tệp này không phải .hex. Trong MakeCode, em bấm "Tải xuống" và chọn tệp có đuôi .hex.';
+  }
+  if (file.size === 0) return 'Tệp này trống. Em tải lại từ MakeCode nhé.';
+  if (file.size > GIOI_HAN_MB * MB) {
+    return `Tệp lớn hơn ${GIOI_HAN_MB} MB — không phải tệp .hex của micro:bit.`;
+  }
+  // Intel HEX begins with a record start code. One byte tells us a lot.
+  const dau = new Uint8Array(await file.slice(0, 1).arrayBuffer());
+  if (dau[0] !== 0x3a /* ':' */) {
+    return 'Tệp không đúng định dạng .hex của micro:bit. Em tải lại từ MakeCode nhé.';
+  }
+  return null;
+}
+
+function kichThuoc(bytes: number): string {
+  return bytes >= MB ? `${(bytes / MB).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+export function TaiLenHex({
+  blockId,
+  onDaNop,
+}: {
+  blockId: string;
+  /** Lets the parent refresh its own history list. */
+  onDaNop?: (kq: KetQuaNop) => void;
+}) {
+  const [chon, setChon] = useState<TepDaChon | null>(null);
+  const [keo, setKeo] = useState(false);
+  const [ketQua, setKetQua] = useState<KetQuaNop | null>(null);
+  const [dangGui, batDau] = useTransition();
+  const input = useRef<HTMLInputElement | null>(null);
+  const id = useId();
+
+  const nhanTep = useCallback(async (file: File | undefined) => {
+    setKetQua(null);
+    if (!file) return;
+    setChon({ file, lyDoTuChoi: await kiemTraSoBo(file) });
+  }, []);
+
+  const gui = useCallback(() => {
+    if (!chon || chon.lyDoTuChoi) return;
+    batDau(async () => {
+      const fd = new FormData();
+      fd.set('tep', chon.file);
+      const kq = await nopMicrobitHex(blockId, fd).catch<KetQuaNop>(() => ({
+        trangThai: 'loi',
+        submissionId: null,
+        attemptNo: null,
+        thongDiep: 'Chưa gửi được. Em kiểm tra mạng rồi thử lại nhé.',
+      }));
+      setKetQua(kq);
+      if (kq.trangThai === 'da-nhan') {
+        setChon(null);
+        if (input.current) input.current.value = '';
+        onDaNop?.(kq);
+      }
+    });
+  }, [blockId, chon, onDaNop]);
+
+  return (
+    <section
+      aria-labelledby={`${id}-tieu-de`}
+      className="rounded-nut border-2 border-dashed border-vien bg-the-mo p-4 sm:p-5"
+    >
+      <h3 id={`${id}-tieu-de`} className="mt-0 mb-1 text-base font-bold">
+        <span aria-hidden="true">📎 </span>Nộp tệp .hex (nếu trình soạn không mở được)
+      </h3>
+      <p className="mt-0 mb-4 text-sm text-chu-phu">
+        Em làm bài trên <strong>makecode.microbit.org</strong>, bấm <strong>Tải xuống</strong> để
+        có tệp <code>.hex</code>, rồi đưa tệp đó vào đây. Tệp này được tính là bài nộp chính thức.
+      </p>
+
+      {/*
+        One large target. `<label>` wraps the hidden input so a click anywhere
+        on it opens the picker; the same element takes a drop.
+      */}
+      <label
+        htmlFor={`${id}-tep`}
+        onDragOver={(e) => {
+          e.preventDefault();
+          setKeo(true);
+        }}
+        onDragLeave={() => setKeo(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setKeo(false);
+          void nhanTep(e.dataTransfer.files[0]);
+        }}
+        className={`flex min-h-[6rem] cursor-pointer flex-col items-center justify-center gap-1 rounded-nut border-2 p-4 text-center transition-colors ${
+          keo
+            ? 'border-chinh bg-chinh-nhat'
+            : 'border-vien bg-the hover:border-chinh focus-within:border-chinh'
+        }`}
+      >
+        <span aria-hidden="true" className="text-3xl">
+          📂
+        </span>
+        <span className="text-base font-semibold">Chọn tệp .hex hoặc kéo thả vào đây</span>
+        <span className="text-sm text-chu-nhat">Tối đa {GIOI_HAN_MB} MB</span>
+        <input
+          ref={input}
+          id={`${id}-tep`}
+          type="file"
+          accept=".hex,application/octet-stream"
+          className="sr-only"
+          onChange={(e) => void nhanTep(e.target.files?.[0])}
+        />
+      </label>
+
+      {chon ? (
+        <div
+          className={`mt-3 rounded-nut border p-3 ${
+            chon.lyDoTuChoi ? 'border-thu-lai bg-thu-lai-nen' : 'border-dung/40 bg-dung-nen'
+          }`}
+        >
+          <p className="m-0 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <span className="text-base font-semibold break-all">
+              <span aria-hidden="true">{chon.lyDoTuChoi ? '⚠️ ' : '✅ '}</span>
+              {chon.file.name}
+            </span>
+            <span className="text-sm text-chu-phu">{kichThuoc(chon.file.size)}</span>
+          </p>
+          {chon.lyDoTuChoi ? (
+            <p role="alert" className="mt-2 mb-0 text-sm text-thu-lai">
+              {chon.lyDoTuChoi}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={gui}
+          disabled={!chon || chon.lyDoTuChoi !== null || dangGui}
+          className="min-h-cham rounded-nut bg-chinh px-5 py-2.5 text-base font-semibold text-white hover:bg-chinh-dam disabled:opacity-50"
+        >
+          {dangGui ? 'Đang gửi…' : 'Nộp tệp này'}
+        </button>
+        {chon ? (
+          <button
+            type="button"
+            onClick={() => {
+              setChon(null);
+              setKetQua(null);
+              if (input.current) input.current.value = '';
+            }}
+            className="min-h-cham rounded-nut px-3 py-2 text-sm font-medium text-chu-phu hover:text-chinh"
+          >
+            Chọn tệp khác
+          </button>
+        ) : null}
+      </div>
+
+      {ketQua ? (
+        <p
+          role={ketQua.trangThai === 'da-nhan' ? 'status' : 'alert'}
+          className={`mt-3 mb-0 rounded-nut p-3 text-sm font-medium ${
+            ketQua.trangThai === 'da-nhan' ? 'bg-dung-nen text-dung' : 'bg-thu-lai-nen text-thu-lai'
+          }`}
+        >
+          {ketQua.thongDiep}
+        </p>
+      ) : null}
+    </section>
+  );
+}

@@ -22,18 +22,26 @@ import {
   moKhoiCode,
   nopBai,
   nopBaiMicrobit,
+  nopBaiMicrobitHex,
   xemBanLuu,
   ForbiddenError,
+  GIOI_HAN_HEX_BYTE,
+  khoaLuuTru,
+  kiemTraIntelHex,
   UnauthorizedError,
   type BaiDaNop,
   type BanLuu,
+  type LoiHex,
 } from '@dye/core';
+
+import { createHash } from 'node:crypto';
 
 import { revalidatePath } from 'next/cache';
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
 import { chayThuTrongSandbox, xepHangChamBai } from '@/lib/judge-queue';
+import { khoDuAn } from '@/lib/project-storage';
 
 import type { Actor } from '@dye/core';
 
@@ -315,6 +323,76 @@ export async function nop(blockId: string, code: string): Promise<KetQuaNop> {
       submissionId: kq.submissionId,
       attemptNo: kq.attemptNo,
       thongDiep: `Đã nhận bài làm lần ${kq.attemptNo} của em. Bài đang chờ được chấm.`,
+    };
+  } catch (error) {
+    const { trangThai, thongDiep } = loiThanhThongDiep(error);
+    return { trangThai, submissionId: null, attemptNo: null, thongDiep };
+  }
+}
+
+/** What each refusal means to a ten-year-old holding the wrong file. */
+const LOI_HEX_CHU: Record<LoiHex, string> = {
+  rong: 'Tệp này trống. Em xuất lại từ MakeCode rồi chọn đúng tệp .hex nhé.',
+  'qua-lon': `Tệp lớn hơn ${Math.round(GIOI_HAN_HEX_BYTE / 1024 / 1024)} MB — không phải tệp .hex của micro:bit.`,
+  'khong-phai-intel-hex':
+    'Đây không phải tệp .hex của micro:bit. Trong MakeCode, em bấm "Tải xuống" (Download) và chọn tệp vừa tải.',
+  'dong-hong': 'Tệp .hex bị hỏng. Em tải lại từ MakeCode rồi nộp lần nữa nhé.',
+  'sai-checksum': 'Tệp .hex bị lỗi khi tải về (sai mã kiểm tra). Em tải lại từ MakeCode nhé.',
+  'thieu-ket-thuc': 'Tệp .hex chưa tải xong (thiếu phần cuối). Em đợi tải hết rồi nộp lại nhé.',
+};
+
+/**
+ * Hand in an exported .hex — the fallback when the embedded editor will not.
+ *
+ * ── The file is checked before anything is stored ────────────────────────────
+ * `kiemTraIntelHex` reads the whole file as text and verifies every record's
+ * checksum. A renamed photo, a truncated download, a corrupted copy — each is
+ * refused with a sentence that says what to do, rather than accepted and
+ * discovered by a teacher a week later.
+ *
+ * ── Content-addressed storage ────────────────────────────────────────────────
+ * The key is the SHA-256 of the bytes (`khoaLuuTru`), so the same .hex handed
+ * in twice is stored once, and the submission row points at exactly the bytes
+ * the student sent. The teacher's download serves those bytes back.
+ *
+ * ── FormData, not a base64 string ────────────────────────────────────────────
+ * A universal .hex is ~1.8 MB; base64 would make that 2.4 MB of JSON argument.
+ * Server actions accept FormData with a File in it natively.
+ */
+export async function nopMicrobitHex(blockId: string, form: FormData): Promise<KetQuaNop> {
+  try {
+    const actor = await hocSinhHienTai();
+
+    const tep = form.get('tep');
+    if (!(tep instanceof File)) {
+      return { trangThai: 'tu-choi', submissionId: null, attemptNo: null, thongDiep: 'Em chưa chọn tệp .hex nào.' };
+    }
+    if (tep.size > GIOI_HAN_HEX_BYTE) {
+      return { trangThai: 'tu-choi', submissionId: null, attemptNo: null, thongDiep: LOI_HEX_CHU['qua-lon'] };
+    }
+
+    const bytes = new Uint8Array(await tep.arrayBuffer());
+    const kq = kiemTraIntelHex(new TextDecoder('utf-8', { fatal: false }).decode(bytes), bytes.length);
+    if (!kq.ok) {
+      return { trangThai: 'tu-choi', submissionId: null, attemptNo: null, thongDiep: LOI_HEX_CHU[kq.loi] };
+    }
+
+    const sha = createHash('sha256').update(bytes).digest('hex');
+    const hexKey = khoaLuuTru(sha);
+    await khoDuAn.ghi(hexKey, bytes);
+
+    const tenTep = tep.name.replace(/[^\w.\-() ]+/g, '').slice(0, 80) || 'microbit.hex';
+    const nop = await nopBaiMicrobitHex(db, actor.id, blockId, { hexKey, tenTep, kichThuoc: bytes.length });
+
+    lamMoiTrangTienDo();
+
+    return {
+      trangThai: 'da-nhan',
+      submissionId: nop.submissionId,
+      attemptNo: nop.attemptNo,
+      thongDiep:
+        `Đã nhận tệp ${tenTep} — lần nộp thứ ${nop.attemptNo}. Thầy cô sẽ nạp thử lên micro:bit và nhận xét. ` +
+        'Phần này đã được tính là hoàn thành.',
     };
   } catch (error) {
     const { trangThai, thongDiep } = loiThanhThongDiep(error);

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 
 import { validateLessonFlow, stageOf } from './flow';
 import { isStatusRequiredForTier, resolveGating, type GatingInput, type GatingLesson } from './gating';
-import { resolveBlockAccess, nextTier, tierRank, tierWithinScope } from './tiers';
+import { resolveBlockAccess, nextTier, tierRank, tierWithinScope, isBlockVisible, sapXepTheoNhanh } from './tiers';
 
 import type { LessonStatus, ProgressState, Tier } from '@prisma/client';
 
@@ -72,11 +72,34 @@ describe('Thang phân hoá', () => {
     expect(tierWithinScope('MO_RONG', 'NANG_CAO')).toBe(false);
   });
 
-  it('khối trong tầm là BẮT BUỘC, trên tầm là KHÁM PHÁ — không bao giờ bị giấu', () => {
+  it('khối trong tầm là BẮT BUỘC; trên tầm thì GIẤU (nghiêm) hoặc KHÁM PHÁ (xen kẽ)', () => {
     // Khối lượng giác (NANG_CAO) ở buổi 17 Python Cơ Bản.
-    expect(resolveBlockAccess('NANG_CAO', false, 'CO_BAN')).toBe('EXPLORATION');
+    // STRICT is the default: a Cơ bản student is not shown it at all.
+    expect(resolveBlockAccess('NANG_CAO', false, 'CO_BAN')).toBe('HIDDEN');
+    expect(resolveBlockAccess('NANG_CAO', false, 'CO_BAN', 'STRICT')).toBe('HIDDEN');
+    // INTERLEAVED keeps the original rule: visible, uncounted.
+    expect(resolveBlockAccess('NANG_CAO', false, 'CO_BAN', 'INTERLEAVED')).toBe('EXPLORATION');
+    // Inside the track, branching makes no difference.
     expect(resolveBlockAccess('NANG_CAO', false, 'NANG_CAO')).toBe('REQUIRED');
     expect(resolveBlockAccess('CO_BAN', false, 'NANG_CAO')).toBe('REQUIRED');
+    expect(isBlockVisible('HIDDEN')).toBe(false);
+    expect(isBlockVisible('EXPLORATION')).toBe(true);
+  });
+
+  it('nhánh nghiêm xếp phần cốt lõi trước, phần nâng cao nối sau — theo bậc rồi theo thứ tự', () => {
+    const khoi = [
+      { id: 'a', tier: 'CO_BAN' as const, order: 1 },
+      { id: 'b', tier: 'NANG_CAO' as const, order: 2 },
+      { id: 'c', tier: 'CO_BAN' as const, order: 3 },
+      { id: 'd', tier: 'THU_THACH' as const, order: 4 },
+      { id: 'e', tier: 'CO_BAN' as const, order: 5 },
+    ];
+    // Authored order interleaves; the strict view does not.
+    expect(sapXepTheoNhanh(khoi, 'STRICT').map((k) => k.id)).toEqual(['a', 'c', 'e', 'd', 'b']);
+    // The interleaved view is exactly the authored order.
+    expect(sapXepTheoNhanh(khoi, 'INTERLEAVED').map((k) => k.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    // Pure: the input is not mutated.
+    expect(khoi.map((k) => k.id)).toEqual(['a', 'b', 'c', 'd', 'e']);
   });
 
   it('khối đánh dấu tuỳ chọn không bao giờ là bắt buộc', () => {

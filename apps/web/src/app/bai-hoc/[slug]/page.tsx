@@ -168,9 +168,40 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
       </div>
 
       <div className="space-y-5">
-        {bai.blocks.map((khoi) => (
-          <KhoiNoiDung key={khoi.blockId} khoi={khoi} khoaViPham={bai.khoaViPham} />
-        ))}
+        {bai.blocks.map((khoi, i) => {
+          /*
+           * The core/advanced boundary, drawn once.
+           *
+           * Under STRICT branching the view has already put every above-core
+           * block after the core ones, so the first non-Cơ-bản block is where
+           * the lesson changes character. A student on a higher track sees
+           * one divider saying so; a Cơ bản student never sees it, because
+           * they never see a block past it.
+           */
+          const truoc = i > 0 ? (bai.blocks[i - 1] ?? null) : null;
+          const batDauNangCao =
+            bai.branching === 'STRICT' &&
+            khoi.tier !== 'CO_BAN' &&
+            (truoc === null || truoc.tier === 'CO_BAN');
+          return (
+            <div key={khoi.blockId} className="space-y-5">
+              {batDauNangCao ? (
+                <div
+                  role="separator"
+                  aria-label="Bắt đầu phần nâng cao"
+                  className="flex items-center gap-3 pt-2"
+                >
+                  <span className="h-px flex-1 bg-vien" />
+                  <span className="inline-flex items-center gap-2 rounded-full border border-mo-rong bg-mo-rong-nen px-4 py-1.5 text-sm font-bold text-mo-rong">
+                    <span aria-hidden="true">🚀</span> Phần nâng cao — dành cho lộ trình của em
+                  </span>
+                  <span className="h-px flex-1 bg-vien" />
+                </div>
+              ) : null}
+              <KhoiNoiDung khoi={khoi} khoaViPham={bai.khoaViPham} />
+            </div>
+          );
+        })}
       </div>
 
       {/* "What's next?" at the end of the lesson, too. */}

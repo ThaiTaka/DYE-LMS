@@ -977,6 +977,10 @@ export interface HangKetQuaBaiNop {
   nopLuc: Date;
   /** Exactly what the student handed in. */
   code: string;
+  /** Set when the student handed in a compiled .hex rather than blocks. */
+  coTepHex: boolean;
+  /** Set when a person set this verdict (see `chamTay`), not the sandbox. */
+  chamTay: boolean;
 }
 
 export interface DuLieuKetQuaBaiNop {
@@ -1041,6 +1045,8 @@ export async function duLieuKetQuaBaiNop(
         verdict: true,
         score: true,
         code: true,
+        hexKey: true,
+        runnerError: true,
         createdAt: true,
         student: { select: { displayName: true } },
         problem: { select: { title: true, totalPoints: true } },
@@ -1070,6 +1076,8 @@ export async function duLieuKetQuaBaiNop(
       totalPoints: r.problem.totalPoints,
       nopLuc: r.createdAt,
       code: r.code,
+      coTepHex: r.hexKey !== null,
+      chamTay: (r.runnerError ?? '').startsWith('cham tay boi'),
     })),
     toanHeThong: actor.role === 'ADMIN',
     demTheoKetQua: Object.fromEntries(dem.map((d) => [d.verdict, d._count._all])),

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { ChamMicrobit } from '@/components/giao-vien/cham-microbit';
 import { ChamTuLuan } from '@/components/giao-vien/cham-tu-luan';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { XemMaBaiNop } from '@/components/giao-vien/xem-ma-bai-nop';
@@ -205,9 +206,49 @@ export default async function TrangKetQua({
                     >
                       {NHAN_KET_QUA[b.verdict] ?? b.verdict}
                     </span>
+                    {b.chamTay ? (
+                      <span
+                        className="rounded-full border border-vien px-2.5 py-0.5 text-xs font-semibold text-chu-phu"
+                        title="Kết luận này do giáo viên đặt, không phải máy chấm"
+                      >
+                        ✍ chấm tay
+                      </span>
+                    ) : null}
                     <XemMaBaiNop code={b.code} tenHocSinh={b.tenHocSinh} />
+                    {b.coTepHex ? (
+                      <a
+                        href={`/api/bai-nop/${b.submissionId}/hex`}
+                        className="min-h-cham inline-flex items-center gap-1 rounded-nut border border-vien px-3 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+                      >
+                        <span aria-hidden="true">📎</span> Tải tệp .hex
+                      </a>
+                    ) : null}
                   </div>
                 </div>
+
+                {/*
+                  Manual grading, on every row.
+
+                  Collapsed, because most rows are settled and a teacher scanning
+                  the list should not meet forty open forms. Opened, it is the
+                  same form the Micro:bit queue uses; the row keeps the sandbox
+                  verdict visible above it so the teacher overrides a number they
+                  can see, not one they have to remember.
+                */}
+                <details className="mt-3">
+                  <summary className="min-h-cham cursor-pointer text-sm font-semibold text-chu-phu hover:text-chinh">
+                    {b.chamTay ? 'Chấm lại' : 'Chấm tay / sửa điểm…'}
+                  </summary>
+                  <div className="mt-3">
+                    <ChamMicrobit
+                      submissionId={b.submissionId}
+                      tenHocSinh={b.tenHocSinh}
+                      totalPoints={b.totalPoints}
+                      diemHienTai={b.score ?? 0}
+                      daCham={b.verdict !== 'PENDING' && b.verdict !== 'RUNNING'}
+                    />
+                  </div>
+                </details>
               </li>
             ))}
           </ul>

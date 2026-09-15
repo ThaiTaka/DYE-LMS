@@ -14,9 +14,9 @@
  * so effort beyond the requirement is visible without ever diluting the main bar.
  */
 import { loadCourseGating, resolveGating, type LessonAccess } from './gating';
-import { resolveBlockAccess, type BlockAccess } from './tiers';
+import { resolveBlockAccess, type BlockAccess, isBlockVisible, sapXepTheoNhanh } from './tiers';
 
-import type { BlockType, PrismaClient, ProgressState, Tier } from '@prisma/client';
+import type { BlockType, PrismaClient, ProgressState, Tier, Branching } from '@prisma/client';
 
 export interface ProgressCounts {
   total: number;
@@ -195,6 +195,13 @@ export interface BlockView {
 export interface LessonView {
   lessonId: string;
   tier: Tier;
+  /** How this course presents tiers. Drives ordering and what is hidden. */
+  branching: Branching;
+  /**
+   * Blocks the student is shown, IN DISPLAY ORDER. Under STRICT branching
+   * that is the core first and the higher tiers after it; HIDDEN blocks are
+   * not here at all.
+   */
   blocks: BlockView[];
   required: ProgressCounts;
   /** Blocks above the student's tier — visible, encouraged, never counted. */
@@ -207,9 +214,10 @@ export interface LessonView {
  * The blocks of one lesson, classified against the student's tier.
  *
  * This is the tier-routing engine: the same lesson serves four audiences from
- * one URL. A Cơ bản student sees the trigonometry blocks of session 17 as
- * EXPLORATION; a Nâng cao student sees them as REQUIRED. Neither is shown a
- * different page, and nothing is hidden.
+ * one URL. A Nâng cao student sees the trigonometry blocks of session 17 as
+ * REQUIRED. What a Cơ bản student sees of them depends on the course's
+ * `branching`: EXPLORATION (visible, uncounted) when INTERLEAVED, nothing at
+ * all when STRICT. Either way the URL is the same page.
  */
 export async function lessonView(
   db: PrismaClient,
@@ -218,9 +226,10 @@ export async function lessonView(
 ): Promise<LessonView | null> {
   const lesson = await db.lesson.findUnique({
     where: { id: lessonId },
-    select: { id: true, courseId: true },
+    select: { id: true, courseId: true, course: { select: { branching: true } } },
   });
   if (!lesson) return null;
+  const branching = lesson.course.branching;
 
   const [blocks, track, progress] = await Promise.all([
     db.lessonBlock.findMany({
@@ -241,20 +250,24 @@ export async function lessonView(
   const tier: Tier = track?.tier ?? 'CO_BAN';
   const stateOf = new Map(progress.map((p) => [p.blockId, p.state]));
 
-  const views: BlockView[] = blocks.map((b) => {
-    const access = resolveBlockAccess(b.tier, b.isOptional, tier);
-    const state = stateOf.get(b.id) ?? 'NOT_STARTED';
-    return {
-      blockId: b.id,
-      order: b.order,
-      type: b.type,
-      title: b.title,
-      tier: b.tier,
-      access,
-      state,
-      completed: state === 'COMPLETED',
-    };
-  });
+  // Display order first, then classify; a HIDDEN block drops out here and
+  // never reaches a page, a count, or a progress bar.
+  const views: BlockView[] = sapXepTheoNhanh(blocks, branching)
+    .map((b) => {
+      const access = resolveBlockAccess(b.tier, b.isOptional, tier, branching);
+      const state = stateOf.get(b.id) ?? 'NOT_STARTED';
+      return {
+        blockId: b.id,
+        order: b.order,
+        type: b.type,
+        title: b.title,
+        tier: b.tier,
+        access,
+        state,
+        completed: state === 'COMPLETED',
+      };
+    })
+    .filter((v) => isBlockVisible(v.access));
 
   const required = views.filter((v) => v.access === 'REQUIRED');
   const exploration = views.filter((v) => v.access === 'EXPLORATION');
@@ -263,6 +276,7 @@ export async function lessonView(
   return {
     lessonId,
     tier,
+    branching,
     blocks: views,
     required: requiredCounts,
     explorationTotal: exploration.length,

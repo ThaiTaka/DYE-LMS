@@ -27,6 +27,7 @@ import { createHash } from 'node:crypto';
 
 import { resolveLessonAccess } from './curriculum/gating';
 import { ForbiddenError } from './errors';
+import { ghiNhanNoLuc } from './grading';
 import { biKhoaViPham } from './khoa-vi-pham';
 
 import type { PrismaClient, SnapshotReason, Verdict } from '@prisma/client';
@@ -453,6 +454,10 @@ export async function nopBai(
     select: { id: true, attemptNo: true, verdict: true, queuedAt: true },
   });
 
+  // Effort counts: handing in completes the block now, whatever the judge says
+  // later. See `ghiNhanNoLuc`.
+  await ghiNhanNoLuc(db, studentId, blockId);
+
   return {
     submissionId: submission.id,
     attemptNo: submission.attemptNo,
@@ -511,6 +516,115 @@ export async function nopBaiMicrobit(
     },
     select: { id: true, attemptNo: true, verdict: true, queuedAt: true },
   });
+
+  await ghiNhanNoLuc(db, studentId, blockId);
+
+  return {
+    submissionId: submission.id,
+    attemptNo: submission.attemptNo,
+    verdict: submission.verdict,
+    queuedAt: submission.queuedAt ?? queuedAt,
+  };
+}
+
+/** A compiled .hex the student brought themselves. Largest known universal hex is ~1.8 MB. */
+export const GIOI_HAN_HEX_BYTE = 4 * 1024 * 1024;
+
+export type LoiHex =
+  | 'rong'
+  | 'qua-lon'
+  | 'khong-phai-intel-hex'
+  | 'dong-hong'
+  | 'sai-checksum'
+  | 'thieu-ket-thuc';
+
+/**
+ * Is this an Intel HEX file a micro:bit could take?
+ *
+ * ── What is checked ──────────────────────────────────────────────────────────
+ * Every non-blank line must be an Intel HEX record — `:` then hex digits, an
+ * even count, at least the 5-byte frame — and every record's checksum must
+ * hold. There must be an end-of-file record. That is the whole format; it is
+ * what MakeCode writes and what the board's bootloader reads.
+ *
+ * ── What is NOT checked ──────────────────────────────────────────────────────
+ * That the program does what the task asked. Nothing in a container can
+ * observe an LED matrix, which is why MAKECODE problems are teacher-marked
+ * (see `nopBaiMicrobit`). This gate only stops a student handing in a photo
+ * renamed to `.hex` and waiting a week to find out.
+ *
+ * Pure: a string in, a verdict out. Tested against a real MakeCode export.
+ */
+export function kiemTraIntelHex(
+  noiDung: string,
+  kichThuoc = noiDung.length,
+): { ok: true } | { ok: false; loi: LoiHex } {
+  if (kichThuoc > GIOI_HAN_HEX_BYTE) return { ok: false, loi: 'qua-lon' };
+  const dong = noiDung.split(/\r?\n/).filter((d) => d.trim() !== '');
+  if (dong.length === 0) return { ok: false, loi: 'rong' };
+
+  let coKetThuc = false;
+  for (const d of dong) {
+    const t = d.trim();
+    if (!t.startsWith(':')) return { ok: false, loi: 'khong-phai-intel-hex' };
+    const hex = t.slice(1);
+    if (hex.length < 10 || hex.length % 2 !== 0 || !/^[0-9A-Fa-f]+$/.test(hex)) {
+      return { ok: false, loi: 'dong-hong' };
+    }
+    let tong = 0;
+    for (let i = 0; i < hex.length; i += 2) tong = (tong + parseInt(hex.slice(i, i + 2), 16)) & 0xff;
+    // A valid record's bytes, checksum included, sum to zero mod 256.
+    if (tong !== 0) return { ok: false, loi: 'sai-checksum' };
+    if (hex.slice(6, 8).toUpperCase() === '01') coKetThuc = true;
+  }
+  if (!coKetThuc) return { ok: false, loi: 'thieu-ket-thuc' };
+  return { ok: true };
+}
+
+/**
+ * Hand in a compiled .hex directly.
+ *
+ * The fallback for when the embedded MakeCode editor will not load — a school
+ * network that blocks it, a browser it dislikes, a day it is simply down. The
+ * student exports the .hex from MakeCode's own site (or the app) and brings it
+ * here. It is a first-class submission: same row, same attempt numbering,
+ * same teacher queue.
+ *
+ * `blocksXml` is null on purpose. The .hex carries the compiled program, not
+ * the blocks, and a teacher reading the queue should see "tệp .hex" rather
+ * than an empty workspace that looks like the student submitted nothing.
+ */
+export async function nopBaiMicrobitHex(
+  db: PrismaClient,
+  studentId: string,
+  blockId: string,
+  input: { hexKey: string; tenTep: string; kichThuoc: number },
+): Promise<KetQuaNopBai> {
+  const khoi = await moKhoiCode(db, studentId, blockId);
+  if (!khoi.problemId) throw new ForbiddenError('block-has-no-problem');
+
+  const daNop = await db.submission.count({
+    where: { studentId, problemId: khoi.problemId },
+  });
+
+  const queuedAt = new Date();
+  const submission = await db.submission.create({
+    data: {
+      studentId,
+      problemId: khoi.problemId,
+      lessonId: khoi.lessonId,
+      // What a teacher sees in the code column: a note, not a blob.
+      code: `# Tệp .hex nộp trực tiếp: ${input.tenTep} (${Math.round(input.kichThuoc / 1024)} KB)`,
+      blocksXml: null,
+      hexKey: input.hexKey,
+      verdict: 'PENDING',
+      attemptNo: daNop + 1,
+      queuedAt,
+    },
+    select: { id: true, attemptNo: true, verdict: true, queuedAt: true },
+  });
+
+  await ghiNhanNoLuc(db, studentId, blockId);
 
   return {
     submissionId: submission.id,

@@ -55,9 +55,10 @@ export const KIEU_NHANH: Record<Tier, KieuNhanh> = {
 /**
  * How a block is introduced to the student.
  *
- * EXPLORATION is the one that matters most. Phase 4 decided not to hide content
- * above a student's tier, so the wording here has to make it read as a bonus
- * quest — something extra on offer — and never as a locked door or a warning.
+ * EXPLORATION only appears on INTERLEAVED courses (see `Course.branching`);
+ * there, the wording has to make it read as a bonus quest — something extra on
+ * offer — and never as a locked door or a warning. STRICT courses, the default,
+ * never show it: above-track blocks are HIDDEN and dropped before render.
  */
 export const KIEU_TRUY_CAP: Record<BlockAccess, { nhan: string; icon: string; moTa: string }> = {
   REQUIRED: {
@@ -74,5 +75,12 @@ export const KIEU_TRUY_CAP: Record<BlockAccess, { nhan: string; icon: string; mo
     nhan: 'Khám phá thêm',
     icon: '🌟',
     moTa: 'Phần thưởng dành cho bạn nào muốn thử sức. Không làm cũng không sao cả.',
+  },
+  // Never rendered: a HIDDEN block is dropped by `lessonView` before any page
+  // sees it. Present so the map stays total over BlockAccess.
+  HIDDEN: {
+    nhan: 'Ẩn',
+    icon: '',
+    moTa: '',
   },
 };

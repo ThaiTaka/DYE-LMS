@@ -397,6 +397,8 @@ export interface DuLieuBaiHoc {
   slug: string;
   title: string;
   summary: string;
+  /** How this course presents tiers; the page draws the core/advanced divider from it. */
+  branching: 'STRICT' | 'INTERLEAVED';
   objectives: string[];
   order: number;
   estimatedMinutes: number;
@@ -573,6 +575,20 @@ export async function duLieuBaiHoc(
 
   const accessOf = new Map(view.blocks.map((b) => [b.blockId, b]));
 
+  /*
+   * The VIEW decides which blocks exist and in what order.
+   *
+   * `blocks` above was read in authored order, and under STRICT branching that
+   * is not the order the student sees: the core comes first and the higher
+   * tiers after it (`sapXepTheoNhanh`). Blocks the view marked HIDDEN are not
+   * in `view.blocks` at all and must not reach the page — not as a card, not
+   * as a draft lookup, not as a count.
+   */
+  const rowOf = new Map(blocks.map((b) => [b.id, b]));
+  const blocksTheoView = view.blocks
+    .map((v) => rowOf.get(v.blockId))
+    .filter((b): b is NonNullable<typeof b> => b !== undefined);
+
   // One query for every draft in the lesson rather than one per editor.
   const drafts = await db.codeDraft.findMany({
     where: { studentId, blockId: { in: blocks.map((b) => b.id) } },
@@ -590,7 +606,7 @@ export async function duLieuBaiHoc(
   );
   const tuLuanOf = await tuLuanCuaHocSinh(db, studentId, idTuLuan);
 
-  const hienThi: KhoiHienThi[] = blocks.map((b) => {
+  const hienThi: KhoiHienThi[] = blocksTheoView.map((b) => {
     const resolved = accessOf.get(b.id);
     const draft = draftOf.get(b.id);
 
@@ -661,6 +677,7 @@ export async function duLieuBaiHoc(
       course: lesson.course,
       module: lesson.module,
       tier: view.tier,
+      branching: view.branching,
       blocks: hienThi,
       soBatBuoc: view.required.total,
       soBatBuocXong: view.required.completed,

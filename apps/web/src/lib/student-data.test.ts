@@ -191,17 +191,45 @@ describe('Nội dung hiển thị khác nhau theo nhánh', () => {
     const coBan = kqCoBan.bai;
     const nangCao = kqNangCao.bai;
 
-    // Cùng số khối — không giấu gì cả.
-    expect(coBan.blocks.length).toBe(nangCao.blocks.length);
+    /*
+     * STRICT branching (the course default): the page a Cơ bản student gets
+     * has NO trigonometry blocks on it, and no EXPLORATION frame anywhere. The
+     * Nâng cao page has them — as REQUIRED/OPTIONAL — and after the core.
+     */
+    expect(coBan.branching).toBe('STRICT');
+    expect(coBan.blocks.some((b) => b.tier === 'NANG_CAO')).toBe(false);
+    expect(coBan.blocks.some((b) => b.access === 'EXPLORATION')).toBe(false);
+    expect(nangCao.blocks.length).toBeGreaterThan(coBan.blocks.length);
+    expect(nangCao.blocks.filter((b) => b.access === 'EXPLORATION')).toHaveLength(0);
 
-    const khamPhaCoBan = coBan.blocks.filter((b) => b.access === 'EXPLORATION');
-    const khamPhaNangCao = nangCao.blocks.filter((b) => b.access === 'EXPLORATION');
-
-    expect(khamPhaCoBan.length).toBeGreaterThan(0);
-    expect(khamPhaNangCao).toHaveLength(0);
+    const tiers = nangCao.blocks.map((b) => (b.tier === 'CO_BAN' ? 0 : 1));
+    const dau = tiers.indexOf(1);
+    expect(dau).toBeGreaterThan(0);
+    expect(tiers.slice(dau).every((t) => t === 1)).toBe(true);
 
     // Và phần bắt buộc của Nâng cao nhiều hơn.
     expect(nangCao.soBatBuoc).toBeGreaterThan(coBan.soBatBuoc);
+  });
+
+  it('buổi 17 dưới nhánh XEN KẼ: Cơ bản thấy khối lượng giác là KHÁM PHÁ, đúng thứ tự soạn', async () => {
+    const bai17 = lessonByOrder.get(17)!;
+    await db.course.update({ where: { id: courseId }, data: { branching: 'INTERLEAVED' } });
+    try {
+      await db.lessonOverride.create({
+        data: { lessonId: bai17.id, studentId: coBanId, isUnlocked: true, createdBy: teacherId },
+      });
+      const kq = await duLieuBaiHoc(coBanId, bai17.slug);
+      expect(kq.trangThai).toBe('ok');
+      if (kq.trangThai !== 'ok') return;
+
+      expect(kq.bai.branching).toBe('INTERLEAVED');
+      const khamPha = kq.bai.blocks.filter((b) => b.access === 'EXPLORATION');
+      expect(khamPha.length).toBeGreaterThan(0);
+      const orders = kq.bai.blocks.map((b) => b.order);
+      expect(orders).toEqual([...orders].sort((a, b) => a - b));
+    } finally {
+      await db.course.update({ where: { id: courseId }, data: { branching: 'STRICT' } });
+    }
   });
 
   it('bản đồ khoá học đánh dấu đúng bài nào bắt buộc với từng em', async () => {

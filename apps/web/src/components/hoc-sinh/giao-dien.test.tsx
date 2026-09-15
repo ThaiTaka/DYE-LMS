@@ -20,9 +20,11 @@ import type { KhoiHienThi } from '@/lib/student-data';
 
 // The quiz calls a server action; stub it so the component can be tested alone.
 const kiemTra = vi.hoisted(() => vi.fn());
+const danhDauXong = vi.hoisted(() => vi.fn());
 vi.mock('@/app/bai-hoc/[slug]/actions', () => ({
   kiemTraCauTraLoi: kiemTra,
-  danhDauKhoiXong: vi.fn(),
+  danhDauKhoiXong: danhDauXong,
+  nopBaiTuLuan: vi.fn(),
 }));
 
 /*
@@ -43,6 +45,7 @@ vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
 
 beforeEach(() => {
   kiemTra.mockReset();
+  danhDauXong.mockReset();
 });
 
 // ── Fixtures ───────────────────────────────────────────────────────────────
@@ -182,6 +185,42 @@ describe('Bài trắc nghiệm', () => {
     expect(await screen.findByText(/Đã trả lời 1\/2/)).toBeInTheDocument();
   });
 
+  it('trả lời HẾT các câu — kể cả sai — là khối được ghi nhận hoàn thành, đúng một lần', async () => {
+    /*
+     * Effort counts. Under the old rule nothing ever called `danhDauKhoiXong`
+     * for a quiz, so a lesson with a quiz in it could never finish. Now every
+     * question answered — right or wrong — completes the block.
+     */
+    kiemTra.mockResolvedValue({ dung: false, giaiThich: null, dapAnDung: '2' });
+    danhDauXong.mockResolvedValue({ baiXong: false, daGhi: true });
+    const nguoiDung = userEvent.setup();
+
+    render(<KhoiNoiDung khoi={khoi({ type: 'QUIZ', noiDung: { kind: 'quiz', markdown: '' }, tracNghiem: TRAC_NGHIEM })} />);
+
+    await nguoiDung.click(screen.getByRole('button', { name: '3' })); // wrong
+    expect(danhDauXong).not.toHaveBeenCalled(); // 1/2 is not "all"
+
+    await nguoiDung.type(screen.getByRole('textbox'), 'chia{Enter}'); // wrong again
+    await screen.findByText(/Đã trả lời 2\/2/);
+    expect(danhDauXong).toHaveBeenCalledTimes(1);
+    expect(danhDauXong).toHaveBeenCalledWith('b1');
+  });
+
+  it('khối đã hoàn thành trên máy chủ thì không ghi lại', async () => {
+    kiemTra.mockResolvedValue({ dung: true, giaiThich: null, dapAnDung: null });
+    const nguoiDung = userEvent.setup();
+
+    render(
+      <KhoiNoiDung
+        khoi={khoi({ type: 'QUIZ', completed: true, noiDung: { kind: 'quiz', markdown: '' }, tracNghiem: TRAC_NGHIEM })}
+      />,
+    );
+    await nguoiDung.click(screen.getByRole('button', { name: '2' }));
+    await nguoiDung.type(screen.getByRole('textbox'), '%{Enter}');
+    await screen.findByText(/Đã trả lời 2\/2/);
+    expect(danhDauXong).not.toHaveBeenCalled();
+  });
+
   it('câu điền từ trả lời được bằng bàn phím, nhấn Enter là gửi', async () => {
     kiemTra.mockResolvedValue({ dung: true, giaiThich: null, dapAnDung: null });
     const nguoiDung = userEvent.setup();
@@ -199,6 +238,38 @@ describe('Bài trắc nghiệm', () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe('Hiển thị theo nhánh phân hoá', () => {
+  it('khối lý thuyết có nút "Em đã đọc xong" — bấm là ghi nhận, và chỉ ghi một lần', async () => {
+    /*
+     * The other half of the same bug: theory, example, video, resource and
+     * reflection blocks had no completion control at all. A big explicit
+     * button is the one a ten-year-old understands.
+     */
+    danhDauXong.mockResolvedValue({ baiXong: false, daGhi: true });
+    const nguoiDung = userEvent.setup();
+    render(<KhoiNoiDung khoi={khoi()} />);
+
+    const nut = screen.getByRole('button', { name: /Em đã đọc xong/ });
+    await nguoiDung.click(nut);
+    expect(danhDauXong).toHaveBeenCalledWith('b1');
+    expect(await screen.findByText(/Xong phần này rồi/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Em đã đọc xong/ })).not.toBeInTheDocument();
+  });
+
+  it('khối lý thuyết đã xong thì hiện trạng thái xong, không hiện nút', () => {
+    render(<KhoiNoiDung khoi={khoi({ completed: true })} />);
+    expect(screen.getByText(/Xong phần này rồi/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Em đã đọc xong/ })).not.toBeInTheDocument();
+  });
+
+  it('máy chủ từ chối thì nút quay lại và nói rõ', async () => {
+    danhDauXong.mockResolvedValue({ baiXong: false, daGhi: false });
+    const nguoiDung = userEvent.setup();
+    render(<KhoiNoiDung khoi={khoi()} />);
+    await nguoiDung.click(screen.getByRole('button', { name: /Em đã đọc xong/ }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(/thử bấm lại/);
+    expect(screen.getByRole('button', { name: /Em đã đọc xong/ })).toBeInTheDocument();
+  });
+
   it('khối KHÁM PHÁ trông như phần thưởng, không phải trạng thái lỗi', () => {
     const { container } = render(
       <KhoiNoiDung khoi={khoi({ access: 'EXPLORATION', tier: 'NANG_CAO', title: 'Lượng giác' })} />,

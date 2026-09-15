@@ -51,6 +51,53 @@ export async function ghiNhanDatBai(
   }
 }
 
+/**
+ * Effort counts.
+ *
+ * ── The rule ─────────────────────────────────────────────────────────────────
+ * Handing something in completes the block — code the judge has not yet seen,
+ * a quiz answered wrong, an essay nobody has marked. Completion here means
+ * "the student did the work", and the verdict, the score and the teacher's
+ * mark stay exactly as informative as before; they just stop being the gate
+ * to the next lesson.
+ *
+ * ── Why ──────────────────────────────────────────────────────────────────────
+ * The audience is ten years old. Under the previous rule a lesson stayed
+ * incomplete until every required block was ACCEPTED — and, because nothing
+ * ever marked a theory or quiz block at all, a lesson with one paragraph of
+ * theory in it could never complete and the next never unlocked. A child who
+ * has read the page, answered the quiz and submitted an attempt at the
+ * exercise has done Buổi 3; whether the attempt passed is what the teacher's
+ * page is for.
+ *
+ * ── What it deliberately keeps ───────────────────────────────────────────────
+ * `ghiNhanDatBai` (ACCEPTED → complete) is unchanged and still runs from the
+ * judge. On a block that was already completed by effort it is a no-op. It
+ * matters for the one case effort cannot see: a teacher grading by hand marks
+ * a problem the student never submitted through the page.
+ */
+export async function ghiNhanNoLuc(
+  db: PrismaClient,
+  studentId: string,
+  blockId: string,
+): Promise<{ baiXong: boolean }> {
+  const block = await db.lessonBlock.findUnique({
+    where: { id: blockId },
+    select: { lessonId: true },
+  });
+  if (!block) return { baiXong: false };
+
+  await db.blockProgress.upsert({
+    where: { studentId_blockId: { studentId, blockId } },
+    create: { studentId, blockId, state: 'COMPLETED', completedAt: new Date() },
+    // Already complete: keep the original timestamp.
+    update: { state: 'COMPLETED' },
+  });
+
+  const baiXong = await syncLessonCompletion(db, studentId, block.lessonId);
+  return { baiXong };
+}
+
 /** Verdicts a human may set. The machine-only states are not offered. */
 export const KET_LUAN_CHAM_TAY: Verdict[] = ['ACCEPTED', 'WRONG_ANSWER'];
 
@@ -101,12 +148,18 @@ export async function chamTay(
     if (!day) throw new ForbiddenError('teacher-does-not-teach-student');
   }
 
-  // Manual grading is for work the sandbox cannot judge. Allowing it on an
-  // IO_MATCH problem would let a verdict be set without any test ever running,
-  // which quietly turns an objective result into an opinion.
-  if (sub.problem.judgeMode !== 'MAKECODE' && sub.problem.judgeMode !== 'PROJECT_UPLOAD') {
-    throw new ForbiddenError('problem-is-auto-judged');
-  }
+  /*
+   * Any submission may be graded by hand, including one the sandbox judged.
+   *
+   * This used to refuse auto-judged problems, on the argument that a verdict
+   * set without a test running turns an objective result into an opinion.
+   * The argument still holds — and the teacher is still the person the
+   * platform exists to serve. A sandbox that marks WRONG_ANSWER because a
+   * ten-year-old printed "Xin chao" with a trailing space is not objectively
+   * right; it is objectively literal. The override is ATTRIBUTED (see
+   * `runnerError` below) and carries a required note, so an overridden
+   * machine verdict stays distinguishable from a machine verdict forever.
+   */
 
   const diem = Math.max(0, Math.min(Math.round(score), sub.problem.totalPoints));
 

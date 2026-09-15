@@ -195,14 +195,29 @@ describe('Chấm tay', () => {
     expect(fb?.authorId).toBe(fx.teacherA);
   });
 
-  it('chưa đạt thì KHÔNG đánh dấu hoàn thành', async () => {
+  it('nộp bài là hoàn thành khối NGAY, trước cả khi có kết luận', async () => {
+    /*
+     * Effort counts (see `ghiNhanNoLuc`). Handing in completes the block; the
+     * teacher's later verdict changes the score, not the completion. The old
+     * rule — complete only on ACCEPTED — left a child who did the work and got
+     * it wrong stuck on the same lesson, which for this audience taught the
+     * wrong thing.
+     */
     const nop = await nopBaiMicrobit(fx.db, fx.studentA1, khoiMb, BLOCKS);
-    await chamTay(fx.db, giaoVienA, nop.submissionId, 'WRONG_ANSWER', 40, 'Em thiếu khối pause.');
 
-    const bp = await fx.db.blockProgress.findUnique({
+    const truoc = await fx.db.blockProgress.findUnique({
       where: { studentId_blockId: { studentId: fx.studentA1, blockId: khoiMb } },
     });
-    expect(bp).toBeNull();
+    expect(truoc?.state).toBe('COMPLETED');
+
+    // A WRONG_ANSWER mark leaves completion alone and records the verdict.
+    await chamTay(fx.db, giaoVienA, nop.submissionId, 'WRONG_ANSWER', 40, 'Em thiếu khối pause.');
+    const sau = await fx.db.blockProgress.findUnique({
+      where: { studentId_blockId: { studentId: fx.studentA1, blockId: khoiMb } },
+    });
+    expect(sau?.state).toBe('COMPLETED');
+    const bai = await fx.db.submission.findUniqueOrThrow({ where: { id: nop.submissionId } });
+    expect(bai.verdict).toBe('WRONG_ANSWER');
   });
 
   it('giáo viên KHÔNG dạy em đó thì không chấm được', async () => {
@@ -228,22 +243,30 @@ describe('Chấm tay', () => {
     ).resolves.toBeDefined();
   });
 
-  it('KHÔNG chấm tay được bài mà sandbox chấm được', async () => {
+  it('chấm tay ĐƯỢC cả bài sandbox đã chấm — có ghi tên người chấm', async () => {
+    /*
+     * The override the teacher dashboard needs: a machine verdict a person
+     * disagrees with can be replaced. What makes that safe is attribution —
+     * the row says who set it, and a note is required — not a refusal.
+     */
     const s = await fx.db.submission.create({
       data: {
         studentId: fx.studentA1,
         problemId: fx.problemId,
-        code: 'print(1)',
-        verdict: 'PENDING',
+        code: 'print("Xin chao ")',
+        verdict: 'WRONG_ANSWER',
+        score: 0,
       },
       select: { id: true },
     });
 
-    // Otherwise a verdict could be set without a single test ever running,
-    // quietly turning an objective result into an opinion.
-    await expect(
-      chamTay(fx.db, giaoVienA, s.id, 'ACCEPTED', 100, 'cho qua di'),
-    ).rejects.toBeInstanceOf(ForbiddenError);
+    const kq = await chamTay(fx.db, giaoVienA, s.id, 'ACCEPTED', 100, 'Chỉ thừa một dấu cách.');
+    expect(kq.verdict).toBe('ACCEPTED');
+
+    const sau = await fx.db.submission.findUniqueOrThrow({ where: { id: s.id } });
+    expect(sau.verdict).toBe('ACCEPTED');
+    // Distinguishable from a machine verdict forever.
+    expect(sau.runnerError).toContain('cham tay boi');
   });
 
   it('chỉ nhận kết luận mà con người đưa ra được', async () => {

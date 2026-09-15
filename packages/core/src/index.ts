@@ -203,6 +203,7 @@ export { bocMarkdown, rutGon, tenBuoi } from './text';
 export {
   chamTay,
   ghiNhanDatBai,
+  ghiNhanNoLuc,
   KET_LUAN_CHAM_TAY,
   type KetQuaChamTay,
 } from './grading';
@@ -275,6 +276,10 @@ export {
   moKhoiCode,
   nopBai,
   nopBaiMicrobit,
+  type LoiHex,
+  nopBaiMicrobitHex,
+  kiemTraIntelHex,
+  GIOI_HAN_HEX_BYTE,
   SO_BAN_LUU_TOI_DA,
   xemBanLuu,
   type BaiDaNop,
