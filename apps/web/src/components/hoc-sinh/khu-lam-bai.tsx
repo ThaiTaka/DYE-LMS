@@ -104,6 +104,14 @@ export interface KhuLamBaiProps {
    * problem to warn about now, or one the server already handles.
    */
   coDauVaoMau?: boolean | undefined;
+  /**
+   * Hand-ins already on record for this block's problem, as the server counted
+   * them at render. One attempt per problem: anything ≥ 1 freezes the editor
+   * from the first paint, before any history is opened.
+   */
+  soLanDaNop?: number | undefined;
+  /** The hand-in on record, so the frozen editor can say what became of it. */
+  baiNopCuoi?: { verdict: string; dangCho: boolean } | null | undefined;
 }
 
 /**
@@ -122,6 +130,8 @@ export function KhuLamBai({
   nhan,
   mucTieu,
   coDauVaoMau = false,
+  soLanDaNop = 0,
+  baiNopCuoi = null,
 }: KhuLamBaiProps) {
   const [ma, setMa] = useState(maBanDau);
   const [moLichSu, setMoLichSu] = useState(false);
@@ -138,6 +148,19 @@ export function KhuLamBai({
   const [nhacDauVao, setNhacDauVao] = useState('');
   const oDauVao = useRef<HTMLTextAreaElement | null>(null);
   const [dangGui, batDauGui] = useTransition();
+  /** Set the moment a hand-in is accepted in this session; the server count catches up on refresh. */
+  const [vuaNop, setVuaNop] = useState(false);
+
+  /*
+   * One attempt. The freeze is a COURTESY here — `nopBai` in @dye/core refuses
+   * a second hand-in regardless — but a child should not have to press the
+   * button to learn that. Frozen means: editor read-only, run and submit
+   * disabled, and one sentence saying what happened and who can undo it.
+   */
+  const hetLuot = coBaiTap && (soLanDaNop >= 1 || vuaNop);
+  // The verdict on record; a hand-in made this session shows as pending until
+  // the poll (or the refresh it triggers) brings the real one.
+  const ketQuaCuoi = baiNopCuoi ?? (vuaNop ? { verdict: 'PENDING', dangCho: true } : null);
 
   const tuLuu = useTuLuu(blockId);
   const id = useId();
@@ -313,6 +336,7 @@ export function KhuLamBai({
       if (kq.trangThai === 'da-nhan') {
         // Fresh budget: this is a new attempt, not a continuation of the last.
         soLanHoi.current = 0;
+        setVuaNop(true);
         setMoLichSu(true);
         await napLichSu();
       }
@@ -350,7 +374,44 @@ export function KhuLamBai({
         </p>
       ) : null}
 
-      <SoanThao giaTri={ma} onDoi={doiMa} nhan={nhan} moTaBoi={`${id}-ban-phim`} />
+      {hetLuot ? (
+        <div
+          role="status"
+          data-testid="het-luot"
+          className={`border-b px-4 py-3 text-base font-semibold ${
+            ketQuaCuoi?.verdict === 'ACCEPTED'
+              ? 'border-dung/30 bg-dung-nen text-dung'
+              : ketQuaCuoi?.dangCho
+                ? 'border-vien bg-the-mo text-chu-phu'
+                : 'border-thu-lai/30 bg-thu-lai-nen text-thu-lai'
+          }`}
+        >
+          {ketQuaCuoi?.verdict === 'ACCEPTED' ? (
+            <>
+              <span aria-hidden="true">🎉 </span>Đúng rồi! Bài này đã xong. Muốn làm lại, em nhờ
+              thầy cô mở khoá nhé.
+            </>
+          ) : ketQuaCuoi?.dangCho ? (
+            <>
+              <span aria-hidden="true">⏳ </span>Bài của em đã nộp và đang được chấm. Mỗi bài chỉ
+              nộp một lần, nên khung soạn thảo đã khoá.
+            </>
+          ) : (
+            <>
+              <span aria-hidden="true">🔒 </span>Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở
+              khóa.
+            </>
+          )}
+        </div>
+      ) : null}
+
+      <SoanThao
+        giaTri={ma}
+        onDoi={doiMa}
+        nhan={nhan}
+        moTaBoi={`${id}-ban-phim`}
+        chiDoc={hetLuot}
+      />
 
       {/*
         Stated in visible text, not only in aria-describedby: a sighted keyboard
@@ -417,7 +478,7 @@ export function KhuLamBai({
         <button
           type="button"
           onClick={chayThuMa}
-          disabled={dangChay}
+          disabled={dangChay || hetLuot}
           className="min-h-cham rounded-nut border border-chinh px-4 py-2 text-sm font-semibold text-chinh hover:bg-chinh-nhat disabled:opacity-60"
         >
           {dangChay ? 'Đang chạy…' : '▶ Chạy thử'}
@@ -427,10 +488,10 @@ export function KhuLamBai({
           <button
             type="button"
             onClick={nopBaiLam}
-            disabled={dangGui}
+            disabled={dangGui || hetLuot}
             className="min-h-cham rounded-nut bg-chinh px-5 py-2 text-sm font-semibold text-white hover:bg-chinh-dam disabled:opacity-60"
           >
-            {dangGui ? 'Đang gửi…' : 'Nộp bài'}
+            {dangGui ? 'Đang gửi…' : hetLuot ? 'Đã nộp' : 'Nộp bài'}
           </button>
         ) : null}
 

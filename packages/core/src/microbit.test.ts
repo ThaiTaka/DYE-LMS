@@ -121,10 +121,12 @@ describe('Nộp bài Micro:bit', () => {
     expect(ls[0]?.reason).toBe('SUBMIT');
   });
 
-  it('số lần nộp tăng dần', async () => {
-    const a = await nopBaiMicrobit(fx.db, fx.studentA1, khoiMb, BLOCKS);
-    const b = await nopBaiMicrobit(fx.db, fx.studentA1, khoiMb, `${BLOCKS} `);
-    expect(b.attemptNo).toBe(a.attemptNo + 1);
+  it('CHỈ MỘT lượt: nộp lần hai bị từ chối với câu học sinh đọc được', async () => {
+    const mot = await nopBaiMicrobit(fx.db, fx.studentA1, khoiMb, BLOCKS);
+    expect(mot.attemptNo).toBe(1);
+    await expect(nopBaiMicrobit(fx.db, fx.studentA1, khoiMb, BLOCKS)).rejects.toMatchObject({
+      message: 'Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở khóa.',
+    });
   });
 
   it('workspace quá lớn bị từ chối', async () => {

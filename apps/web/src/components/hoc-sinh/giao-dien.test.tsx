@@ -1,8 +1,10 @@
 /**
  * Student UI component tests.
  *
- * Covers the three things Phase 5 must get right for this audience:
+ * Covers the things Phase 5 must get right for this audience:
  *   • a wrong quiz answer is encouraging, never punitive;
+ *   • one attempt per question — a wrong one freezes the question and says
+ *     who can reopen it, and the freeze survives a reload;
  *   • an EXPLORATION block reads as a bonus, never as a lock;
  *   • the interface is reachable by keyboard and legible by a screen reader.
  */
@@ -67,6 +69,8 @@ function khoi(over: Partial<KhoiHienThi> = {}): KhoiHienThi {
     maBanDau: '',
     coBanNhap: false,
     luuLucBanDau: null,
+    soLanDaNop: 0,
+    baiNopCuoi: null,
     ...over,
   };
 }
@@ -87,6 +91,7 @@ const TRAC_NGHIEM = {
       mediaUrl: null,
       hint: null,
       tuLuan: null,
+      daTraLoi: null,
       choices: [
         { id: 'a', text: '2' },
         { id: 'b', text: '3' },
@@ -103,6 +108,7 @@ const TRAC_NGHIEM = {
       mediaUrl: null,
       hint: 'Nó là một ký tự em thấy trên bàn phím số.',
       tuLuan: null,
+      daTraLoi: null,
       choices: [],
     },
   ],
@@ -123,7 +129,7 @@ describe('Bài trắc nghiệm', () => {
   });
 
   it('trả lời đúng thì khen, không chỉ báo "đúng"', async () => {
-    kiemTra.mockResolvedValue({ dung: true, giaiThich: '17 = 5×3 + 2.', dapAnDung: null });
+    kiemTra.mockResolvedValue({ dung: true, giaiThich: '17 = 5×3 + 2.', dapAnDung: null, hetLuot: false });
     const nguoiDung = userEvent.setup();
 
     render(<KhoiNoiDung khoi={khoi({ type: 'QUIZ', noiDung: { kind: 'quiz', markdown: '' }, tracNghiem: TRAC_NGHIEM })} />);
@@ -134,8 +140,8 @@ describe('Bài trắc nghiệm', () => {
     expect(screen.getByText('17 = 5×3 + 2.')).toBeInTheDocument();
   });
 
-  it('trả lời sai thì nói "Thử lại nhé" — TUYỆT ĐỐI không dùng chữ "SAI" hay màu đỏ', async () => {
-    kiemTra.mockResolvedValue({ dung: false, giaiThich: '23 = 4×5 + 3.', dapAnDung: '3' });
+  it('trả lời sai thì nói "Chưa đúng rồi" — TUYỆT ĐỐI không dùng chữ "SAI" hay màu đỏ', async () => {
+    kiemTra.mockResolvedValue({ dung: false, giaiThich: '23 = 4×5 + 3.', dapAnDung: '3', hetLuot: false });
     const nguoiDung = userEvent.setup();
 
     const { container } = render(
@@ -145,7 +151,11 @@ describe('Bài trắc nghiệm', () => {
     await nguoiDung.click(screen.getByRole('button', { name: '3.4' }));
 
     const phanHoi = await screen.findByRole('status');
-    expect(phanHoi).toHaveTextContent('Thử lại nhé');
+    expect(phanHoi).toHaveTextContent('Chưa đúng rồi');
+    // The explanation still teaches, and the answer is shown because the
+    // student can no longer act on it.
+    expect(phanHoi).toHaveTextContent('23 = 4×5 + 3.');
+    expect(phanHoi).toHaveTextContent('Đáp án đúng là: 3');
 
     // Giọng điệu tích cực: không có từ mang tính phán xét.
     const chu = container.textContent ?? '';
@@ -157,24 +167,89 @@ describe('Bài trắc nghiệm', () => {
     expect(phanHoi.className).not.toContain('bg-loi');
   });
 
-  it('luôn cho làm lại sau khi trả lời sai', async () => {
-    kiemTra.mockResolvedValue({ dung: false, giaiThich: null, dapAnDung: '3' });
+  it('trả lời sai là HẾT LƯỢT: câu hỏi đóng băng, không có "Làm lại", nói rõ ai mở được', async () => {
+    /*
+     * One attempt. The old "Làm lại" loop is gone: a wrong answer closes the
+     * question, every choice is disabled, and the message names the teacher
+     * as the only way back in — the same sentence the code editor shows.
+     */
+    kiemTra.mockResolvedValue({ dung: false, giaiThich: null, dapAnDung: '3', hetLuot: false });
     const nguoiDung = userEvent.setup();
 
     render(<KhoiNoiDung khoi={khoi({ type: 'QUIZ', noiDung: { kind: 'quiz', markdown: '' }, tracNghiem: TRAC_NGHIEM })} />);
 
     await nguoiDung.click(screen.getByRole('button', { name: '3.4' }));
-    const lamLai = await screen.findByRole('button', { name: /Làm lại/ });
+    const phanHoi = await screen.findByRole('status');
 
-    await nguoiDung.click(lamLai);
+    expect(phanHoi).toHaveTextContent('Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở khóa.');
+    expect(screen.queryByRole('button', { name: /Làm lại/ })).not.toBeInTheDocument();
+    for (const ten of ['2', '3', '3.4']) {
+      expect(screen.getByRole('button', { name: ten })).toBeDisabled();
+    }
+    // Clicking a disabled choice must not reach the server.
+    await nguoiDung.click(screen.getByRole('button', { name: '2' }));
+    expect(kiemTra).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/Đã trả lời 1\/2/)).toBeInTheDocument();
+  });
 
-    // Câu hỏi trở lại trạng thái chưa trả lời, và bộ đếm không bị lệch.
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
-    expect(screen.getByText(/Đã trả lời 0\/2/)).toBeInTheDocument();
+  it('máy chủ từ chối vì đã có câu trả lời (hetLuot) → chỉ hiện thông báo khoá, không hiện kết quả', async () => {
+    // A stale tab: the question was answered elsewhere. The server says so
+    // and the page shows the lock, not a verdict it does not have.
+    kiemTra.mockResolvedValue({ dung: false, giaiThich: null, dapAnDung: null, hetLuot: true });
+    const nguoiDung = userEvent.setup();
+
+    render(<KhoiNoiDung khoi={khoi({ type: 'QUIZ', noiDung: { kind: 'quiz', markdown: '' }, tracNghiem: TRAC_NGHIEM })} />);
+
+    await nguoiDung.click(screen.getByRole('button', { name: '2' }));
+
+    const canhBao = await screen.findByRole('alert');
+    expect(canhBao).toHaveTextContent('Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở khóa.');
+    expect(screen.queryByText(/Chưa đúng rồi|Chính xác/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2' })).toBeDisabled();
+  });
+
+  it('câu đã trả lời trên máy chủ thì mở trang ra đã khoá sẵn — lựa chọn cũ được đánh dấu', () => {
+    /*
+     * The freeze must survive a reload, so it is seeded from the database:
+     * `daTraLoi` on the question. The chosen option is marked (`aria-pressed`)
+     * so the student can see what they picked, and the input for the
+     * fill-in question is read-only with the old answer in it.
+     */
+    const daLam = {
+      ...TRAC_NGHIEM,
+      questions: [
+        { ...TRAC_NGHIEM.questions[0]!, daTraLoi: { dung: false, chon: 'c', dapAnDung: '2', giaiThich: '17 = 5×3 + 2.' } },
+        { ...TRAC_NGHIEM.questions[1]!, daTraLoi: { dung: true, chon: '%', dapAnDung: null, giaiThich: null } },
+      ],
+    };
+
+    // Every question answered on the server means the block is already
+    // complete there too; the page must not write it again.
+    render(
+      <KhoiNoiDung
+        khoi={khoi({ type: 'QUIZ', completed: true, noiDung: { kind: 'quiz', markdown: '' }, tracNghiem: daLam })}
+      />,
+    );
+
+    expect(screen.getByText(/Đã trả lời 2\/2/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '3.4' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: '2' })).toHaveAttribute('aria-pressed', 'false');
+    for (const ten of ['2', '3', '3.4']) {
+      expect(screen.getByRole('button', { name: ten })).toBeDisabled();
+    }
+    expect(screen.getByText('Đáp án đúng là:', { exact: false })).toBeInTheDocument();
+
+    const nhap = screen.getByRole('textbox', { name: /Câu trả lời/ });
+    expect(nhap).toBeDisabled();
+    expect(nhap).toHaveValue('%');
+
+    // Nothing was fetched or written: the state came with the page.
+    expect(kiemTra).not.toHaveBeenCalled();
+    expect(danhDauXong).not.toHaveBeenCalled();
   });
 
   it('đếm đúng số câu đã trả lời', async () => {
-    kiemTra.mockResolvedValue({ dung: true, giaiThich: null, dapAnDung: null });
+    kiemTra.mockResolvedValue({ dung: true, giaiThich: null, dapAnDung: null, hetLuot: false });
     const nguoiDung = userEvent.setup();
 
     render(<KhoiNoiDung khoi={khoi({ type: 'QUIZ', noiDung: { kind: 'quiz', markdown: '' }, tracNghiem: TRAC_NGHIEM })} />);
@@ -191,7 +266,7 @@ describe('Bài trắc nghiệm', () => {
      * for a quiz, so a lesson with a quiz in it could never finish. Now every
      * question answered — right or wrong — completes the block.
      */
-    kiemTra.mockResolvedValue({ dung: false, giaiThich: null, dapAnDung: '2' });
+    kiemTra.mockResolvedValue({ dung: false, giaiThich: null, dapAnDung: '2', hetLuot: false });
     danhDauXong.mockResolvedValue({ baiXong: false, daGhi: true });
     const nguoiDung = userEvent.setup();
 
@@ -207,7 +282,7 @@ describe('Bài trắc nghiệm', () => {
   });
 
   it('khối đã hoàn thành trên máy chủ thì không ghi lại', async () => {
-    kiemTra.mockResolvedValue({ dung: true, giaiThich: null, dapAnDung: null });
+    kiemTra.mockResolvedValue({ dung: true, giaiThich: null, dapAnDung: null, hetLuot: false });
     const nguoiDung = userEvent.setup();
 
     render(
@@ -222,7 +297,7 @@ describe('Bài trắc nghiệm', () => {
   });
 
   it('câu điền từ trả lời được bằng bàn phím, nhấn Enter là gửi', async () => {
-    kiemTra.mockResolvedValue({ dung: true, giaiThich: null, dapAnDung: null });
+    kiemTra.mockResolvedValue({ dung: true, giaiThich: null, dapAnDung: null, hetLuot: false });
     const nguoiDung = userEvent.setup();
 
     render(<KhoiNoiDung khoi={khoi({ type: 'QUIZ', noiDung: { kind: 'quiz', markdown: '' }, tracNghiem: TRAC_NGHIEM })} />);

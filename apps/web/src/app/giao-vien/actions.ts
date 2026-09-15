@@ -35,6 +35,7 @@ import {
   xoaTaiKhoanNhanVien,
   huyLuotThi,
   moKhoaViPham,
+  moLaiKhoi,
   xuLyCanhBao,
   ForbiddenError,
 } from '@dye/core';
@@ -42,6 +43,7 @@ import { revalidatePath } from 'next/cache';
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
+import { khoDuAn } from '@/lib/project-storage';
 
 import type { KetQuaHanhDong } from './ket-qua';
 
@@ -322,7 +324,7 @@ export async function chamBaiMicrobit(
       thongDiep:
         kq.verdict === 'ACCEPTED'
           ? `Đã chấm đạt (${kq.score} điểm). Tiến độ của em đã được cập nhật.`
-          : 'Đã gửi nhận xét. Em sẽ thấy và có thể nộp lại.',
+          : 'Đã gửi nhận xét. Em sẽ thấy ngay. Muốn cho em nộp lại, thầy cô dùng "Mở lại lượt nộp" ở hàng này.',
     };
   });
 }
@@ -1170,6 +1172,70 @@ export async function huyLuotThiHocSinh(
     return {
       trangThai: 'thanh-cong',
       thongDiep: `Đã huỷ lượt thi "${kq.examTitle}" của ${kq.tenHocSinh}. Em có thể vào thi lại.`,
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// One-attempt policy
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Reset one block for one student, so they may hand in again.
+ *
+ * ── The only way past the one-attempt rule for code and quizzes ─────────────
+ * A student who submitted and got it wrong is frozen on that block until a
+ * person decides otherwise. This is that decision. It deletes the attempt
+ * history — submissions for the block's problem, answers for its quiz — and
+ * the completion mark, keeps the student's draft, and re-derives the lesson.
+ *
+ * ── Guarded twice ────────────────────────────────────────────────────────────
+ * Role here (a student cannot call it), and relationship in `moLaiKhoi`
+ * (`authorize(student: manage)` — the teacher must teach this child). A note
+ * is required: what was deleted is written to the audit log with the reason,
+ * so a missing record always has an explanation on file.
+ */
+export async function resetStudentBlock(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+    if (actor.role !== 'TEACHER' && actor.role !== 'ADMIN') {
+      return { trangThai: 'tu-choi', thongDiep: 'Chỉ giáo viên mới mở lại được bài cho học sinh.' };
+    }
+
+    const studentId = String(form.get('studentId') ?? '');
+    const blockId = String(form.get('blockId') ?? '');
+    const ghiChu = String(form.get('ghiChu') ?? '').trim();
+    if (!studentId || !blockId) return { trangThai: 'loi', thongDiep: 'Thiếu học sinh hoặc khối bài.' };
+    if (ghiChu.length < 3) {
+      return {
+        trangThai: 'loi',
+        thongDiep: 'Thầy cô ghi ngắn gọn lý do mở lại giúp em nhé (ít nhất 3 ký tự).',
+      };
+    }
+
+    const kq = await moLaiKhoi(db, actor, studentId, blockId, ghiChu, khoDuAn);
+
+    revalidatePath('/giao-vien/ket-qua');
+    revalidatePath('/giao-vien/hoc-sinh/[id]', 'page');
+    revalidatePath('/bai-hoc/[slug]', 'page');
+    revalidatePath('/khoa-hoc/[slug]', 'page');
+
+    const daXoa = [
+      kq.soBaiNopXoa > 0 ? `${kq.soBaiNopXoa} bài nộp` : null,
+      kq.soCauTraLoiXoa > 0 ? `${kq.soCauTraLoiXoa} câu trả lời` : null,
+    ]
+      .filter(Boolean)
+      .join(' và ');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã mở lại "${kq.tenKhoi}" cho ${kq.tenHocSinh}.` +
+        (daXoa ? ` Đã xoá ${daXoa}; em có thể nộp lại.` : ' Em có thể nộp lại.'),
     };
   });
 }

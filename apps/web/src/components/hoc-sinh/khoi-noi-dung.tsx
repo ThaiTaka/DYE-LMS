@@ -222,6 +222,20 @@ function NoiDungTheoLoai({
               // A saved draft for this block IS the student's workspace.
               blocksXmlDaLuu={khoi.coBanNhap ? khoi.maBanDau : ''}
               coBaiTap={khoi.baiTap !== null}
+              soLanDaNop={khoi.soLanDaNop}
+              baiNopCuoi={khoi.baiNopCuoi}
+              baiNopHex={
+                khoi.baiNopCuoi?.hex
+                  ? {
+                      submissionId: khoi.baiNopCuoi.id,
+                      tenTep: khoi.baiNopCuoi.hex.tenTep,
+                      kichThuocKb: khoi.baiNopCuoi.hex.kichThuocKb,
+                      nopLuc: khoi.baiNopCuoi.nopLuc,
+                      daCham: khoi.baiNopCuoi.chamTay,
+                      verdict: khoi.baiNopCuoi.verdict,
+                    }
+                  : null
+              }
             />
           </div>
           {khoi.baiTap && khoi.baiTap.hints.length > 0 ? (
@@ -464,6 +478,8 @@ function ThuThachLapTrinh({ khoi }: { khoi: KhoiHienThi }) {
         luuLucBanDau={khoi.luuLucBanDau}
         coBaiTap={baiTap !== null}
         coDauVaoMau={(baiTap?.viDu.length ?? 0) > 0}
+        soLanDaNop={khoi.soLanDaNop}
+        baiNopCuoi={khoi.baiNopCuoi}
         nhan="Bài làm của em"
       />
 

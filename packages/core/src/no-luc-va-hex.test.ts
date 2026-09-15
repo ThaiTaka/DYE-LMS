@@ -84,12 +84,14 @@ describe('nỗ lực được tính', () => {
     expect(bp?.state).toBe('COMPLETED');
   });
 
-  it('nộp lại không xoá mốc hoàn thành lần đầu', async () => {
+  it('lượt thứ hai bị từ chối, và mốc hoàn thành của lượt đầu vẫn còn', async () => {
     await nopBai(fx.db, fx.studentA1, khoiCode, 'print(1)');
     const dau = await fx.db.blockProgress.findUniqueOrThrow({
       where: { studentId_blockId: { studentId: fx.studentA1, blockId: khoiCode } },
     });
-    await nopBai(fx.db, fx.studentA1, khoiCode, 'print(2)');
+    await expect(nopBai(fx.db, fx.studentA1, khoiCode, 'print(2)')).rejects.toBeInstanceOf(
+      ForbiddenError,
+    );
     const sau = await fx.db.blockProgress.findUniqueOrThrow({
       where: { studentId_blockId: { studentId: fx.studentA1, blockId: khoiCode } },
     });

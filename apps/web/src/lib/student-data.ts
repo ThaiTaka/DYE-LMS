@@ -21,6 +21,7 @@ import {
   resolveCourseAccess,
   resolveLessonAccess,
   tuLuanCuaHocSinh,
+  traLoiCuaHocSinh,
   stageOf,
   type BaiThiHienThi,
   type BlockAccess,
@@ -335,8 +336,16 @@ export interface CauHoiHienThi {
   template: string | null;
   /** Illustration for this question. */
   mediaUrl: string | null;
-  /** Offered before answering, on request. Costs nothing; this is practice. */
+  /** Offered before answering, on request. */
   hint: string | null;
+  /**
+   * MULTIPLE_CHOICE / TRUE_FALSE / FILL_BLANK: the one answer this student has
+   * on record, or null. One attempt per question: once this is set the
+   * question renders locked, on every reload, until a teacher resets the block.
+   * `dapAnDung` is present only when the answer was wrong — the key is revealed
+   * for a question the student can no longer answer, never before.
+   */
+  daTraLoi: { dung: boolean; chon: string; dapAnDung: string | null; giaiThich: string | null } | null;
   /**
    * SHORT_ANSWER only: what this student has already handed in.
    *
@@ -390,6 +399,27 @@ export interface KhoiHienThi {
   maBanDau: string;
   coBanNhap: boolean;
   luuLucBanDau: string | null;
+  /**
+   * Hand-ins so far for this block's problem. One attempt per problem, so
+   * anything ≥ 1 freezes the editor on load — not after a history panel is
+   * opened — and the freeze survives a reload.
+   */
+  soLanDaNop: number;
+  /** The most recent hand-in, for the frozen editor to say what happened to it. */
+  baiNopCuoi: {
+    id: string;
+    verdict: string;
+    dangCho: boolean;
+    nopLuc: string;
+    /**
+     * A PERSON set this verdict. The judge marks micro:bit rows SKIPPED on its
+     * own (they cannot run in a sandbox), so "not PENDING" is not the same as
+     * "graded"; this is the rule `xoaBaiNopHex` uses and the page must match.
+     */
+    chamTay: boolean;
+    /** Set when it was a .hex upload. */
+    hex: { tenTep: string; kichThuocKb: number } | null;
+  } | null;
 }
 
 export interface DuLieuBaiHoc {
@@ -604,7 +634,41 @@ export async function duLieuBaiHoc(
   const idTuLuan = blocks.flatMap((b) =>
     (b.quiz?.questions ?? []).filter((q) => q.type === 'SHORT_ANSWER').map((q) => q.id),
   );
-  const tuLuanOf = await tuLuanCuaHocSinh(db, studentId, idTuLuan);
+  const idTracNghiem = blocks.flatMap((b) =>
+    (b.quiz?.questions ?? []).filter((q) => q.type !== 'SHORT_ANSWER').map((q) => q.id),
+  );
+  const idProblem = blocks.map((b) => b.problem?.id).filter((x): x is string => x !== undefined);
+
+  /*
+   * One-attempt state for the whole lesson, in three queries rather than one
+   * per block: the essays on record, the machine-marked answers on record,
+   * and the latest hand-in per problem.
+   */
+  const [tuLuanOf, traLoiOf, baiNopMoiNhat] = await Promise.all([
+    tuLuanCuaHocSinh(db, studentId, idTuLuan),
+    traLoiCuaHocSinh(db, studentId, idTracNghiem),
+    idProblem.length === 0
+      ? Promise.resolve([])
+      : db.submission.findMany({
+          where: { studentId, problemId: { in: idProblem } },
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            problemId: true,
+            verdict: true,
+            createdAt: true,
+            hexKey: true,
+            code: true,
+            runnerError: true,
+          },
+        }),
+  ]);
+  const soNopTheoProblem = new Map<string, number>();
+  const nopCuoiTheoProblem = new Map<string, (typeof baiNopMoiNhat)[number]>();
+  for (const s of baiNopMoiNhat) {
+    soNopTheoProblem.set(s.problemId, (soNopTheoProblem.get(s.problemId) ?? 0) + 1);
+    if (!nopCuoiTheoProblem.has(s.problemId)) nopCuoiTheoProblem.set(s.problemId, s);
+  }
 
   const hienThi: KhoiHienThi[] = blocksTheoView.map((b) => {
     const resolved = accessOf.get(b.id);
@@ -631,6 +695,22 @@ export async function duLieuBaiHoc(
       maBanDau: draft?.code ?? macDinh,
       coBanNhap: draft !== undefined,
       luuLucBanDau: draft?.updatedAt.toISOString() ?? null,
+      soLanDaNop: b.problem ? (soNopTheoProblem.get(b.problem.id) ?? 0) : 0,
+      baiNopCuoi: (() => {
+        const s = b.problem ? nopCuoiTheoProblem.get(b.problem.id) : undefined;
+        if (!s) return null;
+        // The .hex hand-in leaves its filename and size in `code` (see
+        // nopBaiMicrobitHex); read them back rather than store them twice.
+        const m = s.hexKey ? /:\s*(.+?)\s+\((\d+) KB\)/.exec(s.code) : null;
+        return {
+          id: s.id,
+          verdict: s.verdict,
+          dangCho: s.verdict === 'PENDING' || s.verdict === 'RUNNING',
+          nopLuc: s.createdAt.toISOString(),
+          chamTay: (s.runnerError ?? '').startsWith('cham tay boi'),
+          hex: s.hexKey ? { tenTep: m?.[1] ?? 'tệp .hex', kichThuocKb: Number(m?.[2] ?? 0) } : null,
+        };
+      })(),
       tracNghiem: b.quiz
         ? {
             quizId: b.quiz.id,
@@ -640,6 +720,7 @@ export async function duLieuBaiHoc(
             questions: b.quiz.questions.map((q) => ({
               ...q,
               tuLuan: q.type === 'SHORT_ANSWER' ? (tuLuanOf.get(q.id) ?? { trangThai: 'chua-nop' }) : null,
+              daTraLoi: q.type === 'SHORT_ANSWER' ? null : (traLoiOf.get(q.id) ?? null),
             })),
           }
         : null,

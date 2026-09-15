@@ -260,7 +260,20 @@ describe('Lịch sử và quay lại', () => {
   });
 });
 
+/**
+ * One hand-in per problem (`kiemTraConLuot` in @dye/core). Each test below
+ * hands in once, so the record is cleared between them — the way a teacher's
+ * reset would — and one test pins the refusal itself.
+ */
+async function xoaBaiNopCua(studentId: string): Promise<void> {
+  await db.submission.deleteMany({ where: { studentId } });
+}
+
 describe('Nộp bài', () => {
+  beforeEach(async () => {
+    await xoaBaiNopCua(hocSinh.id);
+  });
+
   it('ghi đúng metadata và để ở trạng thái chờ chấm', async () => {
     const kq = await nop(khoiMo, 'print("bai nop cua em")\n');
 
@@ -289,17 +302,31 @@ describe('Nộp bài', () => {
   });
 
   it('lịch sử nộp bài đánh dấu đang chờ', async () => {
+    await nop(khoiMo, 'print("de xem lich su")\n');
     const kq = await layLichSuNop(khoiMo);
     expect(kq.trangThai).toBe('ok');
     expect(kq.baiNop.length).toBeGreaterThan(0);
     expect(kq.baiNop[0]?.dangCho).toBe(true);
     expect(kq.baiNop[0]?.nopLuc).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
+
+  it('nộp lần thứ hai bị từ chối bằng đúng câu học sinh thấy trên màn hình, không ghi thêm dòng nào', async () => {
+    const lan1 = await nop(khoiMo, 'print("lan 1")\n');
+    expect(lan1.trangThai).toBe('da-nhan');
+
+    const lan2 = await nop(khoiMo, 'print("lan 2")\n');
+    expect(lan2.trangThai).toBe('tu-choi');
+    expect(lan2.submissionId).toBeNull();
+    expect(lan2.thongDiep).toBe('Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở khóa.');
+
+    expect(await db.submission.count({ where: { studentId: hocSinh.id } })).toBe(1);
+  });
 });
 
 describe('Khi kết quả chấm vừa về', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.mocked(revalidatePath).mockClear();
+    await xoaBaiNopCua(hocSinh.id);
   });
 
   it('đọc lịch sử không kèm id đang chờ thì KHÔNG làm mới trang', async () => {

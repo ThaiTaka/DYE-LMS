@@ -23,6 +23,7 @@ import {
   nopBai,
   nopBaiMicrobit,
   xemBanLuu,
+  xoaBaiNopHex,
   ForbiddenError,
   UnauthorizedError,
   type BaiDaNop,
@@ -32,6 +33,7 @@ import {
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
 import { chayThuTrongSandbox, xepHangChamBai } from '@/lib/judge-queue';
+import { khoDuAn } from '@/lib/project-storage';
 import { lamMoiTrangTienDo } from '@/lib/lam-moi-tien-do';
 
 import type { Actor } from '@dye/core';
@@ -399,6 +401,44 @@ export async function nopMicrobit(blockId: string, blocksXml: string): Promise<K
   } catch (error) {
     const { trangThai, thongDiep } = loiThanhThongDiep(error);
     return { trangThai, submissionId: null, attemptNo: null, thongDiep };
+  }
+}
+
+export interface KetQuaXoaHexUI {
+  trangThai: 'da-xoa' | 'tu-choi' | 'loi';
+  thongDiep: string;
+}
+
+/**
+ * The student deletes the .hex they handed in, to upload another.
+ *
+ * ── The one self-service exit from the one-attempt rule ──────────────────────
+ * Code and MakeCode hand-ins are final until a teacher resets the block. A
+ * .hex is different in kind — it is a file the student exported elsewhere and
+ * may simply have picked wrongly — so the brief lets them delete it and try
+ * again. `xoaBaiNopHex` in @dye/core keeps that narrow: their own submission,
+ * a .hex, not yet graded by a person. The stored blob goes too, unless another
+ * student's submission shares the same bytes.
+ */
+export async function xoaBaiNopHexCu(submissionId: string): Promise<KetQuaXoaHexUI> {
+  try {
+    const actor = await hocSinhHienTai();
+    const kq = await xoaBaiNopHex(db, actor.id, String(submissionId ?? ''), khoDuAn);
+    lamMoiTrangTienDo();
+    return {
+      trangThai: 'da-xoa',
+      thongDiep: `Đã xoá ${kq.tenTep}. Em chọn tệp .hex mới rồi nộp lại nhé.`,
+    };
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      const ly =
+        error.message === 'submission-already-graded'
+          ? 'Thầy cô đã chấm bài này rồi nên không xoá được nữa. Em nói với thầy cô để được mở khoá nhé.'
+          : 'Không xoá được bài nộp này.';
+      return { trangThai: 'tu-choi', thongDiep: ly };
+    }
+    const { trangThai, thongDiep } = loiThanhThongDiep(error);
+    return { trangThai: trangThai === 'tu-choi' ? 'tu-choi' : 'loi', thongDiep };
   }
 }
 

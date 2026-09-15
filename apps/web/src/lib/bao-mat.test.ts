@@ -113,6 +113,10 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   'ghiNhanViPham(': 'luotDangMo(',
   'nopBaiThi(': 'luotDangMo(',
   'huyLuotThi(': 'authorize(',
+  // One-attempt policy. The student's .hex delete refuses anything but their
+  // own submission; the teacher's reset runs `authorize(student: manage)`.
+  'xoaBaiNopHex(': 'submission-not-yours',
+  'moLaiKhoi(': 'authorize(',
 };
 
 const CACH_KIEM_QUYEN = [...KIEM_QUYEN_TRUC_TIEP, ...Object.keys(UY_QUYEN_CHO_CORE)];

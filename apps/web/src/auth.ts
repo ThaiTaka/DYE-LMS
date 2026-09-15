@@ -45,6 +45,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   trustHost: true,
   session: {
     strategy: 'jwt',
+    /*
+     * How long the TOKEN is valid — not how long the browser keeps the cookie.
+     * The cookie itself is a browser-session cookie with no Expires/Max-Age;
+     * Auth.js cannot be configured that way, so `lib/cookie-phien.ts` strips
+     * the lifetime at the two places the cookie is written. Read that file
+     * before touching `cookies.sessionToken` here.
+     */
     maxAge: SESSION_TTL_DAYS * 24 * 60 * 60,
   },
   pages: {

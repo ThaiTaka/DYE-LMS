@@ -981,6 +981,8 @@ export interface HangKetQuaBaiNop {
   coTepHex: boolean;
   /** Set when a person set this verdict (see `chamTay`), not the sandbox. */
   chamTay: boolean;
+  /** The lesson block this problem sits in, for the one-attempt reset. Null if detached. */
+  blockId: string | null;
 }
 
 export interface DuLieuKetQuaBaiNop {
@@ -1049,8 +1051,15 @@ export async function duLieuKetQuaBaiNop(
         runnerError: true,
         createdAt: true,
         student: { select: { displayName: true } },
-        problem: { select: { title: true, totalPoints: true } },
-        lesson: { select: { title: true, order: true } },
+        problem: {
+          select: {
+            title: true,
+            totalPoints: true,
+            // The block that carries this problem in THIS lesson.
+            blocks: { select: { id: true, lessonId: true }, take: 4 },
+          },
+        },
+        lesson: { select: { id: true, title: true, order: true } },
       },
     }),
     db.submission.groupBy({
@@ -1078,6 +1087,10 @@ export async function duLieuKetQuaBaiNop(
       code: r.code,
       coTepHex: r.hexKey !== null,
       chamTay: (r.runnerError ?? '').startsWith('cham tay boi'),
+      blockId:
+        r.problem.blocks.find((b) => b.lessonId === r.lesson?.id)?.id ??
+        r.problem.blocks[0]?.id ??
+        null,
     })),
     toanHeThong: actor.role === 'ADMIN',
     demTheoKetQua: Object.fromEntries(dem.map((d) => [d.verdict, d._count._all])),

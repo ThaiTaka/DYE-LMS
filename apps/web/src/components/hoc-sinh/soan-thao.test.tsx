@@ -562,6 +562,84 @@ describe('Khu làm bài', () => {
     expect(refreshStub).toHaveBeenCalledTimes(1);
   }, 15_000);
 
+  // ── Một lượt nộp ──────────────────────────────────────────────────────────
+
+  it('đã nộp một lần và sai → khung khoá: soạn thảo chỉ đọc, Nộp bài và Chạy thử tắt, nói rõ ai mở được', async () => {
+    /*
+     * One attempt per problem. The server refuses a second hand-in
+     * (`kiemTraConLuot` in @dye/core); this is the page agreeing with it up
+     * front, so the student is not left editing code they cannot submit.
+     */
+    await dungKhu({ soLanDaNop: 1, baiNopCuoi: { verdict: 'WRONG_ANSWER', dangCho: false } });
+
+    const bang = await screen.findByTestId('het-luot');
+    expect(bang).toHaveTextContent('Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở khóa.');
+    expect(bang).toHaveAttribute('role', 'status');
+
+    expect(screen.getByRole('button', { name: /^đã nộp$/i })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: /^nộp bài$/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /chạy thử/i })).toBeDisabled();
+
+    const o = await screen.findByRole('textbox', { name: 'Bài làm của em' });
+    expect(o).toHaveAttribute('aria-readonly', 'true');
+  });
+
+  it('gõ vào khung đã khoá thì mã không đổi và không có yêu cầu lưu nào được gửi', async () => {
+    const nguoiDung = userEvent.setup();
+    await dungKhu({ soLanDaNop: 1, baiNopCuoi: { verdict: 'WRONG_ANSWER', dangCho: false } });
+
+    const o = await screen.findByRole('textbox', { name: 'Bài làm của em' });
+    o.focus();
+    await nguoiDung.keyboard('x = 1');
+
+    expect(o.textContent).not.toContain('x = 1');
+    expect(luuStub).not.toHaveBeenCalled();
+  });
+
+  it('đã nộp và ĐÚNG → khung vẫn khoá nhưng là lời khen, không phải thông báo hết lượt', async () => {
+    await dungKhu({ soLanDaNop: 1, baiNopCuoi: { verdict: 'ACCEPTED', dangCho: false } });
+
+    const bang = await screen.findByTestId('het-luot');
+    expect(bang).toHaveTextContent(/Đúng rồi/);
+    expect(bang).not.toHaveTextContent(/hết lượt/);
+    expect(screen.getByRole('button', { name: /^đã nộp$/i })).toBeDisabled();
+  });
+
+  it('vừa nộp xong trong phiên này là khoá ngay, không cần tải lại trang', async () => {
+    nopStub.mockResolvedValue({
+      trangThai: 'da-nhan',
+      submissionId: 's1',
+      attemptNo: 1,
+      thongDiep: 'Đã nhận bài làm lần 1 của em. Bài đang chờ được chấm.',
+    });
+    const nguoiDung = userEvent.setup();
+    await dungKhu();
+
+    await nguoiDung.click(await screen.findByRole('button', { name: /^nộp bài$/i }));
+
+    const bang = await screen.findByTestId('het-luot');
+    expect(bang).toHaveTextContent(/đang được chấm/);
+    expect(screen.getByRole('button', { name: /^đã nộp$/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /chạy thử/i })).toBeDisabled();
+    expect(await screen.findByRole('textbox', { name: 'Bài làm của em' })).toHaveAttribute(
+      'aria-readonly',
+      'true',
+    );
+  });
+
+  it('chưa nộp lần nào thì không có gì bị khoá', async () => {
+    await dungKhu({ soLanDaNop: 0, baiNopCuoi: null });
+    await screen.findByText(/lưu tự động/i);
+
+    expect(screen.queryByTestId('het-luot')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^nộp bài$/i })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /chạy thử/i })).toBeEnabled();
+    expect(await screen.findByRole('textbox', { name: 'Bài làm của em' })).not.toHaveAttribute(
+      'aria-readonly',
+      'true',
+    );
+  });
+
   it('sân chơi không có nút nộp bài', async () => {
     await dungKhu({ coBaiTap: false });
     await screen.findByText(/lưu tự động/i);

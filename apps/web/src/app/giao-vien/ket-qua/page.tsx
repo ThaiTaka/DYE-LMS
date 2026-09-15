@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { ChamMicrobit } from '@/components/giao-vien/cham-microbit';
 import { ChamTuLuan } from '@/components/giao-vien/cham-tu-luan';
+import { MoLaiKhoi } from '@/components/giao-vien/mo-lai-khoi';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { XemMaBaiNop } from '@/components/giao-vien/xem-ma-bai-nop';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
@@ -235,6 +236,22 @@ export default async function TrangKetQua({
                   verdict visible above it so the teacher overrides a number they
                   can see, not one they have to remember.
                 */}
+                {/*
+                  One attempt per problem: this row IS the student's attempt.
+                  The reset is the teacher's only key, so it lives next to the
+                  verdict it would undo.
+                */}
+                {b.blockId ? (
+                  <div className="mt-3">
+                    <MoLaiKhoi
+                      studentId={b.studentId}
+                      blockId={b.blockId}
+                      tenHocSinh={b.tenHocSinh}
+                      tenBai={b.problemTitle}
+                    />
+                  </div>
+                ) : null}
+
                 <details className="mt-3">
                   <summary className="min-h-cham cursor-pointer text-sm font-semibold text-chu-phu hover:text-chinh">
                     {b.chamTay ? 'Chấm lại' : 'Chấm tay / sửa điểm…'}

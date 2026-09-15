@@ -1,6 +1,7 @@
-import { GIOI_HAN_HEX_BYTE } from '@dye/core';
+import { ForbiddenError, GIOI_HAN_HEX_BYTE, kiemTraConLuot, moKhoiCode } from '@dye/core';
 
 import { currentActor } from '@/auth';
+import { db } from '@/lib/db';
 import { LOI_HEX_CHU, nhanTepHex } from '@/lib/nop-hex';
 
 import type { KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
@@ -18,10 +19,11 @@ import type { KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
  * `GIOI_HAN_HEX_BYTE` below.
  *
  * ── Who ──────────────────────────────────────────────────────────────────────
- * A signed-in STUDENT, and only for a block they may open: `nhanTepHex` goes
- * through `nopBaiMicrobitHex`, which resolves lesson access inside @dye/core
- * exactly as the server actions do. The endpoint being reachable is not the
- * permission.
+ * A signed-in STUDENT, and only for a block they may open, with a hand-in
+ * still available: `moKhoiCode` and `kiemTraConLuot` run here, before the
+ * body is read, and run AGAIN inside `nopBaiMicrobitHex` when the file is
+ * stored — @dye/core is where the rule is enforced; this is where a refused
+ * upload is made cheap. The endpoint being reachable is not the permission.
  *
  * ── Same-origin only ─────────────────────────────────────────────────────────
  * Server actions check `Origin` against `Host` for free; a route handler has
@@ -76,11 +78,30 @@ export async function POST(
   const { blockId } = await ctx.params;
   if (!blockId) return tuChoi('Không rõ bài nào để nộp.', 400);
 
-  // Refuse an oversized body BEFORE buffering it: a client that lies about
-  // Content-Length still meets GIOI_HAN_HEX_BYTE on the parsed file below.
+  // Refuse an oversized body BEFORE buffering it — and before touching the
+  // database, since a header is free. A client that lies about Content-Length
+  // still meets GIOI_HAN_HEX_BYTE on the parsed file below.
   const doDai = Number(req.headers.get('content-length') ?? '0');
   if (Number.isFinite(doDai) && doDai > GIOI_HAN_HEX_BYTE + DU_PHONG_MULTIPART_BYTE) {
     return tuChoi(LOI_HEX_CHU['qua-lon'], 413);
+  }
+
+  /*
+   * The real access check, still BEFORE the body is read.
+   *
+   * `moKhoiCode` is the gate every hand-in passes: enrolment, the lesson's
+   * unlock state, the integrity lock. `kiemTraConLuot` is the one-attempt
+   * rule. Both used to run only after the file had been buffered and its
+   * blob written — a refused second upload still cost a 1.8 MB read and an
+   * orphaned file on disk. Refusing here costs two queries.
+   */
+  try {
+    const khoi = await moKhoiCode(db, actor.id, blockId);
+    if (!khoi.problemId) return tuChoi('Khối này không có bài tập để nộp.', 400);
+    await kiemTraConLuot(db, actor.id, khoi.problemId);
+  } catch (error) {
+    if (error instanceof ForbiddenError) return tuChoi(error.message, 403);
+    throw error;
   }
 
   let tep: FormDataEntryValue | null;

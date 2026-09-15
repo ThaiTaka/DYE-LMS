@@ -2,6 +2,10 @@
 
 import { useCallback, useEffect, useId, useRef, useState, useTransition } from 'react';
 
+import { useRouter } from 'next/navigation';
+
+import { xoaBaiNopHexCu } from '@/app/bai-hoc/[slug]/code-actions';
+
 import { batDauChonTep, ketThucChonTep } from './tieu-diem';
 
 import type { KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
@@ -142,13 +146,143 @@ function kichThuoc(bytes: number): string {
   return bytes >= MB ? `${(bytes / MB).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
+export interface BaiNopHexHienThi {
+  submissionId: string;
+  tenTep: string;
+  kichThuocKb: number;
+  nopLuc: string;
+  /** A person has marked it: the student may no longer delete it. */
+  daCham: boolean;
+  verdict: string;
+}
+
+/**
+ * The .hex on record, in place of the picker.
+ *
+ * One upload per problem. While one exists the input is not rendered at all —
+ * not disabled, not hidden behind a toggle — because "upload" is not a thing
+ * the student can do. What they can do is delete it, and the button says so
+ * in full: what will be removed, and that they will then upload again.
+ */
+function DaNopHex({ bai }: { bai: BaiNopHexHienThi }) {
+  const router = useRouter();
+  const [xacNhan, setXacNhan] = useState(false);
+  const [thongBao, setThongBao] = useState<{ ok: boolean; chu: string } | null>(null);
+  const [dangXoa, batDauXoa] = useTransition();
+  const id = useId();
+
+  const luc = new Date(bai.nopLuc).toLocaleString('vi-VN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+  });
+
+  return (
+    <section
+      aria-labelledby={`${id}-tieu-de`}
+      className="rounded-nut border border-vien bg-the-mo p-4 sm:p-5"
+      data-testid="da-nop-hex"
+    >
+      <h3 id={`${id}-tieu-de`} className="mt-0 mb-3 text-base font-bold">
+        <span aria-hidden="true">📎 </span>Tệp .hex em đã nộp
+      </h3>
+
+      <dl className="m-0 mb-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-base">
+        <dt className="text-chu-phu">Tệp</dt>
+        <dd className="m-0 font-semibold break-all">{bai.tenTep}</dd>
+        <dt className="text-chu-phu">Kích thước</dt>
+        <dd className="m-0">{bai.kichThuocKb} KB</dd>
+        <dt className="text-chu-phu">Nộp lúc</dt>
+        <dd className="m-0">{luc}</dd>
+        <dt className="text-chu-phu">Trạng thái</dt>
+        <dd className="m-0">
+          {bai.daCham
+            ? bai.verdict === 'ACCEPTED'
+              ? '✅ Thầy cô đã chấm: đạt'
+              : '📝 Thầy cô đã chấm'
+            : '⏳ Đang chờ thầy cô xem'}
+        </dd>
+      </dl>
+
+      {bai.daCham ? (
+        <p className="m-0 text-sm text-chu-phu">
+          Thầy cô đã chấm bài này nên không xoá được nữa. Muốn nộp lại, em nhờ thầy cô mở khoá nhé.
+        </p>
+      ) : !xacNhan ? (
+        <button
+          type="button"
+          onClick={() => setXacNhan(true)}
+          className="min-h-cham rounded-nut bg-loi px-5 py-2.5 text-base font-bold text-white hover:opacity-90 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-loi"
+        >
+          <span aria-hidden="true">🗑 </span>Xóa bài nộp cũ để nộp lại
+        </button>
+      ) : (
+        <div role="group" aria-labelledby={`${id}-xac-nhan`} className="rounded-nut border-2 border-loi bg-loi-nen p-4">
+          <p id={`${id}-xac-nhan`} className="mt-0 mb-3 font-semibold text-loi">
+            Xoá <strong>{bai.tenTep}</strong>? Bài nộp cũ sẽ mất, rồi em chọn tệp mới để nộp lại.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={dangXoa}
+              onClick={() =>
+                batDauXoa(async () => {
+                  const kq = await xoaBaiNopHexCu(bai.submissionId).catch(() => ({
+                    trangThai: 'loi' as const,
+                    thongDiep: 'Chưa xoá được. Em kiểm tra mạng rồi thử lại nhé.',
+                  }));
+                  setThongBao({ ok: kq.trangThai === 'da-xoa', chu: kq.thongDiep });
+                  // The page re-renders from the server: no submission on
+                  // record → this panel is replaced by the picker.
+                  if (kq.trangThai === 'da-xoa') router.refresh();
+                })
+              }
+              className="min-h-cham rounded-nut bg-loi px-5 py-2.5 text-base font-bold text-white hover:opacity-90 disabled:opacity-60"
+            >
+              {dangXoa ? 'Đang xoá…' : 'Xoá và nộp lại'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setXacNhan(false)}
+              className="min-h-cham rounded-nut border border-vien px-4 py-2 text-base font-medium text-chu-phu hover:text-chu"
+            >
+              Giữ lại
+            </button>
+          </div>
+        </div>
+      )}
+
+      {thongBao ? (
+        <p role={thongBao.ok ? 'status' : 'alert'} className={`mt-3 mb-0 text-sm font-medium ${thongBao.ok ? 'text-dung' : 'text-thu-lai'}`}>
+          {thongBao.chu}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export function TaiLenHex({
   blockId,
   onDaNop,
+  daNop = null,
 }: {
   blockId: string;
   /** Lets the parent refresh its own history list. */
   onDaNop?: (kq: KetQuaNop) => void;
+  /** The .hex on record, if any. When set, the picker is not rendered. */
+  daNop?: BaiNopHexHienThi | null;
+}) {
+  if (daNop) return <DaNopHex bai={daNop} />;
+  return <ChonVaNopHex blockId={blockId} onDaNop={onDaNop} />;
+}
+
+function ChonVaNopHex({
+  blockId,
+  onDaNop,
+}: {
+  blockId: string;
+  onDaNop?: ((kq: KetQuaNop) => void) | undefined;
 }) {
   const [chon, setChon] = useState<TepDaChon | null>(null);
   const [keo, setKeo] = useState(false);

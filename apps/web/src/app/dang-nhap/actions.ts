@@ -4,6 +4,7 @@ import { AuthError } from 'next-auth';
 import { redirect } from 'next/navigation';
 
 import { signIn } from '@/auth';
+import { datLaiCookiePhien } from '@/lib/cookie-phien';
 
 export interface TrangThaiDangNhap {
   loi?: string;
@@ -56,6 +57,10 @@ export async function dangNhap(
    */
   try {
     await signIn('credentials', { username, password, redirect: false });
+    // Auth.js wrote the session cookie with a 30-day `Expires`. Overwrite it,
+    // same value, with no lifetime: it must not outlive the browser window on
+    // a shared classroom machine. See lib/cookie-phien.ts.
+    await datLaiCookiePhien();
   } catch (error) {
     if (error instanceof AuthError) {
       return { loi: 'Tên đăng nhập hoặc mật khẩu không đúng.' };

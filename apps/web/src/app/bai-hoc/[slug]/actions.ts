@@ -7,6 +7,7 @@ import {
   ghiNhanNoLuc,
   moKhoiCode,
   nopTuLuan,
+  traLoiCauHoi,
 } from '@dye/core';
 
 import { revalidatePath } from 'next/cache';
@@ -27,44 +28,26 @@ export interface KetQuaTraLoi {
   giaiThich: string | null;
   /** Only revealed once the student has answered, so it cannot be pre-read. */
   dapAnDung: string | null;
+  /**
+   * The question already had an answer on record, so this one was not taken.
+   * One attempt per question; the page freezes it and says who can lift that.
+   */
+  hetLuot: boolean;
 }
 
-/**
- * Normalise a free-text answer.
- *
- * Vietnamese students type with and without diacritics depending on the machine
- * they are on — a school computer often has no Vietnamese IME. Marking
- * "hoc sinh" wrong when the expected answer is "học sinh" would be punishing a
- * student for their keyboard, so `normalised` mode strips diacritics.
- */
-function chuanHoa(text: string, mode: string): string {
-  const base = text.trim();
-  if (mode === 'exact') return base;
-
-  const lower = base.toLowerCase().replace(/\s+/g, ' ');
-  if (mode === 'insensitive') return lower;
-
-  return lower
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd');
-}
 
 export async function kiemTraCauTraLoi(
   questionId: string,
   traLoi: string,
 ): Promise<KetQuaTraLoi> {
+  const khong: KetQuaTraLoi = { dung: false, giaiThich: null, dapAnDung: null, hetLuot: false };
   const actor = await currentActor();
-  if (!actor) return { dung: false, giaiThich: null, dapAnDung: null };
+  if (!actor) return khong;
 
   const question = await db.question.findUnique({
     where: { id: questionId },
     select: {
       type: true,
-      explanation: true,
-      acceptedAnswers: true,
-      matchMode: true,
-      choices: { select: { id: true, text: true, isCorrect: true } },
       quiz: {
         select: {
           blocks: { select: { lesson: { select: { id: true, courseId: true } } }, take: 1 },
@@ -72,8 +55,7 @@ export async function kiemTraCauTraLoi(
       },
     },
   });
-
-  if (!question) return { dung: false, giaiThich: null, dapAnDung: null };
+  if (!question) return khong;
 
   // The student must be allowed to see their own progress on this course before
   // they can probe its questions. Cheap, and keeps every path behind one guard.
@@ -82,41 +64,14 @@ export async function kiemTraCauTraLoi(
   /*
    * The integrity lock.
    *
-   * Quiz answering is the one student write path that does NOT pass through
-   * `moKhoiCode` — it is keyed on a question, not a block — so the gate has to
-   * be repeated here rather than inherited. Without it, a locked student could
-   * still work the multiple-choice questions from a tab that never re-rendered,
-   * which would make the lock a UI convention rather than a rule.
-   *
-   * Answered as "wrong, no explanation" instead of thrown: this returns into a
-   * client component mid-lesson, and the page already shows the lock panel
-   * explaining what happened. A second explanation from a quiz box would be
-   * noise on top of it.
+   * Quiz answering does NOT pass through `moKhoiCode` — it is keyed on a
+   * question, not a block — so the gate has to be repeated here rather than
+   * inherited. Answered as "wrong, no explanation" instead of thrown: this
+   * returns into a client component mid-lesson, and the page already shows
+   * the lock panel explaining what happened.
    */
   const baiCuaCauHoi = question.quiz.blocks[0]?.lesson.id ?? null;
-  if (baiCuaCauHoi && (await biKhoaViPham(db, actor.id, baiCuaCauHoi))) {
-    return { dung: false, giaiThich: null, dapAnDung: null };
-  }
-
-  if (question.type === 'MULTIPLE_CHOICE' || question.type === 'TRUE_FALSE') {
-    const chon = question.choices.find((c) => c.id === traLoi);
-    const dung = Boolean(chon?.isCorrect);
-    return {
-      dung,
-      giaiThich: question.explanation,
-      dapAnDung: dung ? null : (question.choices.find((c) => c.isCorrect)?.text ?? null),
-    };
-  }
-
-  if (question.type === 'FILL_BLANK') {
-    const daNhap = chuanHoa(traLoi, question.matchMode);
-    const dung = question.acceptedAnswers.some((a) => chuanHoa(a, question.matchMode) === daNhap);
-    return {
-      dung,
-      giaiThich: question.explanation,
-      dapAnDung: dung ? null : (question.acceptedAnswers[0] ?? null),
-    };
-  }
+  if (baiCuaCauHoi && (await biKhoaViPham(db, actor.id, baiCuaCauHoi))) return khong;
 
   /*
    * SHORT_ANSWER never lands here.
@@ -126,7 +81,25 @@ export async function kiemTraCauTraLoi(
    * nothing stored and no teacher ever seeing it. Free-text answers go through
    * `nopBaiTuLuan`, which persists them and leaves them for a person.
    */
-  throw new Error('SHORT_ANSWER phai di qua nopBaiTuLuan, khong tu cham o day');
+  if (question.type === 'SHORT_ANSWER') {
+    throw new Error('SHORT_ANSWER phai di qua nopBaiTuLuan, khong tu cham o day');
+  }
+
+  /*
+   * Marked AND recorded, once.
+   *
+   * `traLoiCauHoi` in @dye/core stores the answer as an `Answer` row — the
+   * same table essays use — and refuses a second one. The marking itself is
+   * the shared `chamMotCau`, so this action, the exam, and the lock's
+   * re-marking cannot disagree about what "correct" means.
+   */
+  const kq = await traLoiCauHoi(db, actor.id, questionId, traLoi);
+  if (kq.trangThai === 'da-tra-loi-roi') return { ...khong, hetLuot: true };
+  if (kq.trangThai !== 'da-cham') return khong;
+
+  revalidatePath('/bai-hoc/[slug]', 'page');
+
+  return { dung: kq.dung, giaiThich: kq.giaiThich, dapAnDung: kq.dapAnDung, hetLuot: false };
 }
 
 export interface KetQuaNopTuLuanUI {

@@ -174,6 +174,27 @@ export {
   type LuotThiTomTat,
 } from './kiem-tra';
 
+// ── One-attempt policy ───────────────────────────────────────────────────────
+export {
+  GIOI_HAN_LUOT_NOP,
+  HetLuotNopError,
+  kiemTraConLuot,
+  moLaiKhoi,
+  soLanDaNop,
+  THONG_DIEP_HET_LUOT,
+  xoaBaiNopHex,
+  type KetQuaMoLai,
+  type KetQuaXoaHex,
+} from './luot-nop';
+
+// ── Persisted quiz answers ───────────────────────────────────────────────────
+export {
+  traLoiCauHoi,
+  traLoiCuaHocSinh,
+  type KetQuaTraLoi as KetQuaTraLoiCauHoi,
+  type TraLoiDaLuu,
+} from './tra-loi';
+
 // ── Auto-zero lock ───────────────────────────────────────────────────────────
 export {
   biKhoaViPham,

@@ -16,7 +16,7 @@ import { useRouter } from 'next/navigation';
 
 import { nopMicrobit, type KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
 
-import { TaiLenHex } from './tai-len-hex';
+import { TaiLenHex, type BaiNopHexHienThi } from './tai-len-hex';
 
 import {
   coKhoiLenh,
@@ -47,6 +47,12 @@ export interface KhuMicrobitProps {
   /** The student's last saved workspace, if they have one. */
   blocksXmlDaLuu: string;
   coBaiTap: boolean;
+  /** Hand-ins on record for this block's problem. ≥ 1 freezes "Nộp bài". */
+  soLanDaNop?: number | undefined;
+  /** The hand-in on record, when it was a .hex: shown in place of the picker. */
+  baiNopHex?: BaiNopHexHienThi | null | undefined;
+  /** The hand-in on record, whatever its kind, for the freeze message. */
+  baiNopCuoi?: { verdict: string; dangCho: boolean; chamTay: boolean } | null | undefined;
 }
 
 type TrangThaiEditor = 'dang-tai' | 'san-sang' | 'khong-tai-duoc';
@@ -211,6 +217,9 @@ export const KhuMicrobit = memo(function KhuMicrobit({
   blocksXmlBanDau,
   blocksXmlDaLuu,
   coBaiTap,
+  soLanDaNop = 0,
+  baiNopHex = null,
+  baiNopCuoi = null,
 }: KhuMicrobitProps) {
   const [trangThai, setTrangThai] = useState<TrangThaiEditor>('dang-tai');
   const [workspace, setWorkspace] = useState<string>(blocksXmlDaLuu || blocksXmlBanDau);
@@ -229,10 +238,22 @@ export const KhuMicrobit = memo(function KhuMicrobit({
    * server-rendered parts and keeps this editor's state — the MakeCode frame
    * is not remounted.
    */
+  /** Set the moment a hand-in is accepted here; the server count catches up on refresh. */
+  const [vuaNop, setVuaNop] = useState(false);
+  /*
+   * One attempt per problem, whichever way it was handed in — blocks from
+   * the editor or a .hex from disk. The server refuses a second either way;
+   * this only keeps a child from pressing a button to find that out.
+   */
+  const hetLuot = coBaiTap && (soLanDaNop >= 1 || vuaNop);
+
   const daNop = useCallback(
     (kq: KetQuaNop) => {
       setThongBao({ ok: kq.trangThai === 'da-nhan', chu: kq.thongDiep });
-      if (kq.trangThai === 'da-nhan') router.refresh();
+      if (kq.trangThai === 'da-nhan') {
+        setVuaNop(true);
+        router.refresh();
+      }
     },
     [router],
   );
@@ -712,10 +733,10 @@ export const KhuMicrobit = memo(function KhuMicrobit({
           <button
             type="button"
             onClick={nop}
-            disabled={dangGui || !dangMo}
+            disabled={dangGui || !dangMo || hetLuot}
             className="min-h-cham rounded-nut bg-chinh px-5 py-2 text-sm font-semibold text-white hover:bg-chinh-dam disabled:opacity-60"
           >
-            {dangGui ? 'Đang gửi…' : 'Nộp bài cho thầy cô'}
+            {dangGui ? 'Đang gửi…' : hetLuot ? 'Đã nộp' : 'Nộp bài cho thầy cô'}
           </button>
         ) : null}
 
@@ -734,7 +755,13 @@ export const KhuMicrobit = memo(function KhuMicrobit({
         ) : null}
 
         <p className="m-0 text-sm text-chu-nhat">
-          {!dangMo
+          {hetLuot
+            ? baiNopCuoi?.verdict === 'ACCEPTED'
+              ? '🎉 Bài này đã được chấm đạt.'
+              : !baiNopCuoi?.chamTay
+                ? '⏳ Bài của em đã nộp và đang chờ thầy cô xem. Mỗi bài chỉ nộp một lần.'
+                : '🔒 Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở khóa.'
+            : !dangMo
             ? 'Mở trình soạn ở trên để làm bài này.'
             : workspace
               ? 'Bài của em đã sẵn sàng để nộp.'
@@ -768,7 +795,7 @@ export const KhuMicrobit = memo(function KhuMicrobit({
             Trình soạn không mở được? Nộp tệp .hex thay thế
           </summary>
           <div className="mt-3">
-            <TaiLenHex blockId={blockId} onDaNop={daNop} />
+            <TaiLenHex blockId={blockId} onDaNop={daNop} daNop={baiNopHex} />
           </div>
         </details>
       ) : null}

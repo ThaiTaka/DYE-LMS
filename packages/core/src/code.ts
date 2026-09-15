@@ -28,6 +28,7 @@ import { createHash } from 'node:crypto';
 import { resolveLessonAccess } from './curriculum/gating';
 import { ForbiddenError } from './errors';
 import { ghiNhanNoLuc } from './grading';
+import { kiemTraConLuot } from './luot-nop';
 import { biKhoaViPham } from './khoa-vi-pham';
 
 import type { PrismaClient, SnapshotReason, Verdict } from '@prisma/client';
@@ -424,6 +425,9 @@ export async function nopBai(
 
   const khoi = await moKhoiCode(db, studentId, blockId);
   if (!khoi.problemId) throw new ForbiddenError('block-has-no-problem');
+  // One attempt. Checked before the draft snapshot so a refused hand-in leaves
+  // no SUBMIT entry in the student's history.
+  await kiemTraConLuot(db, studentId, khoi.problemId);
 
   const hash = bamMa(code);
 
@@ -486,6 +490,9 @@ export async function nopBaiMicrobit(
 
   const khoi = await moKhoiCode(db, studentId, blockId);
   if (!khoi.problemId) throw new ForbiddenError('block-has-no-problem');
+  // One attempt. Checked before the draft snapshot so a refused hand-in leaves
+  // no SUBMIT entry in the student's history.
+  await kiemTraConLuot(db, studentId, khoi.problemId);
 
   const hash = bamMa(blocksXml);
 
@@ -602,6 +609,7 @@ export async function nopBaiMicrobitHex(
 ): Promise<KetQuaNopBai> {
   const khoi = await moKhoiCode(db, studentId, blockId);
   if (!khoi.problemId) throw new ForbiddenError('block-has-no-problem');
+  await kiemTraConLuot(db, studentId, khoi.problemId);
 
   const daNop = await db.submission.count({
     where: { studentId, problemId: khoi.problemId },

@@ -6,7 +6,7 @@
  *   • a student can list history and roll back to an older version;
  *   • a locked lesson refuses code writes, not just hides the editor.
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, beforeEach } from 'vitest';
 
 import {
   bamMa,
@@ -22,7 +22,17 @@ import {
   xemBanLuu,
 } from './code';
 import { ForbiddenError } from './errors';
-import { createFixture, type Fixture } from './testing/fixtures';
+import { moLaiKhoi } from './luot-nop';
+import { actorFor, createFixture, type Fixture } from './testing/fixtures';
+
+import type { KhoLuuTru } from './projects';
+
+/** No blobs are involved in a code reset; the store is never touched. */
+const khoTrong: KhoLuuTru = {
+  ghi: async () => undefined,
+  doc: async () => null,
+  xoa: async () => undefined,
+};
 
 let fx: Fixture;
 
@@ -339,6 +349,11 @@ describe('Bài học bị khoá thì chặn cả ghi lẫn đọc', () => {
 });
 
 describe('Nộp bài', () => {
+  // One attempt per problem now, so every case starts with the attempt unused.
+  beforeEach(async () => {
+    await fx.db.submission.deleteMany({ where: { studentId: fx.studentA1, problemId } });
+  });
+
   it('ghi đủ metadata vào bảng Submission', async () => {
     const kq = await nopBai(fx.db, fx.studentA1, khoiMo, CODE_B);
 
@@ -366,10 +381,30 @@ describe('Nộp bài', () => {
     expect(row.judgedAt).toBeNull();
   });
 
-  it('số lần nộp tăng dần', async () => {
+  it('CHỈ MỘT lượt: lần nộp thứ hai bị từ chối, và không để lại bản lưu SUBMIT', async () => {
     const mot = await nopBai(fx.db, fx.studentA1, khoiMo, 'print(1)\n');
-    const hai = await nopBai(fx.db, fx.studentA1, khoiMo, 'print(2)\n');
-    expect(hai.attemptNo).toBe(mot.attemptNo + 1);
+    expect(mot.attemptNo).toBe(1);
+
+    const truoc = await lichSuMa(fx.db, fx.studentA1, khoiMo);
+    await expect(nopBai(fx.db, fx.studentA1, khoiMo, 'print(2)\n')).rejects.toMatchObject({
+      message: expect.stringContaining('hết lượt nộp bài'),
+    });
+    // Refused BEFORE the snapshot, so the history does not record a hand-in
+    // that never happened.
+    const sau = await lichSuMa(fx.db, fx.studentA1, khoiMo);
+    expect(sau.length).toBe(truoc.length);
+    expect(await fx.db.submission.count({ where: { studentId: fx.studentA1, problemId } })).toBe(1);
+  });
+
+  it('giáo viên mở lại khối thì nộp được lần nữa, đánh số từ đầu', async () => {
+    await nopBai(fx.db, fx.studentA1, khoiMo, 'print(1)\n');
+    const gv = await actorFor(fx.db, fx.teacherA);
+    const kq = await moLaiKhoi(fx.db, gv, fx.studentA1, khoiMo, 'Cho em làm lại.', khoTrong);
+    expect(kq.soBaiNopXoa).toBe(1);
+
+    const lai = await nopBai(fx.db, fx.studentA1, khoiMo, 'print(2)\n');
+    // History was deleted, so the count restarts — the audit row keeps the past.
+    expect(lai.attemptNo).toBe(1);
   });
 
   it('mỗi lần nộp đều để lại một bản lưu SUBMIT', async () => {
@@ -416,6 +451,7 @@ describe('Nộp bài', () => {
   });
 
   it('lịch sử nộp bài xếp mới nhất trước và đánh dấu đang chờ chấm', async () => {
+    await nopBai(fx.db, fx.studentA1, khoiMo, CODE_B);
     const ls = await lichSuNopBai(fx.db, fx.studentA1, problemId);
     expect(ls.length).toBeGreaterThan(0);
     expect(ls[0]?.dangCho).toBe(true);

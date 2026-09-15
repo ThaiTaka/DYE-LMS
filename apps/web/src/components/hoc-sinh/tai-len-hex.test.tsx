@@ -7,18 +7,29 @@
  * the action's 1 MB body cap is what broke this for every real .hex; success
  * clears the picker so the next attempt starts clean; and opening the OS file
  * dialog pauses the lesson's tab-switch tracker until it closes.
+ *
+ * And the one-upload rule: while a .hex is on record the picker is not in the
+ * page at all — what is there is the file's details and a red button that
+ * deletes it, after a confirm, so the student can upload another.
  */
 import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { TaiLenHex } from './tai-len-hex';
+import { TaiLenHex, type BaiNopHexHienThi } from './tai-len-hex';
 import { dangMoHopChonTep, ketThucChonTep } from './tieu-diem';
 
 import type { KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
 
 const fetchStub = vi.fn<typeof fetch>();
+const xoaStub = vi.hoisted(() => vi.fn());
+const refreshStub = vi.hoisted(() => vi.fn());
+
+// The delete is a server action; under Vitest the real module would pull in
+// next-auth. The router is what the panel refreshes after a delete.
+vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({ xoaBaiNopHexCu: xoaStub }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: refreshStub }) }));
 
 /** What the route handler answers: JSON, whatever the status. */
 function traLoi(kq: KetQuaNop, status = 200): Response {
@@ -35,6 +46,8 @@ function tep(name: string, noiDung: string | number[], type = 'application/octet
 
 beforeEach(() => {
   fetchStub.mockReset();
+  xoaStub.mockReset();
+  refreshStub.mockReset();
   vi.stubGlobal('fetch', fetchStub);
   ketThucChonTep();
 });
@@ -221,5 +234,102 @@ describe('Nộp tệp .hex', () => {
       rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
     });
     expect(kq.violations).toEqual([]);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Đã nộp rồi: xoá để nộp lại
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('Tệp .hex đã nộp', () => {
+  const DA_NOP: BaiNopHexHienThi = {
+    submissionId: 's1',
+    tenTep: 'den-nhay.hex',
+    kichThuocKb: 612,
+    nopLuc: '2026-09-14T08:15:00Z',
+    daCham: false,
+    verdict: 'SKIPPED',
+  };
+
+  it('có bài trên máy chủ thì KHÔNG hiện ô chọn tệp — hiện chi tiết tệp và nút đỏ xoá', () => {
+    render(<TaiLenHex blockId="b1" daNop={DA_NOP} />);
+
+    // Not disabled, not hidden: absent. "Upload" is not a thing to offer.
+    expect(screen.queryByLabelText(/Chọn tệp \.hex/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Nộp tệp này/ })).not.toBeInTheDocument();
+
+    const bang = screen.getByTestId('da-nop-hex');
+    expect(bang).toHaveTextContent('den-nhay.hex');
+    expect(bang).toHaveTextContent('612 KB');
+    expect(bang).toHaveTextContent(/Đang chờ thầy cô xem/);
+
+    const nut = screen.getByRole('button', { name: 'Xóa bài nộp cũ để nộp lại' });
+    expect(nut.className).toContain('bg-loi');
+  });
+
+  it('xoá phải qua một bước xác nhận; "Giữ lại" thì không gọi máy chủ', async () => {
+    const nguoiDung = userEvent.setup();
+    render(<TaiLenHex blockId="b1" daNop={DA_NOP} />);
+
+    await nguoiDung.click(screen.getByRole('button', { name: 'Xóa bài nộp cũ để nộp lại' }));
+    const nhom = screen.getByRole('group');
+    expect(nhom).toHaveTextContent(/Xoá den-nhay\.hex\?/);
+
+    await nguoiDung.click(screen.getByRole('button', { name: 'Giữ lại' }));
+
+    expect(xoaStub).not.toHaveBeenCalled();
+    expect(screen.queryByRole('group')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Xóa bài nộp cũ để nộp lại' })).toBeInTheDocument();
+  });
+
+  it('xác nhận xoá → gọi hành động với đúng bài nộp, báo kết quả, rồi tải lại trang để hiện ô chọn tệp', async () => {
+    xoaStub.mockResolvedValue({
+      trangThai: 'da-xoa',
+      thongDiep: 'Đã xoá den-nhay.hex. Em chọn tệp .hex mới rồi nộp lại nhé.',
+    });
+    const nguoiDung = userEvent.setup();
+    render(<TaiLenHex blockId="b1" daNop={DA_NOP} />);
+
+    await nguoiDung.click(screen.getByRole('button', { name: 'Xóa bài nộp cũ để nộp lại' }));
+    await nguoiDung.click(screen.getByRole('button', { name: 'Xoá và nộp lại' }));
+
+    await waitFor(() => expect(xoaStub).toHaveBeenCalledWith('s1'));
+    expect(await screen.findByRole('status')).toHaveTextContent(/Đã xoá den-nhay\.hex/);
+    // The page re-renders from the server: no record → the picker is back.
+    expect(refreshStub).toHaveBeenCalledTimes(1);
+  });
+
+  it('máy chủ từ chối (đã chấm rồi) thì hiện lý do và KHÔNG tải lại trang', async () => {
+    xoaStub.mockResolvedValue({
+      trangThai: 'tu-choi',
+      thongDiep: 'Thầy cô đã chấm bài này rồi nên không xoá được nữa.',
+    });
+    const nguoiDung = userEvent.setup();
+    render(<TaiLenHex blockId="b1" daNop={DA_NOP} />);
+
+    await nguoiDung.click(screen.getByRole('button', { name: 'Xóa bài nộp cũ để nộp lại' }));
+    await nguoiDung.click(screen.getByRole('button', { name: 'Xoá và nộp lại' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/đã chấm bài này rồi/);
+    expect(refreshStub).not.toHaveBeenCalled();
+  });
+
+  it('thầy cô đã chấm thì không có nút xoá — chỉ có lời chỉ đường', () => {
+    render(<TaiLenHex blockId="b1" daNop={{ ...DA_NOP, daCham: true, verdict: 'ACCEPTED' }} />);
+
+    expect(screen.queryByRole('button', { name: /Xóa bài nộp cũ/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId('da-nop-hex')).toHaveTextContent(/Thầy cô đã chấm: đạt/);
+    expect(screen.getByTestId('da-nop-hex')).toHaveTextContent(/nhờ thầy cô mở khoá/);
+  });
+
+  it('không có vi phạm axe ở cả hai trạng thái', async () => {
+    const nguoiDung = userEvent.setup();
+    const { container } = render(<TaiLenHex blockId="b1" daNop={DA_NOP} />);
+    const tuyChon = { rules: { 'color-contrast': { enabled: false }, region: { enabled: false } } };
+
+    expect((await axe.run(container, tuyChon)).violations).toEqual([]);
+
+    await nguoiDung.click(screen.getByRole('button', { name: 'Xóa bài nộp cũ để nộp lại' }));
+    expect((await axe.run(container, tuyChon)).violations).toEqual([]);
   });
 });

@@ -47,7 +47,28 @@ export function BaiTracNghiem({
   /** Already complete on the server, so the page does not re-record it. */
   daXong?: boolean;
 }) {
-  const [ketQua, setKetQua] = useState<Record<string, KetQuaTraLoi>>({});
+  /*
+   * Machine-marked answers already on record, as the page loaded them.
+   *
+   * One attempt per question: the server keeps the answer, so a reload — or a
+   * second tab — shows the question answered and locked, with the same
+   * feedback. React state below only ADDS answers given in this session.
+   */
+  const [ketQua, setKetQua] = useState<Record<string, KetQuaTraLoi>>(() =>
+    Object.fromEntries(
+      tracNghiem.questions
+        .filter((q) => q.daTraLoi)
+        .map((q) => [
+          q.id,
+          {
+            dung: q.daTraLoi!.dung,
+            giaiThich: q.daTraLoi!.giaiThich,
+            dapAnDung: q.daTraLoi!.dapAnDung,
+            hetLuot: false,
+          },
+        ]),
+    ),
+  );
   /*
    * Every question that has an answer — right, wrong, or an essay handed in.
    *
@@ -60,7 +81,7 @@ export function BaiTracNghiem({
     () =>
       new Set(
         tracNghiem.questions
-          .filter((q) => q.tuLuan && q.tuLuan.trangThai !== 'chua-nop')
+          .filter((q) => (q.tuLuan && q.tuLuan.trangThai !== 'chua-nop') || q.daTraLoi)
           .map((q) => q.id),
       ),
   );
@@ -120,20 +141,6 @@ export function BaiTracNghiem({
                 setDaTraLoiIds((truoc) => new Set(truoc).add(cau.id));
               }}
               onNop={() => setDaTraLoiIds((truoc) => new Set(truoc).add(cau.id))}
-              onLamLai={() => {
-                setKetQua((truoc) => {
-                  // Remove the key entirely. Leaving it as `undefined` would keep
-                  // the question counted in "đã trả lời" while rendering as unanswered.
-                  const { [cau.id]: _bo, ...conLai } = truoc;
-                  return conLai;
-                });
-                // And un-count it, or the counter reads 1/2 with nothing answered.
-                setDaTraLoiIds((truoc) => {
-                  const moi = new Set(truoc);
-                  moi.delete(cau.id);
-                  return moi;
-                });
-              }}
             />
           </li>
         ))}
@@ -146,7 +153,7 @@ export function BaiTracNghiem({
         >
           {kieu === 'kiem-tra'
             ? `🎉 Em đã làm hết ${tong} câu — đúng ${daDung} câu. Giỏi lắm!`
-            : `🎉 Em đã làm hết ${tong} câu rồi. Câu nào chưa chắc, em quay lại làm lại thoải mái nhé.`}
+            : `🎉 Em đã làm hết ${tong} câu rồi.`}
         </p>
       ) : null}
     </div>
@@ -185,14 +192,12 @@ function CauHoi({
   soThuTu,
   ketQua,
   onTraLoi,
-  onLamLai,
   onNop,
 }: {
   cau: CauHoiHienThi;
   soThuTu: number;
   ketQua: KetQuaTraLoi | undefined;
   onTraLoi: (kq: KetQuaTraLoi) => void;
-  onLamLai: () => void;
   /** An essay was handed in: counts as answered for completion. */
   onNop: () => void;
 }) {
@@ -249,9 +254,14 @@ function CauHoi({
             <button
               key={c.id}
               type="button"
-              disabled={dangGui}
+              disabled={dangGui || daXong}
+              aria-pressed={daXong ? cau.daTraLoi?.chon === c.id : undefined}
               onClick={() => void gui(c.id)}
-              className="flex min-h-cham w-full items-center gap-3 rounded-nut border border-vien bg-the px-4 py-3 text-start text-base hover:border-chinh hover:bg-chinh-nhat disabled:opacity-60"
+              className={`flex min-h-cham w-full items-center gap-3 rounded-nut border px-4 py-3 text-start text-base ${
+                daXong && cau.daTraLoi?.chon === c.id
+                  ? 'border-chinh bg-chinh-nhat font-semibold'
+                  : 'border-vien bg-the'
+              } ${daXong ? 'cursor-not-allowed opacity-70' : 'hover:border-chinh hover:bg-chinh-nhat'} disabled:opacity-70`}
             >
               {c.text}
             </button>
@@ -265,8 +275,9 @@ function CauHoi({
           <input
             id={id}
             type="text"
-            value={nhapTay}
-            disabled={dangGui}
+            value={daXong ? (cau.daTraLoi?.chon ?? nhapTay) : nhapTay}
+            disabled={dangGui || daXong}
+            readOnly={daXong}
             onChange={(e) => setNhapTay(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -280,7 +291,7 @@ function CauHoi({
           />
           <button
             type="button"
-            disabled={dangGui || nhapTay.trim() === ''}
+            disabled={dangGui || daXong || nhapTay.trim() === ''}
             onClick={() => void gui(nhapTay)}
             className="min-h-cham rounded-nut bg-chinh px-5 py-2.5 font-semibold text-white hover:bg-chinh-dam disabled:opacity-50"
           >
@@ -316,16 +327,7 @@ function CauHoi({
         </p>
       ) : null}
 
-      {daXong ? (
-        <PhanHoi
-          ketQua={ketQua}
-          onLamLai={() => {
-            setNhapTay('');
-            setXemGoiY(false);
-            onLamLai();
-          }}
-        />
-      ) : null}
+      {daXong ? <PhanHoi ketQua={ketQua} /> : null}
     </fieldset>
   );
 }
@@ -333,13 +335,22 @@ function CauHoi({
 /**
  * Feedback after an answer.
  *
- * Correct is green and celebratory. Incorrect is AMBER and says "Thử lại nhé" —
- * red would read as punishment, and the brief rules it out for exactly that
- * reason. Either way the explanation is shown, because that is the part that
- * actually teaches.
+ * Correct is green and celebratory. Incorrect is AMBER — red would read as
+ * punishment — and, under the one-attempt rule, it says plainly that the
+ * question is now closed and who can open it. The explanation is shown either
+ * way, because that is the part that actually teaches; the correct answer is
+ * shown on a wrong one because the student can no longer act on it.
  */
-function PhanHoi({ ketQua, onLamLai }: { ketQua: KetQuaTraLoi; onLamLai: () => void }) {
+function PhanHoi({ ketQua }: { ketQua: KetQuaTraLoi }) {
   const dung = ketQua.dung;
+
+  if (ketQua.hetLuot) {
+    return (
+      <p role="alert" className="mt-3 mb-0 rounded-nut border border-thu-lai/30 bg-thu-lai-nen p-4 font-semibold text-thu-lai">
+        <span aria-hidden="true">🔒 </span>Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở khóa.
+      </p>
+    );
+  }
 
   return (
     <div
@@ -350,7 +361,7 @@ function PhanHoi({ ketQua, onLamLai }: { ketQua: KetQuaTraLoi; onLamLai: () => v
       }`}
     >
       <p className={`mt-0 mb-1 font-bold ${dung ? 'text-dung' : 'text-thu-lai'}`}>
-        {dung ? '✓ Chính xác!' : '↻ Thử lại nhé'}
+        {dung ? '✓ Chính xác!' : 'Chưa đúng rồi'}
       </p>
 
       {!dung && ketQua.dapAnDung ? (
@@ -364,13 +375,9 @@ function PhanHoi({ ketQua, onLamLai }: { ketQua: KetQuaTraLoi; onLamLai: () => v
       ) : null}
 
       {!dung ? (
-        <button
-          type="button"
-          onClick={onLamLai}
-          className="mt-3 min-h-cham rounded-nut border border-thu-lai px-4 py-2 text-sm font-semibold text-thu-lai hover:bg-thu-lai hover:text-white"
-        >
-          Làm lại câu này
-        </button>
+        <p className="mt-3 mb-0 text-sm font-semibold text-thu-lai">
+          <span aria-hidden="true">🔒 </span>Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở khóa.
+        </p>
       ) : null}
     </div>
   );
