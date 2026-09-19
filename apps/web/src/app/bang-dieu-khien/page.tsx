@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { BaiNopGanDay } from '@/components/hoc-sinh/bai-nop-gan-day';
+import { MucVao, TheNoi, VaoTrang } from '@/components/hoc-sinh/chuyen-dong';
 import { TheHocTiep } from '@/components/hoc-sinh/the-hoc-tiep';
 import { VoHocSinh } from '@/components/hoc-sinh/vo';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
@@ -37,100 +38,113 @@ export default async function BangDieuKhien() {
         </p>
       </header>
 
-      <div className="mb-8">
-        <TheHocTiep tiepTuc={data.tiepTuc} />
-      </div>
-
-      {/* "What did I learn?" — one card per course, progress on the student's own track. */}
-      <section aria-labelledby="tieu-de-khoa-hoc" className="mb-8">
-        <h2 id="tieu-de-khoa-hoc" className="mt-0 mb-4 text-xl font-bold">
-          Khoá học của em
-        </h2>
-
-        {data.courses.length === 0 ? (
-          <p className="rounded-the border border-vien bg-the p-6 text-chu-phu">
-            Chưa có khoá học nào. Hãy hỏi thầy cô nhé.
-          </p>
-        ) : (
-          <ul className="m-0 grid list-none gap-4 p-0 sm:grid-cols-2">
-            {data.courses.map((c) => {
-              const kieu = KIEU_NHANH[c.tier];
-              return (
-                <li key={c.courseId}>
-                  <Link
-                    href={`/khoa-hoc/${c.slug}`}
-                    className="block h-full rounded-the border border-vien bg-the p-5 transition-colors hover:border-chinh"
-                  >
-                    <div className="mb-3 flex items-start gap-3">
-                      <span aria-hidden="true" className="text-3xl leading-none">
-                        {c.iconEmoji}
-                      </span>
-                      <div className="min-w-0">
-                        <h3 className="mt-0 mb-1 text-lg leading-snug font-semibold text-chu">
-                          {c.title}
-                        </h3>
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${kieu.nen} ${kieu.chu} ${kieu.vien}`}
-                        >
-                          <span aria-hidden="true">{kieu.icon}</span>
-                          {kieu.nhan}
-                        </span>
-                      </div>
-                    </div>
-
-                    <ThanhTienDo
-                      nhan="Phần bắt buộc của em"
-                      phanTram={c.progress.required.percent}
-                      daXong={c.progress.required.completed}
-                      tong={c.progress.required.total}
-                      chuaGiao={!c.progress.hasRequiredWork}
-                    />
-
-                    {c.progress.optional.total > 0 ? (
-                      <p className="mt-3 mb-0 text-sm text-chu-nhat">
-                        🌟 {c.progress.optional.completed}/{c.progress.optional.total} bài khám phá
-                        thêm
-                      </p>
-                    ) : null}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
       {/*
-        Recent hand-ins, above the badges.
-
-        This is the answer to "did the system get my work?" — the question a
-        student asks after every submit, and the one the dashboard used to
-        leave unanswered. It shows every attempt, including the ones still in
-        the queue, so a pending verdict reads as "being graded" rather than as
-        silence.
+        Everything below arrives in sequence — "Học tiếp" first, then the
+        course cards, then the rest. It runs once, on load: the point is that
+        the page reads as ready, not that it performs.
       */}
-      <BaiNopGanDay baiNop={data.baiNopGanDay} />
+      <VaoTrang>
+        <MucVao className="mb-8">
+          <TheHocTiep tiepTuc={data.tiepTuc} />
+        </MucVao>
 
-      {data.huyHieu.length > 0 ? (
-        <section aria-labelledby="tieu-de-huy-hieu">
-          <h2 id="tieu-de-huy-hieu" className="mt-0 mb-4 text-xl font-bold">
-            Huy hiệu của em
+        {/* "What did I learn?" — one card per course, progress on the student's own track. */}
+        <section aria-labelledby="tieu-de-khoa-hoc" className="mb-8">
+          <h2 id="tieu-de-khoa-hoc" className="mt-0 mb-4 text-xl font-bold">
+            Khoá học của em
           </h2>
-          <ul className="m-0 flex list-none flex-wrap gap-3 p-0">
-            {data.huyHieu.map((h) => (
-              <li
-                key={h.slug}
-                className="flex items-center gap-2 rounded-full border border-vien bg-the px-4 py-2 text-sm font-medium"
-              >
-                <span aria-hidden="true" className="text-lg">
-                  {h.iconEmoji}
-                </span>
-                {h.name}
-              </li>
-            ))}
-          </ul>
+
+          {data.courses.length === 0 ? (
+            <p className="rounded-the border border-vien bg-the p-6 text-chu-phu">
+              Chưa có khoá học nào. Hãy hỏi thầy cô nhé.
+            </p>
+          ) : (
+            <ul className="m-0 grid list-none gap-4 p-0 sm:grid-cols-2">
+              {data.courses.map((c) => {
+                const kieu = KIEU_NHANH[c.tier];
+                return (
+                  <li key={c.courseId}>
+                    <TheNoi className="h-full">
+                      <Link
+                        href={`/khoa-hoc/${c.slug}`}
+                        className="flex h-full flex-col rounded-the border border-vien bg-the p-5 transition-colors hover:border-chinh"
+                      >
+                        <div className="mb-3 flex items-start gap-3">
+                          <span aria-hidden="true" className="text-3xl leading-none">
+                            {c.iconEmoji}
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="mt-0 mb-1 text-lg leading-snug font-semibold text-chu">
+                              {c.title}
+                            </h3>
+                            <span
+                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${kieu.nen} ${kieu.chu} ${kieu.vien}`}
+                            >
+                              <span aria-hidden="true">{kieu.icon}</span>
+                              {kieu.nhan}
+                            </span>
+                          </div>
+                        </div>
+
+                        <ThanhTienDo
+                          nhan="Phần bắt buộc của em"
+                          phanTram={c.progress.required.percent}
+                          daXong={c.progress.required.completed}
+                          tong={c.progress.required.total}
+                          chuaGiao={!c.progress.hasRequiredWork}
+                        />
+
+                        {c.progress.optional.total > 0 ? (
+                          <p className="mt-3 mb-0 text-sm text-chu-nhat">
+                            🌟 {c.progress.optional.completed}/{c.progress.optional.total} bài khám phá
+                            thêm
+                          </p>
+                        ) : null}
+                      </Link>
+                    </TheNoi>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </section>
-      ) : null}
+
+        {/*
+          Recent hand-ins, above the badges.
+
+          This is the answer to "did the system get my work?" — the question a
+          student asks after every submit, and the one the dashboard used to
+          leave unanswered. It shows every attempt, including the ones still in
+          the queue, so a pending verdict reads as "being graded" rather than as
+          silence.
+        */}
+        <MucVao>
+          <BaiNopGanDay baiNop={data.baiNopGanDay} />
+        </MucVao>
+
+        {data.huyHieu.length > 0 ? (
+          <MucVao>
+            <section aria-labelledby="tieu-de-huy-hieu">
+              <h2 id="tieu-de-huy-hieu" className="mt-0 mb-4 text-xl font-bold">
+                Huy hiệu của em
+              </h2>
+              <ul className="m-0 flex list-none flex-wrap gap-3 p-0">
+                {data.huyHieu.map((h) => (
+                  <li
+                    key={h.slug}
+                    className="flex items-center gap-2 rounded-full border border-vien bg-the px-4 py-2 text-sm font-medium"
+                  >
+                    <span aria-hidden="true" className="text-lg">
+                      {h.iconEmoji}
+                    </span>
+                    {h.name}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </MucVao>
+        ) : null}
+      </VaoTrang>
     </VoHocSinh>
   );
 }

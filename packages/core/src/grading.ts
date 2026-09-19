@@ -20,6 +20,14 @@ import { ForbiddenError } from './errors';
 import type { PrismaClient, Verdict } from '@prisma/client';
 import type { Actor } from './session';
 
+/** What `ghiNhanDatBai` actually wrote, so a caller can report it. */
+export interface KetQuaGhiNhanDatBai {
+  /** Blocks marked COMPLETED by this call. */
+  soKhoi: number;
+  /** Lessons whose completion was recomputed, with the percent now on record. */
+  baiHoc: Array<{ lessonId: string; phanTram: number; xong: boolean }>;
+}
+
 /**
  * Record that a student has satisfied a problem.
  *
@@ -27,12 +35,28 @@ import type { Actor } from './session';
  * engine to recompute lesson completion from the blocks REQUIRED for that
  * particular student — so a Cơ bản student is never held back by a Nâng cao
  * challenge sitting in the same lesson.
+ *
+ * ── `baiHocDuPhong` ──────────────────────────────────────────────────────────
+ * A submission records the lesson it was handed in from. The block lookup
+ * above goes the other way — from the PROBLEM — and finds nothing when the
+ * problem is not (or is no longer) attached to a block: a problem detached
+ * after a curriculum edit, a submission made before the block existed. In that
+ * case the whole call used to be a silent no-op, and a teacher who had just
+ * marked a child's work "đạt" watched their progress bar stay where it was
+ * with nothing anywhere to say why.
+ *
+ * Passing the submission's own `lessonId` gives the recomputation a lesson to
+ * run against regardless. It cannot invent a completion — `syncLessonCompletion`
+ * re-derives from BlockProgress and will write the same number it would have
+ * written anyway — but the row is refreshed rather than left stale, and the
+ * return value lets the caller say what happened out loud.
  */
 export async function ghiNhanDatBai(
   db: PrismaClient,
   studentId: string,
   problemId: string,
-): Promise<void> {
+  baiHocDuPhong?: string | null,
+): Promise<KetQuaGhiNhanDatBai> {
   const khoi = await db.lessonBlock.findMany({
     where: { problemId },
     select: { id: true, lessonId: true },
@@ -46,9 +70,20 @@ export async function ghiNhanDatBai(
     });
   }
 
-  for (const lessonId of [...new Set(khoi.map((b) => b.lessonId))]) {
-    await syncLessonCompletion(db, studentId, lessonId);
+  const canTinhLai = new Set(khoi.map((b) => b.lessonId));
+  if (baiHocDuPhong) canTinhLai.add(baiHocDuPhong);
+
+  const baiHoc: KetQuaGhiNhanDatBai['baiHoc'] = [];
+  for (const lessonId of canTinhLai) {
+    const xong = await syncLessonCompletion(db, studentId, lessonId);
+    const row = await db.lessonProgress.findUnique({
+      where: { studentId_lessonId: { studentId, lessonId } },
+      select: { percent: true },
+    });
+    baiHoc.push({ lessonId, phanTram: row?.percent ?? 0, xong });
   }
+
+  return { soKhoi: khoi.length, baiHoc };
 }
 
 /**
@@ -105,6 +140,16 @@ export interface KetQuaChamTay {
   submissionId: string;
   verdict: Verdict;
   score: number;
+  /**
+   * What the verdict did to the student's progress, or null when it did
+   * nothing (a WRONG_ANSWER never completes a block).
+   *
+   * Returned so the teacher's own screen can SAY that the bar moved. Grading
+   * by hand is the one path where nobody sees the effect — the teacher is not
+   * the student, and "did that count?" is otherwise unanswerable without
+   * logging in as the child.
+   */
+  tienDo: KetQuaGhiNhanDatBai | null;
 }
 
 /**
@@ -133,6 +178,7 @@ export async function chamTay(
       id: true,
       studentId: true,
       problemId: true,
+      lessonId: true,
       problem: { select: { judgeMode: true, totalPoints: true } },
     },
   });
@@ -179,9 +225,20 @@ export async function chamTay(
     }),
   ]);
 
-  if (verdict === 'ACCEPTED') {
-    await ghiNhanDatBai(db, sub.studentId, sub.problemId);
-  }
+  /*
+   * Progress is written HERE, in the same call that set the verdict.
+   *
+   * Not in the web action, and not in the component: a verdict that says
+   * "đạt" and a BlockProgress row that says NOT_STARTED are the same fact
+   * disagreeing with itself, and the only way to keep them from drifting is
+   * for one function to own both. The judge worker reaches this through
+   * `ghiNhanDatBai` too, so an accepted answer means one thing however it was
+   * reached.
+   */
+  const tienDo =
+    verdict === 'ACCEPTED'
+      ? await ghiNhanDatBai(db, sub.studentId, sub.problemId, sub.lessonId)
+      : null;
 
-  return { submissionId, verdict, score: diem };
+  return { submissionId, verdict, score: diem, tienDo };
 }

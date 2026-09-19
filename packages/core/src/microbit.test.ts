@@ -293,6 +293,48 @@ describe('Chấm tay', () => {
       chamTay(fx.db, giaoVienA, 'khong-co-that', 'ACCEPTED', 100, 'x y z'),
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
+
+  it('kết luận "đạt" trả về tiến độ vừa ghi, để màn hình giáo viên nói được con số', async () => {
+    const nop = await nopBaiMicrobit(fx.db, fx.studentA1, khoiMb, BLOCKS);
+    const kq = await chamTay(fx.db, giaoVienA, nop.submissionId, 'ACCEPTED', 100, 'Rất gọn em ạ.');
+
+    expect(kq.tienDo).not.toBeNull();
+    expect(kq.tienDo!.soKhoi).toBeGreaterThan(0);
+
+    // The percent reported back is the one now stored, not a guess.
+    const buoi = kq.tienDo!.baiHoc[0]!;
+    const lp = await fx.db.lessonProgress.findUniqueOrThrow({
+      where: { studentId_lessonId: { studentId: fx.studentA1, lessonId: buoi.lessonId } },
+      select: { percent: true },
+    });
+    expect(buoi.phanTram).toBe(lp.percent);
+  });
+
+  it('kết luận "chưa đạt" không ghi tiến độ nào', async () => {
+    const nop = await nopBaiMicrobit(fx.db, fx.studentA1, khoiMb, BLOCKS);
+    const kq = await chamTay(fx.db, giaoVienA, nop.submissionId, 'WRONG_ANSWER', 40, 'Thieu pause.');
+    expect(kq.tienDo).toBeNull();
+  });
+
+  it('bài tập rời khỏi mọi khối vẫn tính lại được buổi học của bài nộp', async () => {
+    /*
+     * The silent no-op this guards against: `ghiNhanDatBai` looks up blocks by
+     * PROBLEM, and a problem detached from its block after a curriculum edit
+     * matches none — so nothing was recomputed and the teacher was told the
+     * progress had updated when it had not. The submission's own `lessonId` is
+     * the fallback anchor.
+     */
+    const nop = await nopBaiMicrobit(fx.db, fx.studentA1, khoiMb, BLOCKS);
+    await fx.db.lessonBlock.update({ where: { id: khoiMb }, data: { problemId: null } });
+
+    try {
+      const kq = await chamTay(fx.db, giaoVienA, nop.submissionId, 'ACCEPTED', 100, 'Dat roi em.');
+      expect(kq.tienDo!.soKhoi).toBe(0);
+      expect(kq.tienDo!.baiHoc).toHaveLength(1);
+    } finally {
+      await fx.db.lessonBlock.update({ where: { id: khoiMb }, data: { problemId: baiTapMb } });
+    }
+  });
 });
 
 describe('ghiNhanDatBai — dùng chung giữa chấm tự động và chấm tay', () => {

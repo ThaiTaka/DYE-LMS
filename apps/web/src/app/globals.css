@@ -13,25 +13,67 @@
  *     (4.5:1 for body text, 3:1 for large text and UI borders).
  *   • Tier identity is carried by an ICON as well as a colour, because colour
  *     alone excludes roughly one boy in twelve.
+ *
+ * ── The palette is emerald ───────────────────────────────────────────────────
+ * Changed from indigo deliberately. Two consequences worth knowing before
+ * touching anything below:
+ *
+ *   1. THE BRAND AND "CORRECT" NOW SHARE A HUE. `--color-chinh` and
+ *      `--color-dung` are both green, so colour alone no longer separates "this
+ *      is the main action" from "this answer is right". They are separated by
+ *      FORM instead — a primary action is a solid fill, a correct answer is a
+ *      pale card with a ✓ — and every success state in the app already carries
+ *      its glyph. Do not remove those glyphs.
+ *   2. THE VIVID EMERALD CANNOT CARRY TEXT. `#10b981` is the colour this look
+ *      is built around, and it is 2.5:1 on white — under half the AA floor for
+ *      body copy. It lives in `--color-chinh-tuoi` and is used for FILLS ONLY:
+ *      progress bars, the mascot, soft shadows, decorative rings. Anything with
+ *      words on it uses `--color-chinh` (5.5:1) instead. A token that looks
+ *      right and cannot be read is not a brand colour, it is a bug with a hex.
  */
 
 @theme {
   /* ── Surfaces ─────────────────────────────────────────────────────────── */
-  --color-nen: #f8fafc; /* page background — slate-50: soft, no glare on a projector */
+  --color-nen: #f6faf8; /* page background — a green-leaning off-white, still no glare */
   --color-the: #ffffff; /* card */
-  --color-the-mo: #f1f5f9; /* muted card */
-  --color-vien: #dbe3ee; /* border, 3.1:1 on --color-the */
-  --color-vien-dam: #94a3b8;
+  --color-the-mo: #eff5f2; /* muted card */
+  --color-vien: #dce8e2; /* border — same lightness as the old slate, green-tinted */
+  --color-vien-dam: #8fa79c;
 
   /* ── Text ─────────────────────────────────────────────────────────────── */
   --color-chu: #0f172a; /* 16.9:1 on white */
   --color-chu-phu: #475569; /* 7.6:1 on white */
   --color-chu-nhat: #64748b; /* 4.8:1 on white — still AA for body */
 
-  /* ── Brand ────────────────────────────────────────────────────────────── */
-  --color-chinh: #4f46e5; /* 6.3:1 both directions with white */
-  --color-chinh-dam: #4338ca;
-  --color-chinh-nhat: #eef2ff;
+  /* ── Brand — emerald ──────────────────────────────────────────────────── */
+
+  /*
+   * The text-safe step. Everything that carries words, or has white words on
+   * it, uses this one: 5.5:1 against white in BOTH directions, so a `text-chinh`
+   * label and a `bg-chinh` button with white type are each AA on their own.
+   */
+  --color-chinh: #047857;
+
+  /*
+   * Hover and pressed. 7.7:1 with white — going darker on hover keeps the
+   * contrast moving the safe way, which a lighter hover would not.
+   */
+  --color-chinh-dam: #065f46;
+
+  /*
+   * THE playful emerald. 2.5:1 on white, so it never carries small text — but
+   * 7.0:1 against `--color-chu`, which makes a bright fill with dark type on it
+   * perfectly legible. Progress fills, the mascot, glows, decorative rings.
+   */
+  --color-chinh-tuoi: #10b981;
+
+  /*
+   * Tinted surface. Deliberately NOT `#ecfdf5`: that is already
+   * `--color-dung-nen` and `--color-co-ban-nen`, and a third token with the
+   * same value makes "brand panel", "correct" and "Cơ bản" indistinguishable
+   * at a glance. `--color-chinh` reads 4.9:1 on this.
+   */
+  --color-chinh-nhat: #e6f7f0;
 
   /* ── Feedback ─────────────────────────────────────────────────────────── */
   --color-dung: #047857; /* 5.4:1 — correct */
@@ -70,11 +112,22 @@
   --text-xs: 0.9375rem; /* 15px — labels only, never paragraphs */
 
   /* ── Shape ────────────────────────────────────────────────────────────── */
-  --radius-the: 1rem; /* cards — rounded-2xl */
-  --radius-nut: 0.625rem;
+  /* Rounder than before: the softer corner is most of what reads as "playful",
+     and it costs nothing in legibility the way a low-contrast colour does. */
+  --radius-the: 1.25rem; /* cards */
+  --radius-nut: 0.75rem;
 
   /* Minimum interactive size. */
   --spacing-cham: 2.75rem; /* 44px */
+
+  /* ── Soft UI depth ───────────────────────────────────────────────────────
+     Shadows are tinted with the brand green rather than black. A neutral
+     drop shadow on a green-tinted page reads as grey dirt under the card;
+     the same shadow in the page's own hue reads as light. Both are kept
+     wide and faint — a hard shadow under every card is 2013, and on a
+     classroom projector it is mud. */
+  --shadow-mem: 0 1px 2px rgba(6, 95, 70, 0.04), 0 10px 24px -10px rgba(6, 95, 70, 0.12);
+  --shadow-noi: 0 2px 6px rgba(6, 95, 70, 0.07), 0 18px 34px -14px rgba(6, 95, 70, 0.22);
 }
 
 /* ── Base ───────────────────────────────────────────────────────────────── */

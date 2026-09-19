@@ -1154,6 +1154,14 @@ export interface BaiMicrobitChiTiet {
   /** Teacher-only: the reference arrangement, for comparison. */
   loiGiaiMau: string;
   blocksXml: string;
+  /**
+   * True when the student handed in a compiled .hex instead of a workspace.
+   *
+   * The grading view needs this to tell "no blocks to read" from "the blocks
+   * would not parse": they look identical from `blocksXml` alone, and only one
+   * of them is a problem.
+   */
+  laTepHex: boolean;
   attemptNo: number;
   nopLuc: Date;
   verdict: string;
@@ -1175,6 +1183,7 @@ export async function baiMicrobitDeCham(
       studentId: true,
       code: true,
       blocksXml: true,
+      hexKey: true,
       attemptNo: true,
       createdAt: true,
       judgedAt: true,
@@ -1212,6 +1221,7 @@ export async function baiMicrobitDeCham(
     // `blocksXml` is the field of record; `code` carries the same bytes for
     // every existing query that does not know about hardware.
     blocksXml: sub.blocksXml ?? sub.code,
+    laTepHex: sub.blocksXml === null && sub.hexKey !== null,
     attemptNo: sub.attemptNo,
     nopLuc: sub.createdAt,
     verdict: sub.verdict,

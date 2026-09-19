@@ -52,9 +52,18 @@ export function ThanhTienDo({
           cao === 'lon' ? 'h-4' : 'h-3'
         }`}
       >
+        {/*
+          Two different greens, not one.
+
+          The brand is emerald now, so "in progress" and "finished" would
+          otherwise be the same colour and the bar would stop saying anything
+          until it happened to reach the end. In progress is the bright fill
+          (`chinh-tuoi`); finished is the deep one, and the 🎉 line below
+          carries the same news in words.
+        */}
         <div
           className={`h-full rounded-full transition-[width] duration-500 ${
-            xong ? 'bg-dung' : 'bg-chinh'
+            xong ? 'bg-dung' : 'bg-chinh-tuoi'
           }`}
           style={{ width: `${giaTri}%` }}
         />

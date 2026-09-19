@@ -43,6 +43,7 @@ import { revalidatePath } from 'next/cache';
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
+import { lamMoiTrangTienDo } from '@/lib/lam-moi-tien-do';
 import { khoDuAn } from '@/lib/project-storage';
 
 import type { KetQuaHanhDong } from './ket-qua';
@@ -317,14 +318,52 @@ export async function chamBaiMicrobit(
     revalidatePath(`/giao-vien/microbit/${submissionId}`);
     // The same form is now mounted on the results page for every submission.
     revalidatePath('/giao-vien/ket-qua');
-    revalidatePath('/bai-hoc/[slug]', 'page');
+    revalidatePath('/giao-vien/hoc-sinh/[id]', 'page');
+
+    /*
+     * The student's OWN pages, not just the teacher's.
+     *
+     * This is why a hand-graded Micro:bit task read as 0% on the child's
+     * dashboard: `chamTay` wrote BlockProgress and LessonProgress correctly,
+     * and then nothing told the App Router that `/khoa-hoc/[slug]` and
+     * `/bang-dieu-khien` — the two pages that actually render the percentage —
+     * had gone stale. The router kept serving the tree it had cached from
+     * before the grading, so the bar stayed where it was until that cache
+     * happened to expire.
+     *
+     * `lamMoiTrangTienDo` is the same helper the judge path and the .hex route
+     * use, so every way a block can be completed drops the same set of cached
+     * pages. It is deliberately shared: a second list here would drift from
+     * that one within a release.
+     */
+    lamMoiTrangTienDo();
+
+    if (kq.verdict !== 'ACCEPTED') {
+      return {
+        trangThai: 'thanh-cong',
+        thongDiep:
+          'Đã gửi nhận xét. Em sẽ thấy ngay. Muốn cho em nộp lại, thầy cô dùng "Mở lại lượt nộp" ở hàng này.',
+      };
+    }
+
+    /*
+     * Say the number out loud.
+     *
+     * A teacher grading by hand never sees the student's bar move — they are
+     * not the student. "Tiến độ của em đã được cập nhật" was therefore a claim
+     * they had no way to check, and while the revalidation above was missing it
+     * was also an untrue one.
+     */
+    const buoi = kq.tienDo?.baiHoc[0];
+    const tienDo = buoi
+      ? buoi.xong
+        ? ' Buổi học này của em giờ đã hoàn thành (100%).'
+        : ` Tiến độ buổi học của em giờ là ${buoi.phanTram}%.`
+      : ' Tiến độ của em đã được tính lại.';
 
     return {
       trangThai: 'thanh-cong',
-      thongDiep:
-        kq.verdict === 'ACCEPTED'
-          ? `Đã chấm đạt (${kq.score} điểm). Tiến độ của em đã được cập nhật.`
-          : 'Đã gửi nhận xét. Em sẽ thấy ngay. Muốn cho em nộp lại, thầy cô dùng "Mở lại lượt nộp" ở hàng này.',
+      thongDiep: `Đã chấm đạt (${kq.score} điểm).${tienDo}`,
     };
   });
 }
@@ -934,6 +973,18 @@ export async function chamBaiTuLuan(
     revalidatePath('/giao-vien/ket-qua');
     revalidatePath('/giao-vien/tu-luan');
 
+    /*
+     * The student's pages too — same cache bug the Micro:bit path had.
+     *
+     * Marking an essay does not change BlockProgress (the block completed on
+     * effort, when the child handed it in), but it DOES change what the lesson
+     * page shows them: the verdict on their answer, the teacher's mark, and the
+     * score that feeds the lesson header. None of that is re-rendered until
+     * something drops the cached tree, so a child refreshing to see whether
+     * they were marked yet kept being told "chờ chấm" after they had been.
+     */
+    lamMoiTrangTienDo();
+
     return {
       trangThai: 'thanh-cong',
       thongDiep: kq.dung
@@ -964,6 +1015,14 @@ export async function moLaiBaiTuLuan(
 
     revalidatePath('/giao-vien/ket-qua');
     revalidatePath('/giao-vien/tu-luan');
+
+    /*
+     * This one matters more than the grading path: `moLaiTuLuan` DELETES the
+     * answer. Without dropping the student's cached pages, the question keeps
+     * rendering as answered-and-waiting from a row that no longer exists, and
+     * the child has no way to reach the form they were just told to use again.
+     */
+    lamMoiTrangTienDo();
 
     return {
       trangThai: 'thanh-cong',

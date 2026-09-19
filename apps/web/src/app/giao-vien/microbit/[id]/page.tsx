@@ -64,7 +64,12 @@ export default async function TrangChamMotBai({
       </section>
 
       <div className="mb-6">
-        <XemKhoiLenh blocksXml={bai.blocksXml} loiGiaiMau={bai.loiGiaiMau} />
+        <XemKhoiLenh
+          blocksXml={bai.blocksXml}
+          loiGiaiMau={bai.loiGiaiMau}
+          coTepHex={bai.laTepHex}
+          hrefTepHex={bai.laTepHex ? `/api/bai-nop/${bai.submissionId}/hex` : undefined}
+        />
       </div>
 
       <div className="mb-6">

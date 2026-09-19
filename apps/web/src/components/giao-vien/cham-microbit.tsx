@@ -6,6 +6,7 @@ import { chamBaiMicrobit } from '@/app/giao-vien/actions';
 import type { KetQuaHanhDong } from '@/app/giao-vien/ket-qua';
 
 import { PhanHoi } from './dieu-khien-nhanh';
+import { KhoiLenhMicrobit } from './khoi-lenh-microbit';
 
 /**
  * Local "not run yet" value, deliberately NOT the `CHUA_LAM` constant exported
@@ -146,25 +147,34 @@ export function ChamMicrobit({
 /**
  * The submitted block workspace.
  *
- * Shown as text rather than re-rendered as blocks: re-rendering would mean
- * loading the MakeCode editor a second time and risk showing something subtly
- * different from what the student handed in. What a teacher needs is certainty
- * about the bytes on record.
+ * Never re-rendered as live blocks: that would mean loading the MakeCode editor
+ * a second time and risk showing something subtly different from what the
+ * student handed in. What a teacher needs is certainty about the bytes on
+ * record.
+ *
+ * What it is NOT any more is a wall of XML. `KhoiLenhMicrobit` reads the
+ * workspace into the program it describes, in Vietnamese, indented the way it
+ * nests — and keeps the exact bytes one tab away, so the certainty above is
+ * preserved rather than traded for readability.
  */
 export function XemKhoiLenh({
   blocksXml,
   loiGiaiMau,
+  coTepHex,
+  hrefTepHex,
 }: {
   blocksXml: string;
   loiGiaiMau: string;
+  coTepHex?: boolean;
+  hrefTepHex?: string | undefined;
 }) {
   const [xemMau, setXemMau] = useState(false);
   const id = useId();
 
   return (
-    <section aria-labelledby={`${id}-khoi`} className="rounded-the border border-vien bg-the">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-vien px-4 py-2.5">
-        <h2 id={`${id}-khoi`} className="m-0 text-base font-bold">
+    <section aria-labelledby={`${id}-khoi`}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 id={`${id}-khoi`} className="m-0 text-lg font-bold">
           Khối lệnh em đã nộp
         </h2>
         {loiGiaiMau ? (
@@ -179,13 +189,11 @@ export function XemKhoiLenh({
         ) : null}
       </div>
 
-      <pre className="m-0 max-h-96 overflow-auto p-4 font-mono text-sm whitespace-pre-wrap">
-        <code>{blocksXml || '(học sinh nộp bài với vùng làm việc trống)'}</code>
-      </pre>
+      <KhoiLenhMicrobit blocksXml={blocksXml} coTepHex={coTepHex} hrefTepHex={hrefTepHex} />
 
       {xemMau ? (
-        <div className="border-t border-vien">
-          <p className="m-0 bg-the-mo px-4 py-2 text-sm font-semibold">
+        <div className="mt-3 rounded-the border border-vien bg-the">
+          <p className="m-0 rounded-t-the bg-the-mo px-4 py-2 text-sm font-semibold">
             Lời giải mẫu — chỉ thầy cô nhìn thấy
           </p>
           <pre className="m-0 max-h-72 overflow-auto p-4 font-mono text-sm whitespace-pre-wrap">

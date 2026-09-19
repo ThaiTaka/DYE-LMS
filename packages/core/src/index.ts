@@ -227,6 +227,7 @@ export {
   ghiNhanNoLuc,
   KET_LUAN_CHAM_TAY,
   type KetQuaChamTay,
+  type KetQuaGhiNhanDatBai,
 } from './grading';
 
 // ── Phase 9: Pygame project workspace ────────────────────────────────────────

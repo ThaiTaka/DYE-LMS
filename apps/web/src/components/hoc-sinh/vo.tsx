@@ -10,6 +10,9 @@ import { db } from '@/lib/db';
 
 import { KIEU_NHANH } from '../ui/nhanh';
 
+import { KhungChuyenDong } from './chuyen-dong';
+import { TroLyAo } from './tro-ly-ao';
+
 import type { Tier } from '@prisma/client';
 
 async function dangXuat(): Promise<void> {
@@ -47,7 +50,7 @@ export function VoHocSinh({
   const kieu = nhanh ? KIEU_NHANH[nhanh] : null;
 
   return (
-    <>
+    <KhungChuyenDong>
       <a href="#noi-dung-chinh" className="bo-qua">
         Bỏ qua, tới nội dung chính
       </a>
@@ -108,6 +111,13 @@ export function VoHocSinh({
       <footer className="mx-auto max-w-5xl px-4 pb-10 text-sm text-chu-nhat sm:px-6">
         DYE LMS · Nền tảng học lập trình và STEM Robotics
       </footer>
-    </>
+
+      {/*
+        Bí lives in the shell, which is what keeps it out of the exam room:
+        `/kiem-tra/[slug]` renders `PhongThi` directly and never mounts this
+        component, so a bobbing robot cannot turn up beside an exam question.
+      */}
+      <TroLyAo />
+    </KhungChuyenDong>
   );
 }
