@@ -98,7 +98,7 @@ export function KhoiLenhMicrobit({
         <div id={`${id}-bang-doc`} role="tabpanel" aria-labelledby={`${id}-doc`} className="p-4">
           {doDuoc ? (
             <>
-              <p className="mt-0 mb-3 text-sm text-chu-nhat">
+              <p className="mt-0 mb-3 text-sm break-words text-chu-nhat">
                 {banDoc.soKhoi} khối lệnh
                 {banDoc.bien.length > 0 ? ` · biến em dùng: ${banDoc.bien.join(', ')}` : ''} · đây
                 là cách hệ thống đọc bài của em, bấm “XML gốc” để xem nguyên văn.
@@ -182,8 +182,20 @@ function DongDoc({ dong }: { dong: DongKhoi }) {
         <span aria-hidden="true" className="mt-0.5 shrink-0 leading-none">
           {dong.icon}
         </span>
-        <div className="min-w-0">
-          <span className="text-base break-words" title={dong.loai}>
+        <div className="min-w-0 flex-1">
+          {/*
+            The parser already caps each field at a hundred characters, but a
+            block can hold several fields and a `text_join` chain can hold
+            several blocks. `line-clamp-3` is the floor under the layout: no
+            single step may grow past three lines, whatever was pasted into it.
+            `whitespace-pre-wrap` keeps a deliberate line break in a text block
+            visible instead of collapsing it, and `break-words` stops an unbroken
+            run (a URL, a keyboard mash) from widening the panel.
+          */}
+          <span
+            className="block text-base break-words whitespace-pre-wrap line-clamp-3"
+            title={dong.loai}
+          >
             {dong.chu}
           </span>
           {dong.luoi ? <LuoiLed luoi={dong.luoi} /> : null}

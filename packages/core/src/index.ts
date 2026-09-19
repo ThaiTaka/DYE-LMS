@@ -121,6 +121,7 @@ export {
 
 export {
   anhHuongXoaHocSinh,
+  datLaiMatKhauHocSinh,
   goHocSinhKhoiLop,
   khoiPhucHocSinh,
   STUDENT_AUDIT,
@@ -128,6 +129,7 @@ export {
   xepHocSinhVaoLop,
   xoaTaiKhoanHocSinh,
   type AnhHuongXoaHocSinh,
+  type KetQuaDatLaiMatKhau,
   type KetQuaXepLop,
   type KetQuaXoaHocSinh,
 } from './hoc-sinh';

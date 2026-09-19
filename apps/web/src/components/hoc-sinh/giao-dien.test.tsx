@@ -400,6 +400,29 @@ describe('Thanh tiến độ', () => {
     expect(screen.getByText(/hoàn thành phần này/)).toBeInTheDocument();
   });
 
+  it('bộ đếm thắng số phần trăm cũ trong cache: 4/15 không bao giờ là 0%', () => {
+    // `percent` is a cache column; a row written before it existed reads 0.
+    // The counts are the truth the child can see, so the bar recomputes.
+    render(<ThanhTienDo nhan="Phần bắt buộc" phanTram={0} daXong={4} tong={15} />);
+
+    const thanh = screen.getByRole('progressbar', { name: 'Phần bắt buộc' });
+    expect(thanh).toHaveAttribute('aria-valuenow', '27');
+    expect(thanh).toHaveAttribute('aria-valuetext', '4 trên 15 bài, 27 phần trăm');
+    expect(screen.getByText('4/15 · 27%')).toBeInTheDocument();
+  });
+
+  it('giữ phần trăm có tín dụng dở dang khi nó cao hơn bộ đếm', () => {
+    // Three of five challenges in one lesson: the cache says 30, the counts
+    // say 0. Falling back to the counts would erase the work in progress.
+    render(<ThanhTienDo nhan="Phần bắt buộc" phanTram={30} daXong={0} tong={2} />);
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '30');
+  });
+
+  it('không có bộ đếm thì dùng nguyên phần trăm được đưa', () => {
+    render(<ThanhTienDo nhan="Tiến độ" phanTram={45} />);
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '45');
+  });
+
   it('phân biệt "chưa giao bài" với "đã hoàn thành"', () => {
     render(<ThanhTienDo nhan="Phần bắt buộc" phanTram={100} daXong={0} tong={0} chuaGiao />);
 

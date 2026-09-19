@@ -2,10 +2,12 @@ import { notFound, redirect } from 'next/navigation';
 
 import { HangCanThiep } from '@/components/giao-vien/dieu-khien-bai-hoc';
 import { DieuKhienNhanh } from '@/components/giao-vien/dieu-khien-nhanh';
+import { DoiMatKhauHocSinh } from '@/components/giao-vien/doi-mat-khau-hoc-sinh';
 import { LuotThiHocSinh } from '@/components/giao-vien/luot-thi-hoc-sinh';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { XepLop } from '@/components/giao-vien/xep-lop';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
+import { Avatar } from '@/components/ui/avatar';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireRole, xemDuoc } from '@/lib/guard';
 import {
@@ -62,17 +64,23 @@ export default async function TrangHocSinh({
         ]}
       />
 
-      <header className="mb-6">
-        <h1 className="mt-0 mb-2 text-3xl font-bold">{hs.displayName}</h1>
-        <p className="m-0 text-chu-phu">
-          {hs.username} · {hs.className} · <span aria-hidden="true">{hs.course.iconEmoji}</span>{' '}
-          {hs.course.title}
-          {!hs.isActive ? (
-            <span className="ms-2 rounded-full bg-the-mo px-2.5 py-0.5 text-sm font-semibold">
-              Tài khoản đã ngưng hoạt động
-            </span>
-          ) : null}
-        </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 items-center gap-4">
+          <Avatar name={hs.displayName} co="lon" trangTri />
+          <div className="min-w-0">
+            <h1 className="mt-0 mb-1 text-3xl font-bold">{hs.displayName}</h1>
+            <p className="m-0 text-chu-phu">
+              {hs.username} · {hs.className} ·{' '}
+              <span aria-hidden="true">{hs.course.iconEmoji}</span> {hs.course.title}
+              {!hs.isActive ? (
+                <span className="ms-2 rounded-full bg-the-mo px-2.5 py-0.5 text-sm font-semibold">
+                  Tài khoản đã ngưng hoạt động
+                </span>
+              ) : null}
+            </p>
+          </div>
+        </div>
+        <DoiMatKhauHocSinh studentId={hs.studentId} tenHocSinh={hs.displayName} />
       </header>
 
       <div className="mb-6 rounded-the border border-vien bg-the p-5">
@@ -235,16 +243,22 @@ function ChuaSanSang({ actor, chua }: { actor: Actor; chua: HocSinhChuaSanSang }
         ]}
       />
 
-      <header className="mb-6">
-        <h1 className="mt-0 mb-2 text-3xl font-bold">{chua.displayName}</h1>
-        <p className="m-0 text-chu-phu">
-          {chua.username}
-          {!chua.isActive ? (
-            <span className="ms-2 rounded-full bg-the-mo px-2.5 py-0.5 text-sm font-semibold">
-              Tài khoản đã ngưng hoạt động
-            </span>
-          ) : null}
-        </p>
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 items-center gap-4">
+          <Avatar name={chua.displayName} co="lon" trangTri />
+          <div className="min-w-0">
+            <h1 className="mt-0 mb-1 text-3xl font-bold">{chua.displayName}</h1>
+            <p className="m-0 text-chu-phu">
+              {chua.username}
+              {!chua.isActive ? (
+                <span className="ms-2 rounded-full bg-the-mo px-2.5 py-0.5 text-sm font-semibold">
+                  Tài khoản đã ngưng hoạt động
+                </span>
+              ) : null}
+            </p>
+          </div>
+        </div>
+        <DoiMatKhauHocSinh studentId={chua.studentId} tenHocSinh={chua.displayName} />
       </header>
 
       <section

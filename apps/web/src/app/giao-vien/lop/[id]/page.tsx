@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { GanKhoaHoc } from '@/components/giao-vien/gan-khoa-hoc';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
+import { Avatar } from '@/components/ui/avatar';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireRole, xemDuoc } from '@/lib/guard';
@@ -124,10 +125,20 @@ export default async function TrangLop({
                   return (
                     <tr key={h.studentId} className="border-b border-vien last:border-b-0">
                       <th scope="row" className="px-4 py-3 text-start font-medium">
-                        {h.displayName}
-                        <span className="block text-sm font-normal text-chu-nhat">
-                          {h.username}
-                          {!h.isActive ? ' · đã ngưng hoạt động' : ''}
+                        <span className="flex items-center gap-3">
+                          <Avatar
+                            name={h.displayName}
+                            co="nho"
+                            trangTri
+                            className={h.isActive ? '' : 'opacity-50'}
+                          />
+                          <span className="min-w-0">
+                            {h.displayName}
+                            <span className="block text-sm font-normal text-chu-nhat">
+                              {h.username}
+                              {!h.isActive ? ' · đã ngưng hoạt động' : ''}
+                            </span>
+                          </span>
                         </span>
                       </th>
 

@@ -81,6 +81,25 @@ describe('KhoiLenhMicrobit', () => {
     expect(container.querySelector('img')).toBeNull();
   });
 
+  it('một khối chữ khổng lồ không tràn khỏi khung chấm bài', () => {
+    const dai = 'k'.repeat(5000);
+    const xml =
+      '<xml xmlns="https://developers.google.com/blockly/xml">' +
+      '<block type="basic_show_string"><value name="text">' +
+      `<block type="text"><field name="TEXT">${dai}</field></block>` +
+      '</value></block></xml>';
+
+    render(<KhoiLenhMicrobit blocksXml={xml} />);
+
+    const dong = screen.getByText(/^Hiện chữ/);
+    // Cut by the parser, so the DOM never holds the paste…
+    expect(dong.textContent?.length ?? 0).toBeLessThan(120);
+    // …and clamped by the renderer, so even the cut text cannot stack up.
+    expect(dong.className).toContain('line-clamp-3');
+    expect(dong.className).toContain('break-words');
+    expect(dong.className).toContain('whitespace-pre-wrap');
+  });
+
   it('không có lỗi tiếp cận', async () => {
     const { container } = render(<KhoiLenhMicrobit blocksXml={XML} />);
     const kq = await axe.run(container);

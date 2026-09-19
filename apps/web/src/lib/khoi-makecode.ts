@@ -79,6 +79,22 @@ const GIOI_HAN_SAU_XML = 4000;
 /** How far the READING indents. Logical nesting, which is genuinely shallow. */
 const GIOI_HAN_SAU = 40;
 
+/**
+ * How long one field value may be in the reading.
+ *
+ * A text block is a free-text box, and a child who pastes a paragraph (or a
+ * whole web page) into one produces a single "Hiện chữ …" line that runs to
+ * thousands of characters. The reading is for a teacher to grasp the shape of
+ * the program; a hundred characters is enough to see what the block says, and
+ * the full value is still one tab away in the raw XML.
+ */
+const GIOI_HAN_CHU = 100;
+
+/** Cap a field value for display, marking the cut so it cannot pass as whole. */
+function catNgan(chu: string): string {
+  return chu.length > GIOI_HAN_CHU ? chu.slice(0, GIOI_HAN_CHU) + '…' : chu;
+}
+
 const THUC_THE: Record<string, string> = {
   lt: '<',
   gt: '>',
@@ -219,12 +235,21 @@ function con(nut: NutXml, ten: string): NutXml[] {
   return nut.con.filter((c) => c.ten === ten);
 }
 
-/** `<field name="X">v</field>` → `{ X: 'v' }`. */
+/**
+ * `<field name="X">v</field>` → `{ X: 'v' }`.
+ *
+ * Every value is capped here, at the one place all of them pass through, so
+ * a pasted paragraph is cut before it can reach any sentence. The 5×5 LED
+ * grid is the exception: it is data that becomes cells, never a text run, and
+ * cutting it would silently redraw the child's picture.
+ */
 function truong(khoi: NutXml): Record<string, string> {
   const ra: Record<string, string> = {};
   for (const f of con(khoi, 'field')) {
     const ten = f.thuocTinh['name'];
-    if (ten) ra[ten.toUpperCase()] = f.chu.trim();
+    if (!ten) continue;
+    const khoa = ten.toUpperCase();
+    ra[khoa] = khoa === 'LEDS' ? f.chu.trim() : catNgan(f.chu.trim());
   }
   return ra;
 }
@@ -551,10 +576,12 @@ export interface BanDocKhoi {
 function docLuoi(gia: string | undefined): boolean[][] | undefined {
   if (!gia) return undefined;
 
+  // MakeCode wraps the grid in backticks on their own lines; only a line that
+  // holds at least one cell (`.` or `#`) is a row of the picture.
   const hang = gia
     .split('\n')
     .map((d) => d.trim())
-    .filter((d) => d.length > 0)
+    .filter((d) => /[.#]/.test(d))
     .map((d) => d.split(/\s+/).map((o) => o === '#'));
 
   return hang.length > 0 ? hang : undefined;
@@ -875,7 +902,7 @@ export function docKhoiLenh(xml: string): BanDocKhoi {
 
   const bien = con(goc, 'variables')
     .flatMap((v) => con(v, 'variable'))
-    .map((v) => v.chu.trim())
+    .map((v) => catNgan(v.chu.trim()))
     .filter(Boolean);
 
   const bc: BoiCanh = { ra: [], dem: { khoi: 0 } };

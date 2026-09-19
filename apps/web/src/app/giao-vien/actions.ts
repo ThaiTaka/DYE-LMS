@@ -17,6 +17,7 @@ import {
   authorize,
   chamTay,
   chuyenGiaoHoSoGiangDay,
+  datLaiMatKhauHocSinh,
   ganKhoaHocVaoLop,
   goKhoaHocKhoiLop,
   khoiPhucHocSinh,
@@ -1060,6 +1061,64 @@ export async function doiTruyCapHocSinh(
       thongDiep:
         `Đã ngưng truy cập của ${kq.displayName}. Toàn bộ bài làm giữ nguyên và bật lại được bất cứ lúc nào.` +
         (kq.sessionsRevoked > 0 ? ` Đã đăng xuất ${kq.sessionsRevoked} phiên đang mở.` : ''),
+    };
+  });
+}
+
+/**
+ * Give a student a new password.
+ *
+ * The role check is the same one every student action here uses: `authorize`
+ * inside `datLaiMatKhauHocSinh` admits an ADMIN, or a TEACHER with a live
+ * `Class → Enrollment` row to this child, and refuses everyone else — a
+ * student cannot reach this, and a teacher cannot reset a child from another
+ * class by editing the form.
+ *
+ * The password is read from the form and never echoed back: the success
+ * message names the child, not the secret, because the response lands in a
+ * page a projector may be showing. The form is the only place it is visible,
+ * and the teacher is told to hand it over in person.
+ */
+export async function resetMatKhauHocSinh(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+    if (actor.role !== 'TEACHER' && actor.role !== 'ADMIN') {
+      return { trangThai: 'tu-choi', thongDiep: 'Chỉ thầy cô mới đổi được mật khẩu học sinh.' };
+    }
+
+    const studentId = String(form.get('studentId') ?? '');
+    if (!studentId) return { trangThai: 'loi', thongDiep: 'Thiếu học sinh cần đổi mật khẩu.' };
+
+    const matKhauMoi = String(form.get('matKhauMoi') ?? '');
+    const nhapLai = String(form.get('nhapLai') ?? '');
+    if (!matKhauMoi) return { trangThai: 'loi', thongDiep: 'Thầy cô chưa nhập mật khẩu mới.' };
+    if (matKhauMoi !== nhapLai) {
+      return { trangThai: 'loi', thongDiep: 'Hai lần nhập mật khẩu chưa giống nhau.' };
+    }
+
+    const kq = await datLaiMatKhauHocSinh(db, actor, studentId, matKhauMoi);
+
+    if (kq.trangThai === 'mat-khau-yeu') {
+      return {
+        trangThai: 'loi',
+        thongDiep: `Mật khẩu cần ít nhất ${kq.toiThieu} ký tự.`,
+      };
+    }
+
+    // The list shows a "Chưa đổi mật khẩu" badge, which this just switched on.
+    revalidatePath('/giao-vien/hoc-sinh');
+    revalidatePath(`/giao-vien/hoc-sinh/${studentId}`);
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã đổi mật khẩu cho ${kq.displayName} (${kq.username}). ` +
+        'Em đã bị đăng xuất khỏi mọi thiết bị, và sẽ phải tự đặt mật khẩu mới ngay lần đăng nhập tới. ' +
+        'Thầy cô đưa mật khẩu này cho em trực tiếp, đừng gửi qua nhóm lớp.',
     };
   });
 }

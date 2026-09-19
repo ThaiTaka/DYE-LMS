@@ -26,8 +26,10 @@
  * requests — and it is ADMIN-only, while deactivation is available to the
  * teacher who actually teaches the child.
  */
+import { resetPasswordByStaff } from './authenticate';
 import { authorize } from './authz';
 import { ForbiddenError } from './errors';
+import { MIN_PASSWORD_LENGTH } from './password';
 import { revokeAllSessions } from './session';
 
 import type { PrismaClient } from '@prisma/client';
@@ -40,6 +42,57 @@ export const STUDENT_AUDIT = {
   UNENROLLED: 'student.unenrolled',
   ENROLLED: 'student.enrolled',
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Password reset
+// ═══════════════════════════════════════════════════════════════════════════
+
+export type KetQuaDatLaiMatKhau =
+  | { trangThai: 'da-doi'; username: string; displayName: string }
+  | { trangThai: 'mat-khau-yeu'; toiThieu: number };
+
+/**
+ * Give a student a new password, on the teacher's say-so.
+ *
+ * A twelve-year-old forgets a password on a Tuesday, and the lesson is on
+ * Tuesday. This is the path that gets them back in without an admin: the
+ * teacher who teaches them may do it, through the same `student / manage`
+ * check that guards "Ngưng truy cập" — a teacher cannot reset a child they
+ * do not teach by guessing an id.
+ *
+ * The write itself is `resetPasswordByStaff`, which already does the three
+ * things a reset must never skip: hash with the login parameters, force a
+ * change on next sign-in (the teacher knows this password; the child should
+ * not keep it), and log every device out, so a session an unauthorised holder
+ * had ends with the reset.
+ *
+ * Length is checked here, before hashing, so a too-short password comes back
+ * as a result the form can print rather than a thrown `Error` from `hashPassword`.
+ */
+export async function datLaiMatKhauHocSinh(
+  db: PrismaClient,
+  actor: Actor,
+  studentId: string,
+  matKhauMoi: string,
+  context: SessionContext = {},
+): Promise<KetQuaDatLaiMatKhau> {
+  await authorize(db, actor, { resource: 'student', action: 'manage', studentId });
+
+  const student = await db.user.findUnique({
+    where: { id: studentId },
+    select: { username: true, displayName: true, role: true },
+  });
+  if (!student) throw new ForbiddenError('account-not-found');
+  if (student.role !== 'STUDENT') throw new ForbiddenError('use-staff-flow-for-staff');
+
+  if (matKhauMoi.length < MIN_PASSWORD_LENGTH) {
+    return { trangThai: 'mat-khau-yeu', toiThieu: MIN_PASSWORD_LENGTH };
+  }
+
+  await resetPasswordByStaff(db, actor.id, studentId, matKhauMoi, context);
+
+  return { trangThai: 'da-doi', username: student.username, displayName: student.displayName };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Impact analysis

@@ -6,6 +6,7 @@ import { useFormStatus } from 'react-dom';
 
 import { doiTruyCapHocSinh, xoaHocSinh } from '@/app/giao-vien/actions';
 import { CHUA_LAM } from '@/app/giao-vien/ket-qua';
+import { Avatar } from '@/components/ui/avatar';
 
 import { PhanHoi } from './dieu-khien-nhanh';
 
@@ -72,26 +73,29 @@ export function HangHocSinh({
   return (
     <li className="rounded-the border border-vien bg-the p-4">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0">
-          <h3 className="mt-0 mb-1 flex flex-wrap items-center gap-2 text-base font-semibold">
-            <Link href={`/giao-vien/hoc-sinh/${hs.id}`} className="hover:underline">
-              {hs.displayName}
-            </Link>
-            {!hs.isActive ? (
-              <span className="rounded-full bg-the-mo px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
-                Đã ngưng
-              </span>
-            ) : null}
-            {hs.mustChangePassword ? (
-              <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh-sang">
-                Chưa đổi mật khẩu
-              </span>
-            ) : null}
-          </h3>
-          <p className="m-0 text-sm text-chu-phu">
-            {hs.username}
-            {hs.lop.length > 0 ? ` · ${hs.lop.join(', ')}` : ' · chưa xếp lớp'}
-          </p>
+        <div className="flex min-w-0 items-center gap-3">
+          <Avatar name={hs.displayName} trangTri className={hs.isActive ? '' : 'opacity-50'} />
+          <div className="min-w-0">
+            <h3 className="mt-0 mb-1 flex flex-wrap items-center gap-2 text-base font-semibold">
+              <Link href={`/giao-vien/hoc-sinh/${hs.id}`} className="hover:underline">
+                {hs.displayName}
+              </Link>
+              {!hs.isActive ? (
+                <span className="rounded-full bg-the-mo px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
+                  Đã ngưng
+                </span>
+              ) : null}
+              {hs.mustChangePassword ? (
+                <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh-sang">
+                  Chưa đổi mật khẩu
+                </span>
+              ) : null}
+            </h3>
+            <p className="m-0 text-sm text-chu-phu">
+              {hs.username}
+              {hs.lop.length > 0 ? ` · ${hs.lop.join(', ')}` : ' · chưa xếp lớp'}
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

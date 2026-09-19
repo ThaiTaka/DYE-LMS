@@ -222,6 +222,66 @@ describe('docKhoiLenh — không bao giờ ném lỗi', () => {
   });
 });
 
+describe('docKhoiLenh — chữ dán vào không phá bố cục', () => {
+  it('cắt giá trị dài quá 100 ký tự và đánh dấu chỗ cắt', () => {
+    const dai = 'a'.repeat(500);
+    const kq = docKhoiLenh(
+      xml(
+        '<block type="basic_show_string"><value name="text">' +
+          `<block type="text"><field name="TEXT">${dai}</field></block>` +
+          '</value></block>',
+      ),
+    );
+
+    const chu = kq.dong[0]?.chu ?? '';
+    expect(chu).toBe(`Hiện chữ “${'a'.repeat(100)}…”`);
+    expect(chu.length).toBeLessThan(120);
+  });
+
+  it('giữ nguyên giá trị vừa đúng 100 ký tự', () => {
+    const vua = 'b'.repeat(100);
+    const kq = docKhoiLenh(xml(`<block type="text"><field name="TEXT">${vua}</field></block>`));
+    // Read via the unknown-statement path: the field is echoed verbatim.
+    expect(kq.dong[0]?.chu).toContain(vua);
+    expect(kq.dong[0]?.chu).not.toContain('…');
+  });
+
+  it('tên biến dài cũng bị cắt, ở cả câu lệnh lẫn danh sách biến', () => {
+    const ten = 'x'.repeat(300);
+    const kq = docKhoiLenh(
+      xml(
+        `<variables><variable>${ten}</variable></variables>` +
+          '<block type="variables_set">' +
+          `<field name="VAR">${ten}</field>` +
+          '<value name="VALUE"><shadow type="math_number"><field name="NUM">1</field></shadow></value>' +
+          '</block>',
+      ),
+    );
+
+    expect(kq.bien[0]).toHaveLength(101);
+    expect(kq.bien[0]?.endsWith('…')).toBe(true);
+    expect(kq.dong[0]?.chu.length ?? 0).toBeLessThan(200);
+  });
+
+  it('lưới LED không bị cắt dù MakeCode thụt lề từng dòng', () => {
+    // Real MakeCode output: backtick-wrapped, four spaces before every row.
+    const luoi =
+      '`\n' +
+      '    . # . # .\n' +
+      '    . # . # .\n' +
+      '    . . . . .\n' +
+      '    # . . . #\n' +
+      '    . # # # .\n' +
+      '    `';
+    const kq = docKhoiLenh(
+      xml(`<block type="basic_show_leds"><field name="LEDS">${luoi}</field></block>`),
+    );
+
+    expect(kq.dong[0]?.luoi).toHaveLength(5);
+    expect(kq.dong[0]?.luoi?.[4]).toEqual([false, true, true, true, false]);
+  });
+});
+
 describe('toMauXml', () => {
   it('nối lại đúng bằng chuỗi gốc', () => {
     const nguon =

@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 
 import { currentActor, signOut } from '@/auth';
 import { DauHieu } from '@/components/dau-hieu';
+import { Avatar } from '@/components/ui/avatar';
 import { db } from '@/lib/db';
 import { demCanhBaoChuaXuLy, demTuLuanChoCham } from '@/lib/teacher-data';
 
@@ -100,6 +101,9 @@ export async function VoGiaoVien({
 
           <div className="ms-auto flex items-center gap-3">
             <span className="hidden text-sm text-chu-phu md:inline">{tenHienThi}</span>
+            {/* Named after the person, not decorative: below `md` it is the only
+                sign of who is signed in. */}
+            <Avatar name={tenHienThi} co="nho" />
             <form action={dangXuat}>
               <button
                 type="submit"

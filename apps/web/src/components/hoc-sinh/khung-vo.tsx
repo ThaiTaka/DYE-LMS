@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { DauHieu } from '@/components/dau-hieu';
+import { Avatar } from '@/components/ui/avatar';
 import { BieuTuong, type TenBieuTuong } from '@/components/ui/bieu-tuong';
 
 import { TimKiem, type DichDen } from './tim-kiem';
@@ -98,8 +99,6 @@ export function KhungVo({
   const dangO = (href: string, chinhXac = false) =>
     chinhXac ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
 
-  const chuCai = tenHienThi.trim().split(/\s+/).slice(-1)[0]?.[0]?.toUpperCase() ?? '?';
-
   return (
     <div className="min-h-dvh">
       {/* Scrim behind the drawer, phones and tablets only. */}
@@ -182,12 +181,7 @@ export function KhungVo({
         {/* Who is signed in, and the way out. */}
         <div className="shrink-0 border-t border-vien p-3">
           <div className="flex items-center gap-3 rounded-the-nho border border-vien bg-white/[0.03] p-3">
-            <span
-              aria-hidden="true"
-              className="grid size-10 shrink-0 place-items-center rounded-full bg-linear-to-br from-chinh to-phu text-base font-bold text-white"
-            >
-              {chuCai}
-            </span>
+            <Avatar name={tenHienThi} trangTri />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-chu">{tenHienThi}</span>
               {nhanh ? (
@@ -243,12 +237,7 @@ export function KhungVo({
               <span className="hidden text-sm font-medium text-chu-phu md:inline">
                 {tenHienThi}
               </span>
-              <span
-                aria-hidden="true"
-                className="grid size-9 place-items-center rounded-full bg-linear-to-br from-chinh to-phu text-sm font-bold text-white ring-2 ring-white/10"
-              >
-                {chuCai}
-              </span>
+              <Avatar name={tenHienThi} co="nho" />
             </div>
           </div>
         </header>

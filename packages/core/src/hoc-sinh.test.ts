@@ -15,6 +15,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { ForbiddenError } from './errors';
 import {
   anhHuongXoaHocSinh,
+  datLaiMatKhauHocSinh,
   goHocSinhKhoiLop,
   khoiPhucHocSinh,
   STUDENT_AUDIT,
@@ -22,8 +23,9 @@ import {
   xepHocSinhVaoLop,
   xoaTaiKhoanHocSinh,
 } from './hoc-sinh';
+import { verifyPassword } from './password';
 import { createSession, validateSession } from './session';
-import { actorFor, createFixture, type Fixture } from './testing/fixtures';
+import { actorFor, createFixture, TEST_PASSWORD, type Fixture } from './testing/fixtures';
 
 import type { Actor } from './session';
 
@@ -188,6 +190,73 @@ describe('Ngưng và mở lại truy cập', () => {
     expect(await fx.db.submission.count({ where: { studentId: fx.studentA1 } })).toBe(truoc);
 
     await fx.db.auditLog.deleteMany({ where: { entityId: fx.studentA1 } });
+  });
+});
+
+describe('Đặt lại mật khẩu', () => {
+  const MAT_KHAU_MOI = 'tamthoi-2026';
+
+  /** Put the shared student back on the fixture password after a reset. */
+  async function traLaiMatKhau(studentId: string): Promise<void> {
+    await fx.db.user.update({
+      where: { id: studentId },
+      data: { passwordHash: fx.passwordHash, mustChangePassword: false },
+    });
+    await fx.db.auditLog.deleteMany({ where: { entityId: studentId } });
+  }
+
+  it('đổi hash, bắt đổi mật khẩu lần sau, và đăng xuất mọi thiết bị', async () => {
+    const phien = await createSession(fx.db, fx.studentA1);
+
+    const kq = await datLaiMatKhauHocSinh(fx.db, teacherA, fx.studentA1, MAT_KHAU_MOI);
+    expect(kq.trangThai).toBe('da-doi');
+
+    const row = await fx.db.user.findUniqueOrThrow({
+      where: { id: fx.studentA1 },
+      select: { passwordHash: true, mustChangePassword: true },
+    });
+    expect(await verifyPassword(MAT_KHAU_MOI, row.passwordHash)).toBe(true);
+    expect(await verifyPassword(TEST_PASSWORD, row.passwordHash)).toBe(false);
+    // The teacher knows this password; the child must not keep it.
+    expect(row.mustChangePassword).toBe(true);
+    // A session an unauthorised holder had ends with the reset.
+    expect(await validateSession(fx.db, phien.token)).toBeNull();
+
+    await traLaiMatKhau(fx.studentA1);
+  });
+
+  it('mật khẩu ngắn bị trả về là kết quả, không phải lỗi ném ra, và không đổi gì', async () => {
+    const truoc = await fx.db.user.findUniqueOrThrow({
+      where: { id: fx.studentA1 },
+      select: { passwordHash: true },
+    });
+
+    const kq = await datLaiMatKhauHocSinh(fx.db, teacherA, fx.studentA1, 'abc');
+    expect(kq).toEqual({ trangThai: 'mat-khau-yeu', toiThieu: 8 });
+
+    const sau = await fx.db.user.findUniqueOrThrow({
+      where: { id: fx.studentA1 },
+      select: { passwordHash: true },
+    });
+    expect(sau.passwordHash).toBe(truoc.passwordHash);
+  });
+
+  it('giáo viên KHÔNG dạy em thì không làm được', async () => {
+    await expect(
+      datLaiMatKhauHocSinh(fx.db, teacherB, fx.studentA1, MAT_KHAU_MOI),
+    ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('quản trị viên làm được với bất kỳ em nào', async () => {
+    const kq = await datLaiMatKhauHocSinh(fx.db, admin, fx.studentA2, MAT_KHAU_MOI);
+    expect(kq.trangThai).toBe('da-doi');
+    await traLaiMatKhau(fx.studentA2);
+  });
+
+  it('từ chối dùng luồng học sinh cho tài khoản nhân sự', async () => {
+    await expect(
+      datLaiMatKhauHocSinh(fx.db, admin, fx.teacherB, MAT_KHAU_MOI),
+    ).rejects.toBeInstanceOf(ForbiddenError);
   });
 });
 
