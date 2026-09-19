@@ -1,16 +1,15 @@
 import { logout } from '@dye/core';
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { currentActor, signOut } from '@/auth';
-import { DauHieu } from '@/components/dau-hieu';
 import { db } from '@/lib/db';
 
 import { KIEU_NHANH } from '../ui/nhanh';
 
 import { KhungChuyenDong } from './chuyen-dong';
+import { KhungVo, type KhoaHocThanhBen } from './khung-vo';
 import { TroLyAo } from './tro-ly-ao';
 
 import type { Tier } from '@prisma/client';
@@ -34,17 +33,25 @@ async function dangXuat(): Promise<void> {
 /**
  * The student shell.
  *
- * Deliberately sparse: one row of navigation, never more than three targets.
- * The brief forbids cluttered dashboards, and for a 12-year-old every extra
- * control is one more thing to be unsure about.
+ * Mounted once by `app/(hoc-sinh)/layout.tsx`, so every student page shares
+ * one sidebar, one top bar and one content column and never draws its own
+ * chrome. The exam room (`/kiem-tra`) lives outside that route group on
+ * purpose and never gets this: the nav, the mascot and the search box are
+ * distractions at best and, in fullscreen, a way out of the room.
+ *
+ * This file is the server half — the sign-out action and the tier lookup.
+ * The frame itself is `KhungVo`, a client component, because the drawer and
+ * the active nav item need the browser.
  */
 export function VoHocSinh({
   tenHienThi,
   nhanh,
+  khoaHoc,
   children,
 }: {
   tenHienThi: string;
   nhanh?: Tier | undefined;
+  khoaHoc: KhoaHocThanhBen[];
   children: ReactNode;
 }) {
   const kieu = nhanh ? KIEU_NHANH[nhanh] : null;
@@ -55,67 +62,15 @@ export function VoHocSinh({
         Bỏ qua, tới nội dung chính
       </a>
 
-      <header className="sticky top-0 z-20 border-b border-vien bg-the/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
-          <Link
-            href="/bang-dieu-khien"
-            className="flex items-center gap-2 rounded text-lg font-bold text-chu"
-          >
-            <DauHieu className="h-5 w-5 text-chinh" />
-            <span>DYE LMS</span>
-          </Link>
-
-          <nav aria-label="Điều hướng chính" className="flex items-center gap-1">
-            <Link
-              href="/bang-dieu-khien"
-              className="flex min-h-cham items-center rounded-nut px-3 py-2 text-sm font-medium text-chu-phu hover:bg-the-mo hover:text-chu"
-            >
-              Trang chính
-            </Link>
-            <Link
-              href="/du-an"
-              className="flex min-h-cham items-center rounded-nut px-3 py-2 text-sm font-medium text-chu-phu hover:bg-the-mo hover:text-chu"
-            >
-              Dự án game
-            </Link>
-          </nav>
-
-          <div className="ms-auto flex items-center gap-3">
-            {kieu ? (
-              <span
-                className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold sm:inline-flex ${kieu.nen} ${kieu.chu} ${kieu.vien}`}
-              >
-                <span aria-hidden="true">{kieu.icon}</span>
-                Nhánh {kieu.nhan}
-              </span>
-            ) : null}
-
-            <span className="hidden text-sm text-chu-phu md:inline">{tenHienThi}</span>
-
-            <form action={dangXuat}>
-              <button
-                type="submit"
-                className="min-h-cham rounded-nut border border-vien px-3 py-2 text-sm font-medium text-chu-phu hover:border-vien-dam hover:text-chu"
-              >
-                Đăng xuất
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
-
-      <main id="noi-dung-chinh" className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+      <KhungVo tenHienThi={tenHienThi} nhanh={kieu} khoaHoc={khoaHoc} dangXuat={dangXuat}>
         {children}
-      </main>
-
-      <footer className="mx-auto max-w-5xl px-4 pb-10 text-sm text-chu-nhat sm:px-6">
-        DYE LMS · Nền tảng học lập trình và STEM Robotics
-      </footer>
+      </KhungVo>
 
       {/*
         Bí lives in the shell, which is what keeps it out of the exam room:
-        `/kiem-tra/[slug]` renders `PhongThi` directly and never mounts this
-        component, so a bobbing robot cannot turn up beside an exam question.
+        `/kiem-tra/[slug]` is outside the `(hoc-sinh)` route group and never
+        mounts this component, so a bobbing robot cannot turn up beside an
+        exam question.
       */}
       <TroLyAo />
     </KhungChuyenDong>

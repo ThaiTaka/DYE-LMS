@@ -63,7 +63,7 @@ export default async function TrangLop({
                 aria-current={dangXem ? 'page' : undefined}
                 className={`flex min-h-cham items-center gap-2 rounded-nut border px-4 py-2 text-sm font-medium ${
                   dangXem
-                    ? 'border-chinh bg-chinh-nhat text-chinh'
+                    ? 'border-chinh bg-chinh-nhat text-chinh-sang'
                     : 'border-vien text-chu-phu hover:border-vien-dam hover:text-chu'
                 }`}
               >
@@ -164,7 +164,7 @@ export default async function TrangLop({
                       <td className="px-4 py-3 text-end">
                         <Link
                           href={`/giao-vien/hoc-sinh/${h.studentId}?khoa=${lop.khoaHienTai?.courseId}`}
-                          className="inline-flex min-h-cham items-center rounded-nut border border-vien px-3.5 py-2 text-sm font-medium whitespace-nowrap text-chu-phu hover:border-chinh hover:text-chinh"
+                          className="inline-flex min-h-cham items-center rounded-nut border border-vien px-3.5 py-2 text-sm font-medium whitespace-nowrap text-chu-phu hover:border-chinh hover:text-chinh-sang"
                         >
                           Xem &amp; điều chỉnh
                         </Link>

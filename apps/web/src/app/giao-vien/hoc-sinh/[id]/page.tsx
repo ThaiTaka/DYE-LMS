@@ -278,7 +278,7 @@ function ChuaSanSang({ actor, chua }: { actor: Actor; chua: HocSinhChuaSanSang }
             </p>
             <p className="m-0 text-chu-phu">
               Gán một khoá học cho lớp ở trang{' '}
-              <a href="/giao-vien/lop" className="font-semibold text-chinh hover:underline">
+              <a href="/giao-vien/lop" className="font-semibold text-chinh-sang hover:underline">
                 Lớp học
               </a>
               , rồi quay lại trang này.

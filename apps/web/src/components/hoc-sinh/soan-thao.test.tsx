@@ -29,7 +29,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: refreshStub }),
 }));
 
-vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
+vi.mock('@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions', () => ({
   tuDongLuu: luuStub,
   nop: nopStub,
   layLichSu: lichSuStub,

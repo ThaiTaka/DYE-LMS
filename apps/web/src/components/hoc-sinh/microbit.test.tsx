@@ -31,7 +31,7 @@ import {
 const nopStub = vi.hoisted(() => vi.fn());
 const refreshStub = vi.hoisted(() => vi.fn());
 
-vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
+vi.mock('@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions', () => ({
   nopMicrobit: nopStub,
   tuDongLuu: vi.fn(),
   layBanNhap: vi.fn(),

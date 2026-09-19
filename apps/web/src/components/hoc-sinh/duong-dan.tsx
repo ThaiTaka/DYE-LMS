@@ -27,7 +27,7 @@ export function DuongDan({ muc }: { muc: MucDuongDan[] }) {
               ) : null}
 
               {m.href && !cuoi ? (
-                <Link href={m.href} className="rounded hover:text-chinh hover:underline">
+                <Link href={m.href} className="rounded hover:text-chinh-sang hover:underline">
                   {m.nhan}
                 </Link>
               ) : (

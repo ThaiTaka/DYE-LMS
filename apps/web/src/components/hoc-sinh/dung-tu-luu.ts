@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { tuDongLuu, type KetQuaLuu } from '@/app/bai-hoc/[slug]/code-actions';
+import { tuDongLuu, type KetQuaLuu } from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
 
 /** Quiet by default; the indicator only speaks up when it has something to say. */
 export type TrangThaiLuu = 'nghi' | 'cho' | 'dang-luu' | 'da-luu' | 'loi';

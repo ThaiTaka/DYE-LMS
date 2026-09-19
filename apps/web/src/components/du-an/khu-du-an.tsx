@@ -11,8 +11,8 @@ import { docTepDeSua,
   nopMocDuAn,
   taiTepLen,
   xoaTepDuAn,
-} from '@/app/du-an/actions';
-import { CHUA_LAM } from '@/app/du-an/ket-qua';
+} from '@/app/(hoc-sinh)/du-an/actions';
+import { CHUA_LAM } from '@/app/(hoc-sinh)/du-an/ket-qua';
 import { SoanThao } from '@/components/hoc-sinh/soan-thao';
 
 import { CayTep, coChu } from './cay-tep';
@@ -305,7 +305,7 @@ function XemTaiNguyen({ projectId, tep }: { projectId: string; tep: TepDuAn }) {
           <a
             href={url}
             download
-            className="inline-flex min-h-cham items-center gap-2 rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+            className="inline-flex min-h-cham items-center gap-2 rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
           >
             ⬇ Tải tệp này về
           </a>
@@ -353,7 +353,7 @@ function TaoTepMoi({
               if (kq.trangThai === 'thanh-cong') setTen('');
             });
           }}
-          className="min-h-cham rounded-nut border border-vien px-3 py-2 text-sm font-semibold text-chu-phu hover:border-chinh hover:text-chinh disabled:opacity-50"
+          className="min-h-cham rounded-nut border border-vien px-3 py-2 text-sm font-semibold text-chu-phu hover:border-chinh hover:text-chinh-sang disabled:opacity-50"
         >
           Tạo
         </button>
@@ -415,7 +415,7 @@ export function NopMoc({ projectId }: { projectId: string }) {
 
         <a
           href={`/api/du-an/${projectId}/tai-ve`}
-          className="inline-flex min-h-cham items-center gap-2 rounded-nut border border-vien px-4 py-2.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+          className="inline-flex min-h-cham items-center gap-2 rounded-nut border border-vien px-4 py-2.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
         >
           ⬇ Tải cả dự án (.zip)
         </a>

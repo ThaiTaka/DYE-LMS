@@ -18,20 +18,20 @@ export default async function TrangDangNhap({
   const vuaDoiMatKhau = params['doi-mat-khau'] === 'xong';
 
   return (
-    <main className="relative isolate flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-800 via-slate-900 to-[#0b1a33] px-4 py-16 text-slate-100 sm:px-6 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[linear-gradient(to_right,rgba(148,163,184,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.10)_1px,transparent_1px)] before:bg-[size:40px_40px] before:[mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,#000_30%,transparent_100%)] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-[radial-gradient(ellipse_55%_40%_at_50%_40%,rgba(56,189,248,0.10),transparent_70%)] after:content-['']">
+    <main className="relative isolate flex min-h-screen flex-col items-center justify-center px-4 py-16 text-chu sm:px-6 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[linear-gradient(to_right,rgba(167,139,250,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(167,139,250,0.10)_1px,transparent_1px)] before:bg-[size:40px_40px] before:[mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,#000_30%,transparent_100%)] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-[radial-gradient(ellipse_55%_40%_at_50%_40%,rgba(124,58,237,0.22),transparent_70%)] after:content-['']">
       <div className="mb-8 w-full max-w-md text-center">
         {/*
           The mark sits on a lit tile rather than being tinted itself.
 
-          The gradient is the same cyan-to-sky as the author name below, but
+          The gradient is the same violet-to-pink as the author name below, but
           applied as the tile's background with the glyph drawn over it in dark
-          ink (`text-slate-900`, which the SVG picks up through
+          ink (`text-white`, which the SVG picks up through
           `currentColor`). Gradient-filling the strokes themselves would need
           an SVG paint server, and at 32px the result is a thin line washing
           through three shades — legible as a shape only by accident. A solid
           glyph on a glowing tile reads at any size and carries the same accent.
         */}
-        <span className="inline-flex rounded-nut bg-gradient-to-br from-cyan-300 to-sky-400 p-2.5 text-slate-900 shadow-[0_0_24px_-4px_rgba(56,189,248,0.55)]">
+        <span className="inline-flex rounded-nut bg-linear-to-br from-chinh to-hong p-2.5 text-white shadow-neon">
           <DauHieu className="h-8 w-8" />
         </span>
 
@@ -44,36 +44,33 @@ export default async function TrangDangNhap({
           middot just disappears into the gap.
         */}
         <div className="mt-2 mb-1 flex flex-wrap items-baseline justify-center gap-x-2.5 gap-y-0.5">
-          <h1 className="m-0 text-3xl font-bold tracking-tight text-slate-50">DYE LMS</h1>
-          <span aria-hidden="true" className="text-slate-500">
+          <h1 className="m-0 text-3xl font-bold tracking-tight text-chu">DYE LMS</h1>
+          <span aria-hidden="true" className="text-chu-nhat">
             ·
           </span>
-          <p className="m-0 text-sm text-slate-400">
-            Phát triển bởi{' '}
-            <span className="bg-gradient-to-r from-cyan-300 to-sky-400 bg-clip-text font-bold text-transparent">
-              Thái Taka
-            </span>
+          <p className="m-0 text-sm text-chu-nhat">
+            Phát triển bởi <span className="chu-neon font-bold">Thái Taka</span>
           </p>
         </div>
 
-        <p className="m-0 text-slate-300">Nền tảng học lập trình và STEM Robotics</p>
+        <p className="m-0 text-chu-phu">Nền tảng học lập trình và STEM Robotics</p>
       </div>
 
       {vuaDoiMatKhau ? (
         <p
           role="status"
-          className="mb-5 w-full max-w-md rounded-nut border border-emerald-400/30 bg-emerald-400/10 p-4 text-center font-medium text-emerald-300"
+          className="mb-5 w-full max-w-md rounded-nut border border-dung/30 bg-dung-nen p-4 text-center font-medium text-dung"
         >
           ✓ Đã đổi mật khẩu. Em đăng nhập lại bằng mật khẩu mới nhé.
         </p>
       ) : null}
 
-      <div className="w-full max-w-md rounded-the border border-white/15 bg-white/10 p-6 shadow-[0_8px_32px_-8px_rgba(2,6,23,0.6),0_0_0_1px_rgba(56,189,248,0.12)_inset] backdrop-blur-md">
-        <h2 className="mt-0 mb-5 text-xl font-bold text-slate-50">Đăng nhập</h2>
+      <div className="w-full max-w-md kinh rounded-the p-6">
+        <h2 className="mt-0 mb-5 text-xl font-bold text-chu">Đăng nhập</h2>
         <FormDangNhap tiepTuc={tiepTuc} />
       </div>
 
-      <p className="mt-6 w-full max-w-md text-center text-sm text-slate-400">
+      <p className="mt-6 w-full max-w-md text-center text-sm text-chu-nhat">
         Quên mật khẩu? Hãy nhờ thầy cô đặt lại giúp em.
       </p>
     </main>

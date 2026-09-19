@@ -45,7 +45,7 @@ export default async function TrangChamMotBai({
               {bai.verdict === 'ACCEPTED' ? `Đã chấm đạt · ${bai.score} điểm` : 'Đã chấm: chưa đạt'}
             </span>
           ) : (
-            <span className="rounded-full bg-chinh-nhat px-3 py-1 text-sm font-semibold text-chinh">
+            <span className="rounded-full bg-chinh-nhat px-3 py-1 text-sm font-semibold text-chinh-sang">
               Chờ chấm
             </span>
           )}

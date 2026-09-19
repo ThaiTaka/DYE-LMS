@@ -1,7 +1,7 @@
 @import 'tailwindcss';
 
 /*
- * DYE LMS design tokens.
+ * DYE LMS design tokens — "Vũ trụ" (dark dashboard, glass, neon violet).
  *
  * Every value here answers a constraint from the brief rather than a taste
  * preference, so the reasons are recorded next to the numbers.
@@ -9,99 +9,101 @@
  * Audience: middle-school students, often on shared school machines and tablets.
  *   • Base type is 18px, not 16px — the brief forbids tiny text outright.
  *   • Interactive targets are ≥ 44px.
- *   • Every text colour below is checked against its background for WCAG AA
- *     (4.5:1 for body text, 3:1 for large text and UI borders).
+ *   • Every text colour below is checked against the DARKEST surface it can sit
+ *     on for WCAG AA (4.5:1 for body text, 3:1 for large text and UI borders).
  *   • Tier identity is carried by an ICON as well as a colour, because colour
  *     alone excludes roughly one boy in twelve.
  *
- * ── The palette is emerald ───────────────────────────────────────────────────
- * Changed from indigo deliberately. Two consequences worth knowing before
- * touching anything below:
+ * ── The token NAMES did not change; the values did ───────────────────────────
+ * Every component in the app is written against the semantic names below
+ * (`bg-the`, `text-chu-phu`, `border-vien`…), never against a raw palette.
+ * That is what let the whole product move from a pale emerald page to a dark
+ * navy one without touching a hundred files. Keep it that way: if you need a
+ * colour that is not here, add a token, do not reach for `bg-slate-800`.
  *
- *   1. THE BRAND AND "CORRECT" NOW SHARE A HUE. `--color-chinh` and
- *      `--color-dung` are both green, so colour alone no longer separates "this
- *      is the main action" from "this answer is right". They are separated by
- *      FORM instead — a primary action is a solid fill, a correct answer is a
- *      pale card with a ✓ — and every success state in the app already carries
- *      its glyph. Do not remove those glyphs.
- *   2. THE VIVID EMERALD CANNOT CARRY TEXT. `#10b981` is the colour this look
- *      is built around, and it is 2.5:1 on white — under half the AA floor for
- *      body copy. It lives in `--color-chinh-tuoi` and is used for FILLS ONLY:
- *      progress bars, the mascot, soft shadows, decorative rings. Anything with
- *      words on it uses `--color-chinh` (5.5:1) instead. A token that looks
- *      right and cannot be read is not a brand colour, it is a bug with a hex.
+ * ── Dark mode flips the fill/text rule ───────────────────────────────────────
+ * On a dark page no single violet passes AA both AS text and UNDER white text:
+ * the maths forbids it (text on #0B0F24 needs L ≥ 0.20, white-on-fill needs
+ * L ≤ 0.18). So the brand is two tokens with one job each:
+ *
+ *   `--color-chinh`       #7C3AED — FILLS ONLY. White text on it is 5.7:1.
+ *                          Buttons, active rings, the "next" stop on the map.
+ *   `--color-chinh-sang`  #A78BFA — TEXT ONLY. 6.9:1 on the page, 6.2:1 on a
+ *                          card. Labels, links, icons, focus rings.
+ *
+ * `text-chinh` is therefore never written in this codebase; it is `text-chinh-sang`.
+ * A token that looks right and cannot be read is not a brand colour, it is a
+ * bug with a hex.
+ *
+ * ── Glass is explicit, not ambient ───────────────────────────────────────────
+ * `--color-the` is a SOLID navy on purpose. Modal dialogs render `bg-the` over
+ * a `bg-black/80` scrim, and a translucent card there simply disappears.
+ * Glassmorphism is opt-in through the `kinh` utility below, and it is used on
+ * the shell (sidebar, top bar, hero) and a handful of hero-level cards — not on
+ * thirty nested panels. `backdrop-filter` is the most expensive thing a school
+ * laptop's GPU is asked to do; a page of blurred cards is a page that stutters.
  */
 
 @theme {
   /* ── Surfaces ─────────────────────────────────────────────────────────── */
-  --color-nen: #f6faf8; /* page background — a green-leaning off-white, still no glare */
-  --color-the: #ffffff; /* card */
-  --color-the-mo: #eff5f2; /* muted card */
-  --color-vien: #dce8e2; /* border — same lightness as the old slate, green-tinted */
-  --color-vien-dam: #8fa79c;
+  --color-nen: #0b0f24; /* page — dark navy, never pure black (see body::before for the glow) */
+  --color-nen-sau: #070a1a; /* deepest: code blocks, the hero's dark edge */
+  --color-be-mat: #121832; /* sidebar / chrome surface */
+  --color-the: #151a35; /* card — SOLID, see note above */
+  --color-the-mo: #1c2246; /* muted card, hover wash, progress track */
+  --color-vien: rgba(255, 255, 255, 0.08); /* border — 1px hairlines on any surface */
+  --color-vien-dam: rgba(255, 255, 255, 0.18);
+
+  /* Glass — used only through the `kinh` utility. */
+  --color-kinh: rgba(255, 255, 255, 0.06);
+  --color-kinh-vien: rgba(255, 255, 255, 0.1);
 
   /* ── Text ─────────────────────────────────────────────────────────────── */
-  --color-chu: #0f172a; /* 16.9:1 on white */
-  --color-chu-phu: #475569; /* 7.6:1 on white */
-  --color-chu-nhat: #64748b; /* 4.8:1 on white — still AA for body */
+  --color-chu: #f8fafc; /* 17.6:1 on the page */
+  --color-chu-phu: #a3abc7; /* 8.2:1 on the page, 7.4:1 on a card */
+  --color-chu-nhat: #8b93ad; /* 6.2:1 on the page, 5.6:1 on a card — the "muted" step */
 
-  /* ── Brand — emerald ──────────────────────────────────────────────────── */
+  /* ── Brand — neon violet → pink ───────────────────────────────────────── */
+  --color-chinh: #7c3aed; /* FILL. White on it: 5.7:1. On the page as a border: 3.3:1. */
+  --color-chinh-dam: #6d28d9; /* hover / pressed fill. White on it: 7.2:1. */
+  --color-chinh-sang: #a78bfa; /* TEXT. 6.9:1 on the page. */
+  --color-chinh-tuoi: #8b5cf6; /* progress fills, decorative rings — never text */
+  --color-chinh-nhat: #282056; /* tinted panel (violet at 18% over a card); `chinh-sang` reads 5.9:1 on it */
+  --color-hong: #ec4899; /* the gradient's far end; decorative only */
+  --color-hong-sang: #f9a8d4;
 
-  /*
-   * The text-safe step. Everything that carries words, or has white words on
-   * it, uses this one: 5.5:1 against white in BOTH directions, so a `text-chinh`
-   * label and a `bg-chinh` button with white type are each AA on their own.
-   */
-  --color-chinh: #047857;
-
-  /*
-   * Hover and pressed. 7.7:1 with white — going darker on hover keeps the
-   * contrast moving the safe way, which a lighter hover would not.
-   */
-  --color-chinh-dam: #065f46;
-
-  /*
-   * THE playful emerald. 2.5:1 on white, so it never carries small text — but
-   * 7.0:1 against `--color-chu`, which makes a bright fill with dark type on it
-   * perfectly legible. Progress fills, the mascot, glows, decorative rings.
-   */
-  --color-chinh-tuoi: #10b981;
-
-  /*
-   * Tinted surface. Deliberately NOT `#ecfdf5`: that is already
-   * `--color-dung-nen` and `--color-co-ban-nen`, and a third token with the
-   * same value makes "brand panel", "correct" and "Cơ bản" indistinguishable
-   * at a glance. `--color-chinh` reads 4.9:1 on this.
-   */
-  --color-chinh-nhat: #e6f7f0;
+  /* ── Secondary — electric blue ────────────────────────────────────────── */
+  --color-phu: #3b82f6; /* fill */
+  --color-phu-sang: #60a5fa; /* text — 7.2:1 on the page */
+  --color-phu-nhat: #1b2b54;
 
   /* ── Feedback ─────────────────────────────────────────────────────────── */
-  --color-dung: #047857; /* 5.4:1 — correct */
-  --color-dung-nen: #ecfdf5;
+  --color-dung: #34d399; /* 9.8:1 — correct. Bright fills take `text-nen`, not white. */
+  --color-dung-nen: #193443;
   /*
    * "Try again" is amber, never red.
    * A wrong answer in a lesson is a step in learning, not a failure state, and
    * red on a 12-year-old's screen reads as punishment.
    */
-  --color-thu-lai: #b45309; /* 5.0:1 */
-  --color-thu-lai-nen: #fffbeb;
+  --color-thu-lai: #fbbf24; /* 11:1 */
+  --color-thu-lai-nen: #353133;
   /* Red is reserved for genuine system errors, never for a student's answer. */
-  --color-loi: #b91c1c;
-  --color-loi-nen: #fef2f2;
+  --color-loi: #f87171; /* 6.6:1 on the page, 5.4:1 on its own tinted panel */
+  --color-loi-nen: #35263d;
 
   /* ── Tiers — positive scale, icon + colour ───────────────────────────── */
-  --color-co-ban: #047857;
-  --color-co-ban-nen: #ecfdf5;
-  --color-thu-thach: #0369a1;
-  --color-thu-thach-nen: #f0f9ff;
-  --color-nang-cao: #6d28d9;
-  --color-nang-cao-nen: #f5f3ff;
-  --color-mo-rong: #b45309;
-  --color-mo-rong-nen: #fffbeb;
+  --color-co-ban: #34d399;
+  --color-co-ban-nen: #193443;
+  --color-thu-thach: #38bdf8;
+  --color-thu-thach-nen: #1a3150;
+  --color-nang-cao: #c084fc;
+  --color-nang-cao-nen: #302b55;
+  --color-mo-rong: #fbbf24;
+  --color-mo-rong-nen: #353133;
 
   /* ── Type ─────────────────────────────────────────────────────────────── */
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
     sans-serif;
   --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
 
@@ -112,22 +114,41 @@
   --text-xs: 0.9375rem; /* 15px — labels only, never paragraphs */
 
   /* ── Shape ────────────────────────────────────────────────────────────── */
-  /* Rounder than before: the softer corner is most of what reads as "playful",
-     and it costs nothing in legibility the way a low-contrast colour does. */
-  --radius-the: 1.25rem; /* cards */
-  --radius-nut: 0.75rem;
+  --radius-the: 1.25rem; /* cards — 20px */
+  --radius-the-nho: 1rem; /* compact cards — 16px */
+  --radius-nut: 0.75rem; /* buttons — 12px pill-ish */
 
   /* Minimum interactive size. */
   --spacing-cham: 2.75rem; /* 44px */
+  /* Shell geometry, shared by the sidebar and the content offset. */
+  --spacing-thanh-ben: 17rem;
+  --spacing-thanh-tren: 3.75rem;
 
-  /* ── Soft UI depth ───────────────────────────────────────────────────────
-     Shadows are tinted with the brand green rather than black. A neutral
-     drop shadow on a green-tinted page reads as grey dirt under the card;
-     the same shadow in the page's own hue reads as light. Both are kept
-     wide and faint — a hard shadow under every card is 2013, and on a
-     classroom projector it is mud. */
-  --shadow-mem: 0 1px 2px rgba(6, 95, 70, 0.04), 0 10px 24px -10px rgba(6, 95, 70, 0.12);
-  --shadow-noi: 0 2px 6px rgba(6, 95, 70, 0.07), 0 18px 34px -14px rgba(6, 95, 70, 0.22);
+  /* ── Depth ─────────────────────────────────────────────────────────────
+     On a dark page a shadow is not "under" a card so much as around it — a
+     halo of deeper navy. Wide and soft; a card's edge is drawn by its 1px
+     border, not by the shadow. `neon` is the glow a primary button carries,
+     tinted with the brand rather than black so it reads as light. */
+  --shadow-mem: 0 10px 30px rgba(0, 0, 0, 0.25);
+  --shadow-noi: 0 18px 44px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-neon: 0 0 22px rgba(124, 58, 237, 0.45), 0 8px 24px rgba(236, 72, 153, 0.22);
+  --shadow-neon-manh: 0 0 32px rgba(124, 58, 237, 0.6), 0 10px 30px rgba(236, 72, 153, 0.3);
+
+  /* ── Gradients — referenced by the utilities below and by inline styles ── */
+  --gradient-chinh: linear-gradient(90deg, #7c3aed 0%, #ec4899 100%);
+  --gradient-chinh-cheo: linear-gradient(135deg, #7c3aed 0%, #a855f7 45%, #ec4899 100%);
+  --gradient-chu: linear-gradient(90deg, #a78bfa 0%, #f472b6 100%);
+  /*
+   * The cinematic hero overlay. Any picture goes under it; white text stays
+   * readable because the left third is nearly opaque navy. Exact stops from
+   * the design brief.
+   */
+  --gradient-hero: linear-gradient(
+    90deg,
+    rgba(10, 10, 30, 0.95) 0%,
+    rgba(20, 20, 50, 0.45) 55%,
+    rgba(10, 10, 30, 0.15) 100%
+  );
 }
 
 /* ── Base ───────────────────────────────────────────────────────────────── */
@@ -137,12 +158,14 @@
 }
 
 html {
-  /* Anchor links must not hide under the sticky header. */
-  scroll-padding-top: 5.5rem;
+  /* Anchor links must not hide under the sticky top bar. */
+  scroll-padding-top: calc(var(--spacing-thanh-tren) + 1.5rem);
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
+  min-height: 100dvh;
   background: var(--color-nen);
   color: var(--color-chu);
   font-family: var(--font-sans);
@@ -157,13 +180,41 @@ body {
 }
 
 /*
+ * The page glow.
+ *
+ * Three soft radial lights on a fixed layer behind everything — violet top
+ * left, blue top right, a hint of pink at the foot. This is what stops the
+ * navy reading as flat black and gives the glass surfaces something to be
+ * glass in front of. A pseudo-element, not `background-attachment: fixed`,
+ * because the latter repaints the whole page on every scroll tick on tablets.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(60rem 40rem at 8% -12%, rgba(124, 58, 237, 0.24), transparent 62%),
+    radial-gradient(52rem 36rem at 102% 6%, rgba(59, 130, 246, 0.18), transparent 60%),
+    radial-gradient(44rem 30rem at 50% 112%, rgba(236, 72, 153, 0.13), transparent 60%);
+}
+
+::selection {
+  background: rgba(124, 58, 237, 0.55);
+  color: var(--color-chu);
+}
+
+/*
  * One visible focus ring for every interactive element.
  *
  * Keyboard navigation is a hard requirement, and a school laptop's trackpad is
  * often the worst input device in the room — the keyboard path has to be good.
+ * The ring is the TEXT violet, not the fill one: it has to be seen against the
+ * darkest surface in the app.
  */
 :where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
-  outline: 3px solid var(--color-chinh);
+  outline: 3px solid var(--color-chinh-sang);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -178,6 +229,12 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Thin, dark scrollbars so the sidebar and code panes do not grow a white bar. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
 }
 
 /* Skip link — visible only once focused. */
@@ -195,6 +252,160 @@ body {
 
 .bo-qua:focus {
   left: 0;
+}
+
+/* ── Utilities ──────────────────────────────────────────────────────────── */
+
+/*
+ * Glass card.
+ *
+ * `kinh rounded-the p-6` is a finished card. The blur is the only expensive
+ * line here; anyone who asked their OS for less transparency gets the solid
+ * card colour instead and loses nothing that matters.
+ */
+@utility kinh {
+  background: var(--color-kinh);
+  border: 1px solid var(--color-kinh-vien);
+  box-shadow: var(--shadow-mem);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--color-the);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/* Lighter glass for the chrome — the top bar and the sidebar on wide screens. */
+@utility kinh-mong {
+  background: rgba(18, 24, 50, 0.72);
+  border-color: var(--color-vien);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+
+  @media (prefers-reduced-transparency: reduce) {
+    background: var(--color-be-mat);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+
+/*
+ * Gradient text — the big headings.
+ *
+ * `background-clip: text` hides the box, so this MUST stay on inline runs of
+ * text: a heading, a number. Never on a block that also carries padding or a
+ * border, and never on body copy (the pink end drops to 4.6:1 on a card — fine
+ * for a 30px heading, not for a paragraph).
+ */
+@utility chu-neon {
+  background-image: var(--gradient-chu);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  /* Descenders in some fonts get clipped by background-clip; a little room fixes it. */
+  padding-bottom: 0.05em;
+}
+
+/*
+ * Primary button — gradient pill with a neon halo.
+ *
+ * Small lift on hover, a slightly stronger glow, and the same pressed feel
+ * `TheNoi` gives cards. `translateY(-1px)` is deliberate: on a school trackpad
+ * a button that jumps is a button that gets missed.
+ */
+@utility nut-neon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--spacing-cham);
+  padding: 0.65rem 1.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: var(--radius-nut);
+  background-image: var(--gradient-chinh);
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--shadow-neon);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-neon-manh);
+    filter: saturate(1.08);
+  }
+
+  &:active {
+    transform: translateY(0);
+    filter: brightness(0.96);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    transform: none;
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+}
+
+/* Secondary button — outlined pill on glass. Same size, no glow. */
+@utility nut-vien {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: var(--spacing-cham);
+  padding: 0.65rem 1.25rem;
+  border: 1px solid var(--color-vien-dam);
+  border-radius: var(--radius-nut);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-chu);
+  font-weight: 600;
+  text-decoration: none;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+
+  &:hover {
+    transform: translateY(-1px);
+    border-color: var(--color-chinh-sang);
+    background: rgba(124, 58, 237, 0.12);
+  }
+}
+
+/* A 1px gradient border, drawn with a masked pseudo-element so the card's own
+   background stays glass. For the one or two "look here" cards per screen. */
+@utility vien-neon {
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--gradient-chinh);
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+}
+
+/* The hero overlay as a class, for any full-bleed picture with text on it. */
+@utility phu-hero {
+  background-image: var(--gradient-hero);
 }
 
 /* ── Markdown rendered from lesson content ──────────────────────────────── */
@@ -231,10 +442,15 @@ body {
   margin-bottom: 0.4em;
 }
 
+.van-ban a {
+  color: var(--color-chinh-sang);
+}
+
 .van-ban code {
   padding: 0.15em 0.4em;
   font-family: var(--font-mono);
   font-size: 0.9em;
+  color: var(--color-hong-sang);
   background: var(--color-the-mo);
   border: 1px solid var(--color-vien);
   border-radius: 0.375rem;
@@ -243,8 +459,9 @@ body {
 .van-ban pre {
   overflow-x: auto;
   padding: 1rem 1.1rem;
-  background: #0f172a;
+  background: var(--color-nen-sau);
   color: #e2e8f0;
+  border: 1px solid var(--color-vien);
   border-radius: var(--radius-nut);
 }
 
@@ -259,7 +476,7 @@ body {
 .van-ban blockquote {
   margin: 1.2em 0;
   padding: 0.2em 0 0.2em 1.1em;
-  border-left: 4px solid var(--color-chinh);
+  border-left: 4px solid var(--color-chinh-sang);
   color: var(--color-chu-phu);
 }
 
@@ -278,7 +495,7 @@ body {
 .van-ban th,
 .van-ban td {
   padding: 0.6rem 0.85rem;
-  border: 1px solid var(--color-vien);
+  border: 1px solid var(--color-vien-dam);
   text-align: left;
   vertical-align: top;
 }
@@ -296,6 +513,9 @@ body {
  * as "a diagram belongs here" instead of as a broken page. Curriculum images are
  * authored as markdown with no intrinsic size declared, so the height is left to
  * the file and only the width is constrained.
+ *
+ * Most curriculum diagrams were drawn for a white page. The light backing keeps
+ * them legible on the dark one instead of turning black line-art invisible.
  */
 .hinh-bai-hoc {
   margin: 1.4em 0;
@@ -306,9 +526,10 @@ body {
   width: 100%;
   max-width: 40rem;
   height: auto;
+  padding: 0.5rem;
   border: 1px solid var(--color-vien);
   border-radius: var(--radius-the, 0.75rem);
-  background: var(--color-the-mo);
+  background: #f8fafc;
 }
 
 .hinh-bai-hoc figcaption {
@@ -325,4 +546,3 @@ img.hinh-trong-dong {
   max-height: 1.6em;
   vertical-align: text-bottom;
 }
-

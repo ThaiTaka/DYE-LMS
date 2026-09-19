@@ -71,7 +71,7 @@ export function HangCanThiep({
             bai.completed
               ? 'bg-dung-nen text-dung'
               : bai.unlocked
-                ? 'bg-chinh-nhat text-chinh'
+                ? 'bg-chinh-nhat text-chinh-sang'
                 : 'bg-the-mo text-chu-nhat'
           }`}
         >
@@ -107,7 +107,7 @@ export function HangCanThiep({
           onClick={() => setMo((v) => !v)}
           aria-expanded={mo}
           aria-controls={vungId}
-          className="min-h-cham rounded-nut border border-vien px-3.5 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+          className="min-h-cham rounded-nut border border-vien px-3.5 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
         >
           {mo ? 'Đóng' : 'Điều chỉnh'}
         </button>

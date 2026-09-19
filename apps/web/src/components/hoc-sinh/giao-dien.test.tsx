@@ -23,7 +23,7 @@ import type { KhoiHienThi } from '@/lib/student-data';
 // The quiz calls a server action; stub it so the component can be tested alone.
 const kiemTra = vi.hoisted(() => vi.fn());
 const danhDauXong = vi.hoisted(() => vi.fn());
-vi.mock('@/app/bai-hoc/[slug]/actions', () => ({
+vi.mock('@/app/(hoc-sinh)/bai-hoc/[slug]/actions', () => ({
   kiemTraCauTraLoi: kiemTra,
   danhDauKhoiXong: danhDauXong,
   nopBaiTuLuan: vi.fn(),
@@ -35,7 +35,7 @@ vi.mock('@/app/bai-hoc/[slug]/actions', () => ({
  * stub at build time; Vitest does not, so the real module loads and fails on
  * `next/server`. Stubbed here for the same reason the quiz actions are.
  */
-vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({
+vi.mock('@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions', () => ({
   tuDongLuu: vi.fn().mockResolvedValue({ trangThai: 'khong-doi', luuLuc: null, thongDiep: '' }),
   layBanNhap: vi.fn(),
   layLichSu: vi.fn().mockResolvedValue({ trangThai: 'ok', banLuu: [] }),

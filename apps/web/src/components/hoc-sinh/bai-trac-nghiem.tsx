@@ -7,7 +7,7 @@ import {
   kiemTraCauTraLoi,
   nopBaiTuLuan,
   type KetQuaTraLoi,
-} from '@/app/bai-hoc/[slug]/actions';
+} from '@/app/(hoc-sinh)/bai-hoc/[slug]/actions';
 import type { CauHoiHienThi, TracNghiemHienThi } from '@/lib/student-data';
 
 import { HinhBaiHoc } from './hinh-bai-hoc';
@@ -176,7 +176,7 @@ function CauVoiChoTrong({ template }: { template: string }) {
         <span key={i}>
           {doan}
           {i < phan.length - 1 ? (
-            <span className="mx-1 inline-block min-w-16 border-b-2 border-chinh align-baseline text-center font-semibold text-chinh">
+            <span className="mx-1 inline-block min-w-16 border-b-2 border-chinh align-baseline text-center font-semibold text-chinh-sang">
               <span className="sr-only">chỗ trống</span>
               <span aria-hidden="true">&nbsp;?&nbsp;</span>
             </span>
@@ -319,7 +319,7 @@ function CauHoi({
             <button
               type="button"
               onClick={() => setXemGoiY(true)}
-              className="min-h-cham rounded text-sm font-medium text-chinh underline underline-offset-2"
+              className="min-h-cham rounded text-sm font-medium text-chinh-sang underline underline-offset-2"
             >
               💡 Em cần gợi ý
             </button>

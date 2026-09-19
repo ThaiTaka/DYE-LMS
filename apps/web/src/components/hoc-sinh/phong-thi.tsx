@@ -262,7 +262,7 @@ export function PhongThi(props: PhongThiProps) {
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
           <header className="sticky top-0 z-10 -mx-4 mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-vien bg-the/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6">
             <div className="min-w-0">
-              <p className="m-0 text-sm font-semibold tracking-wide text-chinh uppercase">Đang thi</p>
+              <p className="m-0 text-sm font-semibold tracking-wide text-chinh-sang uppercase">Đang thi</p>
               <h1 className="m-0 truncate text-lg font-bold">{props.title}</h1>
             </div>
             <div className="flex items-center gap-4">
@@ -370,7 +370,7 @@ function GioiThieu({
 }) {
   return (
     <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-      <p className="m-0 text-sm font-semibold tracking-wide text-chinh uppercase">
+      <p className="m-0 text-sm font-semibold tracking-wide text-chinh-sang uppercase">
         Bài kiểm tra lớn · {courseTitle}
       </p>
       <h1 className="mt-1 mb-3 text-3xl font-bold">{title}</h1>
@@ -438,7 +438,7 @@ function GioiThieu({
         >
           {dangBatDau ? 'Đang mở…' : coLuotDo ? '⛶ Tiếp tục bài thi' : '⛶ Bắt đầu — vào toàn màn hình'}
         </button>
-        <Link href={`/khoa-hoc/${courseSlug}`} className="min-h-cham inline-flex items-center px-3 text-chu-phu hover:text-chinh">
+        <Link href={`/khoa-hoc/${courseSlug}`} className="min-h-cham inline-flex items-center px-3 text-chu-phu hover:text-chinh-sang">
           Để sau
         </Link>
       </div>
@@ -468,7 +468,7 @@ function CauHoi({
   return (
     <fieldset className="m-0 border-0 p-0">
       <legend id={nhan} className="mb-3 text-base font-semibold">
-        <span className="me-2 text-chinh">Câu {soThuTu}.</span>
+        <span className="me-2 text-chinh-sang">Câu {soThuTu}.</span>
         {cauHoi.prompt}
         <span className="ms-2 text-sm font-normal text-chu-phu">({cauHoi.points} điểm)</span>
       </legend>
@@ -666,7 +666,7 @@ function CanhBaoViPham({
           ref={nut}
           type="button"
           onClick={onQuayLai}
-          className="mt-6 min-h-cham w-full rounded-nut bg-loi px-5 py-3 text-base font-bold text-white hover:opacity-90"
+          className="mt-6 min-h-cham w-full rounded-nut bg-loi px-5 py-3 text-base font-bold text-nen hover:opacity-90"
         >
           Quay lại bài thi (toàn màn hình)
         </button>

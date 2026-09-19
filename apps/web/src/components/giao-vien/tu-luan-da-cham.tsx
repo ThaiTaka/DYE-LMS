@@ -100,7 +100,7 @@ export function TuLuanDaChamHang({
           onClick={() => setMoBai((v) => !v)}
           aria-expanded={moBai}
           aria-controls={`${id}-bai`}
-          className="min-h-cham rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+          className="min-h-cham rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
         >
           {moBai ? 'Ẩn bài làm' : 'Xem bài làm'}
         </button>

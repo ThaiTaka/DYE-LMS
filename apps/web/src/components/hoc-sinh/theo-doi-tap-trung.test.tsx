@@ -25,7 +25,7 @@ const ghiNhanStub = vi.hoisted(() => vi.fn());
 const khoaStub = vi.hoisted(() => vi.fn());
 const refreshStub = vi.hoisted(() => vi.fn());
 
-vi.mock('@/app/bai-hoc/[slug]/giam-sat-actions', () => ({
+vi.mock('@/app/(hoc-sinh)/bai-hoc/[slug]/giam-sat-actions', () => ({
   ghiNhanRoiTab: ghiNhanStub,
   khoaBaiViPham: khoaStub,
 }));

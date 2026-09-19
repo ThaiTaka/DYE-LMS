@@ -37,6 +37,69 @@ import { db } from './db';
 import type { BlockType, QuestionType, Tier, Verdict } from '@prisma/client';
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Shell
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface DuLieuVoHocSinh {
+  /** Enrolled, published courses — the sidebar's "Khoá học của em" list and the search index. */
+  khoaHoc: Array<{ slug: string; title: string; iconEmoji: string }>;
+  /** The track the student is on for their first course; the badge in the sidebar. */
+  nhanh: Tier | undefined;
+}
+
+/**
+ * What the student shell needs to draw itself, and nothing more.
+ *
+ * The shell is a route-group layout, so this runs on every student page. It
+ * is deliberately two cheap queries and no progress engine: the dashboard's
+ * loader below computes `courseProgress` per course, and paying that on a
+ * lesson page just to fill a sidebar would double the page's database time.
+ *
+ * Staff previewing a lesson have no enrolments; they get an empty list and no
+ * badge, which is the honest picture.
+ */
+export async function duLieuVoHocSinh(studentId: string): Promise<DuLieuVoHocSinh> {
+  const enrollments = await db.enrollment.findMany({
+    where: { studentId, isActive: true },
+    select: {
+      class: {
+        select: {
+          classCourses: {
+            select: {
+              course: {
+                select: { id: true, slug: true, title: true, iconEmoji: true, order: true, isPublished: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const unique = new Map<string, { id: string; slug: string; title: string; iconEmoji: string; order: number }>();
+  for (const e of enrollments) {
+    for (const cc of e.class.classCourses) {
+      if (cc.course.isPublished) unique.set(cc.course.id, cc.course);
+    }
+  }
+  const courses = [...unique.values()].sort((a, b) => a.order - b.order);
+  const first = courses[0];
+
+  // Same fallback the progress engine uses: no assignment means Cơ bản.
+  const track = first
+    ? await db.trackAssignment.findUnique({
+        where: { studentId_courseId: { studentId, courseId: first.id } },
+        select: { tier: true },
+      })
+    : null;
+
+  return {
+    khoaHoc: courses.map(({ slug, title, iconEmoji }) => ({ slug, title, iconEmoji })),
+    nhanh: first ? (track?.tier ?? 'CO_BAN') : undefined,
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // Dashboard
 // ═══════════════════════════════════════════════════════════════════════════
 

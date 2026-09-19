@@ -288,13 +288,29 @@ describe('Tương phản màu đạt chuẩn WCAG AA', () => {
     expect(Object.keys(token).length).toBeGreaterThan(10);
   });
 
+  /*
+   * `chinh` is deliberately absent: on the dark theme it is the FILL violet
+   * (checked below under white text) and `chinh-sang` is the TEXT violet.
+   * See the header of globals.css.
+   */
+  const mauChu = ['chu', 'chu-phu', 'chu-nhat', 'chinh-sang', 'dung', 'thu-lai', 'loi'];
+
   it('mọi màu chữ trên nền thẻ đều đạt ít nhất 4.5:1', () => {
     const nenThe = token['the']!;
-    const mauChu = ['chu', 'chu-phu', 'chu-nhat', 'chinh', 'dung', 'thu-lai', 'loi'];
 
     for (const ten of mauChu) {
       const ti = tuongPhan(token[ten]!, nenThe);
       expect(ti, `${ten} (${token[ten]}) trên nền thẻ chỉ đạt ${ti.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('mọi màu chữ trên nền trang cũng đạt ít nhất 4.5:1', () => {
+    // Dark theme: copy sits directly on the page far more often than on a card.
+    const nenTrang = token['nen']!;
+
+    for (const ten of mauChu) {
+      const ti = tuongPhan(token[ten]!, nenTrang);
+      expect(ti, `${ten} (${token[ten]}) trên nền trang chỉ đạt ${ti.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
     }
   });
 

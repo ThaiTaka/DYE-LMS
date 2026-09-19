@@ -14,7 +14,7 @@ function NutMo() {
     <button
       type="submit"
       disabled={pending}
-      className="min-h-cham rounded-nut border border-chinh px-4 py-2 text-sm font-semibold text-chinh hover:bg-chinh-nhat disabled:opacity-60"
+      className="min-h-cham rounded-nut border border-chinh px-4 py-2 text-sm font-semibold text-chinh-sang hover:bg-chinh-nhat disabled:opacity-60"
     >
       {pending ? 'Đang mở…' : 'Mở lại — xoá lịch sử, cho em nộp lại'}
     </button>
@@ -50,7 +50,7 @@ export function MoLaiKhoi({
         onClick={() => setMo((v) => !v)}
         aria-expanded={mo}
         aria-controls={`${id}-form`}
-        className="min-h-cham rounded-nut border border-vien px-3 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+        className="min-h-cham rounded-nut border border-vien px-3 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
       >
         <span aria-hidden="true">🔓 </span>
         {mo ? 'Đóng' : 'Mở lại lượt nộp…'}

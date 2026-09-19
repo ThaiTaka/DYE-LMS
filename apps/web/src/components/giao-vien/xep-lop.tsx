@@ -57,7 +57,7 @@ export function XepLop({
     return (
       <p className="m-0 text-chu-phu">
         Hiện chưa có lớp nào đang mở để xếp em vào. Tạo lớp ở trang{' '}
-        <a href="/giao-vien/lop" className="font-semibold text-chinh hover:underline">
+        <a href="/giao-vien/lop" className="font-semibold text-chinh-sang hover:underline">
           Lớp học
         </a>{' '}
         trước, rồi quay lại đây.

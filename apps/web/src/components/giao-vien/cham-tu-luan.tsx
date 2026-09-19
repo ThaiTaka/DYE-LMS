@@ -24,7 +24,7 @@ function Nut({
       ? 'border border-dung text-dung hover:bg-dung-nen'
       : kieu === 'chua-dat'
         ? 'border border-thu-lai text-thu-lai hover:bg-thu-lai-nen'
-        : 'border border-vien text-chu-phu hover:border-chinh hover:text-chinh';
+        : 'border border-vien text-chu-phu hover:border-chinh hover:text-chinh-sang';
 
   return (
     <button
@@ -111,7 +111,7 @@ export function ChamTuLuan({
           onClick={() => setMoXacNhan((v) => !v)}
           aria-expanded={moXacNhan}
           aria-controls={`${id}-mo-lai`}
-          className="min-h-cham rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+          className="min-h-cham rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
         >
           {moXacNhan ? 'Đóng' : 'Yêu cầu làm lại…'}
         </button>

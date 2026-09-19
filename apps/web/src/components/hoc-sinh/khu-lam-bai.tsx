@@ -14,7 +14,7 @@ import {
   type BaiDaNopHienThi,
   type BanLuuHienThi,
   type KetQuaChayThuUI,
-} from '@/app/bai-hoc/[slug]/code-actions';
+} from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
 
 import { useTuLuu, type TrangThaiLuu } from './dung-tu-luu';
 import { SoSanhMa } from './so-sanh-ma';
@@ -368,7 +368,7 @@ export function KhuLamBai({
       </div>
 
       {coBanNhap ? (
-        <p className="m-0 border-b border-vien bg-chinh-nhat px-4 py-2 text-sm text-chinh">
+        <p className="m-0 border-b border-vien bg-chinh-nhat px-4 py-2 text-sm text-chinh-sang">
           <span aria-hidden="true">↩ </span>
           Đây là bài em đang làm dở. Em cứ tiếp tục nhé.
         </p>
@@ -479,7 +479,7 @@ export function KhuLamBai({
           type="button"
           onClick={chayThuMa}
           disabled={dangChay || hetLuot}
-          className="min-h-cham rounded-nut border border-chinh px-4 py-2 text-sm font-semibold text-chinh hover:bg-chinh-nhat disabled:opacity-60"
+          className="min-h-cham rounded-nut border border-chinh px-4 py-2 text-sm font-semibold text-chinh-sang hover:bg-chinh-nhat disabled:opacity-60"
         >
           {dangChay ? 'Đang chạy…' : '▶ Chạy thử'}
         </button>
@@ -500,7 +500,7 @@ export function KhuLamBai({
           onClick={() => setMoLichSu((v) => !v)}
           aria-expanded={moLichSu}
           aria-controls={`${id}-lich-su`}
-          className="min-h-cham rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+          className="min-h-cham rounded-nut border border-vien px-4 py-2 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
         >
           🕘 {moLichSu ? 'Đóng lịch sử' : 'Lịch sử bài làm'}
         </button>
@@ -654,14 +654,14 @@ function LichSuBanLuu({
                   <button
                     type="button"
                     onClick={() => (chonBan === b.version ? onDong() : onXem(b.version))}
-                    className="min-h-cham rounded-nut border border-vien px-3.5 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+                    className="min-h-cham rounded-nut border border-vien px-3.5 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
                   >
                     {chonBan === b.version ? 'Ẩn so sánh' : 'So sánh'}
                   </button>
                   <button
                     type="button"
                     onClick={() => onQuayLai(b.version)}
-                    className="min-h-cham rounded-nut border border-vien px-3.5 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+                    className="min-h-cham rounded-nut border border-vien px-3.5 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
                   >
                     Quay lại bản này
                   </button>

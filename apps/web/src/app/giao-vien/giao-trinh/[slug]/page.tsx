@@ -11,7 +11,7 @@ import { duLieuGiaoTrinh, type BaiHocGiaoVien } from '@/lib/teacher-data';
 import type { Tier } from '@prisma/client';
 
 const NHAN_TRANG_THAI: Record<string, { nhan: string; lop: string }> = {
-  REQUIRED: { nhan: 'Bắt buộc', lop: 'bg-chinh-nhat text-chinh' },
+  REQUIRED: { nhan: 'Bắt buộc', lop: 'bg-chinh-nhat text-chinh-sang' },
   RECOMMENDED: { nhan: 'Nên làm', lop: 'bg-thu-thach-nen text-thu-thach' },
   OPTIONAL: { nhan: 'Tuỳ chọn', lop: 'bg-the-mo text-chu-phu' },
   ADVANCED: { nhan: 'Nâng cao', lop: 'bg-nang-cao-nen text-nang-cao' },

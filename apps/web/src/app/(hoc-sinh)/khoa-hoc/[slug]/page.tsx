@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { BanDoHocTap } from '@/components/hoc-sinh/ban-do-hoc-tap';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
-import { VoHocSinh } from '@/components/hoc-sinh/vo';
+import { ChuNeon, TheKinh } from '@/components/ui/the-kinh';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireSession } from '@/lib/guard';
 import { duLieuBanDoKhoaHoc } from '@/lib/student-data';
@@ -25,18 +25,18 @@ export default async function BanDoKhoaHoc({ params }: { params: Promise<{ slug:
   const next = data.progress.nextLesson;
 
   return (
-    <VoHocSinh tenHienThi={actor.displayName} nhanh={data.progress.tier}>
+    <>
       <DuongDan muc={[{ nhan: 'Trang chính', href: '/bang-dieu-khien' }, { nhan: data.title }]} />
 
       <header className="mb-8">
-        <p className="m-0 text-sm font-bold tracking-wide text-chinh uppercase">Bản đồ học tập</p>
-        <h1 className="mt-1 mb-2 flex items-center gap-3 text-3xl font-bold sm:text-4xl">
+        <p className="m-0 text-sm font-bold tracking-wide text-chinh-sang uppercase">Bản đồ học tập</p>
+        <h1 className="mt-1 mb-2 flex items-center gap-3 text-3xl font-extrabold sm:text-4xl">
           <span aria-hidden="true">{data.iconEmoji}</span>
-          {data.title}
+          <ChuNeon>{data.title}</ChuNeon>
         </h1>
         <p className="mt-0 mb-5 text-lg text-chu-phu">{data.subtitle}</p>
 
-        <div className="rounded-the border border-vien bg-the p-5">
+        <TheKinh className="p-5">
           <ThanhTienDo
             nhan="Em đã đi được"
             phanTram={data.progress.required.percent}
@@ -50,7 +50,7 @@ export default async function BanDoKhoaHoc({ params }: { params: Promise<{ slug:
               <span aria-hidden="true">🏆 </span>Em đã hoàn thành cả khoá học!
             </p>
           ) : null}
-        </div>
+        </TheKinh>
       </header>
 
       <BanDoHocTap
@@ -58,6 +58,6 @@ export default async function BanDoKhoaHoc({ params }: { params: Promise<{ slug:
         kiemTra={data.kiemTra}
         tiepTheo={next ? { slug: next.slug, title: next.title, order: next.order } : null}
       />
-    </VoHocSinh>
+    </>
   );
 }

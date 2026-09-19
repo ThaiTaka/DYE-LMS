@@ -112,7 +112,7 @@ export function HangNhanSu({
         <div className="min-w-0">
           <h3 className="mt-0 mb-1 flex flex-wrap items-center gap-2 text-lg font-semibold">
             {nv.displayName}
-            <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh">
+            <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh-sang">
               {nv.role === 'ADMIN' ? 'Quản trị' : 'Giáo viên'}
             </span>
             {nv.laToi ? (

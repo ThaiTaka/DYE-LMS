@@ -96,7 +96,7 @@ export default async function TrangKetQua({
             ? 'Toàn hệ thống — mọi lớp trong trường.'
             : 'Các lớp thầy cô đang phụ trách.'}{' '}
           Bài mới nhất lên trước. Bài Micro:bit có hàng chấm riêng ở{' '}
-          <Link href="/giao-vien/microbit" className="font-semibold text-chinh hover:underline">
+          <Link href="/giao-vien/microbit" className="font-semibold text-chinh-sang hover:underline">
             trang Micro:bit
           </Link>
           .
@@ -219,7 +219,7 @@ export default async function TrangKetQua({
                     {b.coTepHex ? (
                       <a
                         href={`/api/bai-nop/${b.submissionId}/hex`}
-                        className="min-h-cham inline-flex items-center gap-1 rounded-nut border border-vien px-3 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+                        className="min-h-cham inline-flex items-center gap-1 rounded-nut border border-vien px-3 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
                       >
                         <span aria-hidden="true">📎</span> Tải tệp .hex
                       </a>
@@ -253,7 +253,7 @@ export default async function TrangKetQua({
                 ) : null}
 
                 <details className="mt-3">
-                  <summary className="min-h-cham cursor-pointer text-sm font-semibold text-chu-phu hover:text-chinh">
+                  <summary className="min-h-cham cursor-pointer text-sm font-semibold text-chu-phu hover:text-chinh-sang">
                     {b.chamTay ? 'Chấm lại' : 'Chấm tay / sửa điểm…'}
                   </summary>
                   <div className="mt-3">

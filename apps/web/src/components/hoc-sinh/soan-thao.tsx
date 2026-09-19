@@ -42,28 +42,28 @@ import { nguonKiemLoiPython } from './kiem-loi-python';
 /**
  * Python syntax colours.
  *
- * Hand-picked rather than inherited from CodeMirror's default light theme,
- * because the default is tuned for adult developers on a white page and several
- * of its tokens fall under 4.5:1 on ours. Every colour here is checked against
- * `--color-the` (#ffffff) in `hien-thi.test.tsx`, which computes the ratios from
- * this file rather than trusting the eye.
+ * Hand-picked rather than inherited from a stock dark theme, because those are
+ * tuned for adult developers who already know what a keyword looks like, and
+ * several of their tokens fall under 4.5:1 on our navy. Every colour here is
+ * checked against `--color-the` (#151a35) in `hien-thi.test.tsx`, which computes
+ * the ratios from this file rather than trusting the eye.
  *
  * Comments are the one that matters most for beginners: they are the thing a
  * teacher asks a 12-year-old to read, so they are not the usual washed-out grey.
  */
 const MAU_CU_PHAP = HighlightStyle.define([
-  { tag: tags.keyword, color: '#7c2d92', fontWeight: '600' },
-  { tag: tags.controlKeyword, color: '#7c2d92', fontWeight: '600' },
-  { tag: [tags.string, tags.special(tags.string)], color: '#0f766e' },
-  { tag: tags.number, color: '#b45309' },
-  { tag: [tags.bool, tags.null], color: '#b45309', fontWeight: '600' },
-  { tag: tags.comment, color: '#5b6b7f', fontStyle: 'italic' },
-  { tag: tags.function(tags.variableName), color: '#1d4ed8' },
-  { tag: tags.definition(tags.variableName), color: '#0f172a' },
-  { tag: [tags.className, tags.typeName], color: '#9a3412', fontWeight: '600' },
-  { tag: tags.operator, color: '#475569' },
-  { tag: tags.punctuation, color: '#475569' },
-  { tag: tags.invalid, color: '#b91c1c' },
+  { tag: tags.keyword, color: '#c084fc', fontWeight: '600' },
+  { tag: tags.controlKeyword, color: '#c084fc', fontWeight: '600' },
+  { tag: [tags.string, tags.special(tags.string)], color: '#6ee7b7' },
+  { tag: tags.number, color: '#fbbf24' },
+  { tag: [tags.bool, tags.null], color: '#fdba74', fontWeight: '600' },
+  { tag: tags.comment, color: '#8b93ad', fontStyle: 'italic' },
+  { tag: tags.function(tags.variableName), color: '#60a5fa' },
+  { tag: tags.definition(tags.variableName), color: '#f8fafc' },
+  { tag: [tags.className, tags.typeName], color: '#f9a8d4', fontWeight: '600' },
+  { tag: tags.operator, color: '#a3abc7' },
+  { tag: tags.punctuation, color: '#a3abc7' },
+  { tag: tags.invalid, color: '#f87171' },
 ]);
 
 /**
@@ -93,17 +93,17 @@ const GIAO_DIEN = EditorView.theme({
     borderInlineEnd: '1px solid var(--color-vien)',
     fontFamily: 'var(--font-mono)',
   },
-  '.cm-activeLine': { backgroundColor: 'rgba(79, 70, 229, 0.06)' },
+  '.cm-activeLine': { backgroundColor: 'rgba(124, 58, 237, 0.10)' },
   '.cm-activeLineGutter': {
-    backgroundColor: 'rgba(79, 70, 229, 0.10)',
+    backgroundColor: 'rgba(124, 58, 237, 0.18)',
     color: 'var(--color-chu)',
   },
   '.cm-selectionBackground, &.cm-focused .cm-selectionBackground': {
-    backgroundColor: 'rgba(79, 70, 229, 0.22)',
+    backgroundColor: 'rgba(124, 58, 237, 0.38)',
   },
   '.cm-matchingBracket, &.cm-focused .cm-matchingBracket': {
-    backgroundColor: 'rgba(4, 120, 87, 0.18)',
-    outline: '1px solid rgba(4, 120, 87, 0.5)',
+    backgroundColor: 'rgba(52, 211, 153, 0.22)',
+    outline: '1px solid rgba(52, 211, 153, 0.6)',
   },
   '.cm-scroller': { overflow: 'auto' },
   '.cm-foldGutter span': { color: 'var(--color-chu-phu)' },
@@ -121,14 +121,14 @@ const GIAO_DIEN = EditorView.theme({
    * distinguish the red still gets all three.
    */
   '.cm-diagnostic-error': {
-    borderInlineStart: '4px solid #b91c1c',
+    borderInlineStart: '4px solid #f87171',
     paddingInlineStart: '0.5rem',
   },
   '.cm-lintRange-error': {
     // Inline SVG so the wave scales with the 16px floor rather than being a
     // fixed-size bitmap that blurs when a student zooms the page.
     backgroundImage:
-      "url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%226%22 height=%223%22%3E%3Cpath d=%22m0 3 1.5-1.5L3 3l1.5-1.5L6 3%22 fill=%22none%22 stroke=%22%23b91c1c%22 stroke-width=%221%22/%3E%3C/svg%3E')",
+      "url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%226%22 height=%223%22%3E%3Cpath d=%22m0 3 1.5-1.5L3 3l1.5-1.5L6 3%22 fill=%22none%22 stroke=%22%23f87171%22 stroke-width=%221%22/%3E%3C/svg%3E')",
     backgroundRepeat: 'repeat-x',
     backgroundPosition: 'left bottom',
     paddingBottom: '2px',
@@ -142,7 +142,7 @@ const GIAO_DIEN = EditorView.theme({
     color: 'var(--color-chu)',
     border: '1px solid var(--color-vien)',
     borderRadius: 'var(--radius-nut, 0.5rem)',
-    boxShadow: '0 4px 16px rgba(15, 23, 42, 0.18)',
+    boxShadow: 'var(--shadow-noi)',
   },
   '.cm-lint-marker-error': { content: 'none' },
   '.cm-gutter-lint': { width: '1.1rem' },
@@ -360,7 +360,7 @@ export function SoanThao({
       ref={oChua}
       data-testid="soan-thao"
       style={{ minHeight: `${soDongToiThieu * 1.6}rem` }}
-      className="overflow-hidden rounded-nut border border-vien bg-the focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-chinh"
+      className="overflow-hidden rounded-nut border border-vien bg-the focus-within:outline focus-within:outline-[3px] focus-within:outline-offset-2 focus-within:outline-chinh-sang"
     />
   );
 }

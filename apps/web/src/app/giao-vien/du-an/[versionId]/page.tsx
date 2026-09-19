@@ -50,7 +50,7 @@ export default async function TrangDuyetMotBan({
           aria-label="Lời nhắn của học sinh"
           className="mb-6 rounded-the border-s-4 border-chinh bg-chinh-nhat p-4"
         >
-          <p className="mt-0 mb-1 text-sm font-bold text-chinh">
+          <p className="mt-0 mb-1 text-sm font-bold text-chinh-sang">
             💬 {ban.duAn.tenHocSinh} nhắn
           </p>
           <p className="m-0 whitespace-pre-wrap">{ban.note}</p>

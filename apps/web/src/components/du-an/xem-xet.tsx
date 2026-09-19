@@ -2,8 +2,8 @@
 
 import { useCallback, useId, useState, useTransition } from 'react';
 
-import { docTepDeSua, nhanXetDuAn } from '@/app/du-an/actions';
-import { CHUA_LAM } from '@/app/du-an/ket-qua';
+import { docTepDeSua, nhanXetDuAn } from '@/app/(hoc-sinh)/du-an/actions';
+import { CHUA_LAM } from '@/app/(hoc-sinh)/du-an/ket-qua';
 import { SoanThao } from '@/components/hoc-sinh/soan-thao';
 
 import { CayTep, coChu } from './cay-tep';
@@ -104,7 +104,7 @@ export function XemXetDuAn({
             <h2 className="m-0 text-base font-bold">Tệp ({tep.length})</h2>
             <a
               href={`/api/du-an/${projectId}/tai-ve?ban=${version}`}
-              className="rounded-nut border border-vien px-3 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+              className="rounded-nut border border-vien px-3 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
             >
               ⬇ Tải .zip
             </a>

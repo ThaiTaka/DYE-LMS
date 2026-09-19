@@ -4,7 +4,7 @@ import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
 import { LOI_HEX_CHU, nhanTepHex } from '@/lib/nop-hex';
 
-import type { KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
+import type { KetQuaNop } from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
 
 /**
  * Receive a .hex a student is handing in for a Micro:bit block.

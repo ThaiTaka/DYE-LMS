@@ -22,7 +22,7 @@ const nopMocStub = vi.hoisted(() => vi.fn());
 const taoStub = vi.hoisted(() => vi.fn());
 const nhanXetStub = vi.hoisted(() => vi.fn());
 
-vi.mock('@/app/du-an/actions', () => ({
+vi.mock('@/app/(hoc-sinh)/du-an/actions', () => ({
   CHUA_LAM: { trangThai: 'chua-lam', thongDiep: '' },
   taiTepLen: taiTepStub,
   luuTepVanBan: luuTepStub,

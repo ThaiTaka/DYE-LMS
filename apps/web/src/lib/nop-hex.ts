@@ -46,7 +46,7 @@ import { db } from '@/lib/db';
 import { lamMoiTrangTienDo } from '@/lib/lam-moi-tien-do';
 import { khoDuAn } from '@/lib/project-storage';
 
-import type { KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
+import type { KetQuaNop } from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
 
 /** What each refusal means to a ten-year-old holding the wrong file. */
 export const LOI_HEX_CHU: Record<LoiHex, string> = {

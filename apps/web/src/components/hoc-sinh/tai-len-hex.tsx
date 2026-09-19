@@ -4,11 +4,11 @@ import { useCallback, useEffect, useId, useRef, useState, useTransition } from '
 
 import { useRouter } from 'next/navigation';
 
-import { xoaBaiNopHexCu } from '@/app/bai-hoc/[slug]/code-actions';
+import { xoaBaiNopHexCu } from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
 
 import { batDauChonTep, ketThucChonTep } from './tieu-diem';
 
-import type { KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
+import type { KetQuaNop } from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
 
 /**
  * Hand in a .hex file by hand — the fallback when the MakeCode frame will not.
@@ -213,7 +213,7 @@ function DaNopHex({ bai }: { bai: BaiNopHexHienThi }) {
         <button
           type="button"
           onClick={() => setXacNhan(true)}
-          className="min-h-cham rounded-nut bg-loi px-5 py-2.5 text-base font-bold text-white hover:opacity-90 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-loi"
+          className="min-h-cham rounded-nut bg-loi px-5 py-2.5 text-base font-bold text-nen hover:opacity-90 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-loi"
         >
           <span aria-hidden="true">🗑 </span>Xóa bài nộp cũ để nộp lại
         </button>
@@ -238,7 +238,7 @@ function DaNopHex({ bai }: { bai: BaiNopHexHienThi }) {
                   if (kq.trangThai === 'da-xoa') router.refresh();
                 })
               }
-              className="min-h-cham rounded-nut bg-loi px-5 py-2.5 text-base font-bold text-white hover:opacity-90 disabled:opacity-60"
+              className="min-h-cham rounded-nut bg-loi px-5 py-2.5 text-base font-bold text-nen hover:opacity-90 disabled:opacity-60"
             >
               {dangXoa ? 'Đang xoá…' : 'Xoá và nộp lại'}
             </button>
@@ -420,7 +420,7 @@ function ChonVaNopHex({
               setKetQua(null);
               if (input.current) input.current.value = '';
             }}
-            className="min-h-cham rounded-nut px-3 py-2 text-sm font-medium text-chu-phu hover:text-chinh"
+            className="min-h-cham rounded-nut px-3 py-2 text-sm font-medium text-chu-phu hover:text-chinh-sang"
           >
             Chọn tệp khác
           </button>

@@ -170,7 +170,7 @@ function NutCay({
           type="button"
           onClick={() => onChon(t)}
           className={`flex min-w-0 flex-1 items-center gap-2 rounded py-1 text-start text-sm ${
-            chon ? 'font-semibold text-chinh' : 'text-chu'
+            chon ? 'font-semibold text-chinh-sang' : 'text-chu'
           }`}
         >
           <span aria-hidden="true">{bieuTuong(t.path)}</span>

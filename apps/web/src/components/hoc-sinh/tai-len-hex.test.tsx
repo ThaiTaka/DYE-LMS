@@ -20,7 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TaiLenHex, type BaiNopHexHienThi } from './tai-len-hex';
 import { dangMoHopChonTep, ketThucChonTep } from './tieu-diem';
 
-import type { KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
+import type { KetQuaNop } from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
 
 const fetchStub = vi.fn<typeof fetch>();
 const xoaStub = vi.hoisted(() => vi.fn());
@@ -28,7 +28,7 @@ const refreshStub = vi.hoisted(() => vi.fn());
 
 // The delete is a server action; under Vitest the real module would pull in
 // next-auth. The router is what the panel refreshes after a delete.
-vi.mock('@/app/bai-hoc/[slug]/code-actions', () => ({ xoaBaiNopHexCu: xoaStub }));
+vi.mock('@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions', () => ({ xoaBaiNopHexCu: xoaStub }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: refreshStub }) }));
 
 /** What the route handler answers: JSON, whatever the status. */

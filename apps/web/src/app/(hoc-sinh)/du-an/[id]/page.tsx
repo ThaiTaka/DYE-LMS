@@ -4,7 +4,6 @@ import { notFound, redirect } from 'next/navigation';
 
 import { KhuDuAn, NopMoc } from '@/components/du-an/khu-du-an';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
-import { VoHocSinh } from '@/components/hoc-sinh/vo';
 import { requireSession, xemDuoc } from '@/lib/guard';
 import { khongGianLamViec, NHAN_TRANG_THAI } from '@/lib/project-data';
 
@@ -27,7 +26,7 @@ export default async function TrangKhongGianDuAn({
   const tt = NHAN_TRANG_THAI[kg.duAn.status];
 
   return (
-    <VoHocSinh tenHienThi={actor.displayName}>
+    <>
       <DuongDan
         muc={[
           { nhan: 'Trang chính', href: '/bang-dieu-khien' },
@@ -120,7 +119,7 @@ export default async function TrangKhongGianDuAn({
                   <ul className="m-0 mt-3 list-none space-y-2 border-t border-vien p-0 pt-3">
                     {b.nhanXet.map((n) => (
                       <li key={n.id} className="rounded-nut bg-chinh-nhat p-3 text-sm">
-                        <p className="mt-0 mb-1 font-semibold text-chinh">
+                        <p className="mt-0 mb-1 font-semibold text-chinh-sang">
                           💬 {n.tenGiaoVien} nhận xét
                         </p>
                         <p className="m-0 whitespace-pre-wrap">{n.comment}</p>
@@ -134,7 +133,7 @@ export default async function TrangKhongGianDuAn({
                 <p className="mt-3 mb-0">
                   <Link
                     href={`/api/du-an/${kg.duAn.id}/tai-ve?ban=${b.version}`}
-                    className="text-sm text-chinh underline underline-offset-2"
+                    className="text-sm text-chinh-sang underline underline-offset-2"
                   >
                     ⬇ Tải bản {b.version} (.zip)
                   </Link>
@@ -144,6 +143,6 @@ export default async function TrangKhongGianDuAn({
           </ul>
         </section>
       ) : null}
-    </VoHocSinh>
+    </>
   );
 }

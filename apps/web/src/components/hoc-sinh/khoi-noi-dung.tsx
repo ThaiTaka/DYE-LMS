@@ -40,7 +40,7 @@ export function KhoiNoiDung({
       <header className="mb-4">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           {khamPha ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-mo-rong px-3 py-1 text-xs font-bold text-white">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-mo-rong px-3 py-1 text-xs font-bold text-nen">
               <span aria-hidden="true">{truyCap.icon}</span>
               {truyCap.nhan}
             </span>
@@ -135,7 +135,7 @@ function NoiDungTheoLoai({
               aria-label="Ý chính cần nhớ"
               className="mt-5 rounded-nut border border-chinh/20 bg-chinh-nhat p-4"
             >
-              <p className="mt-0 mb-2 text-sm font-bold text-chinh">Ghi nhớ</p>
+              <p className="mt-0 mb-2 text-sm font-bold text-chinh-sang">Ghi nhớ</p>
               <ul className="m-0 list-disc space-y-1 ps-5 text-sm">
                 {nd.keyPoints.map((k, i) => (
                   <li key={i}>{k}</li>
@@ -350,7 +350,7 @@ function NoiDungTheoLoai({
                 href={l.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-cham items-center gap-2 rounded text-chinh underline underline-offset-2"
+                className="inline-flex min-h-cham items-center gap-2 rounded text-chinh-sang underline underline-offset-2"
               >
                 {l.label}
                 <span aria-hidden="true">↗</span>
@@ -392,7 +392,7 @@ function NoiDungTheoLoai({
               href={nd.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-3 inline-flex min-h-cham items-center gap-2 rounded-nut border border-vien px-4 py-2 font-medium text-chinh"
+              className="mt-3 inline-flex min-h-cham items-center gap-2 rounded-nut border border-vien px-4 py-2 font-medium text-chinh-sang"
             >
               ▶ Xem video
               {nd.durationSec > 0 ? (

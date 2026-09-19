@@ -14,7 +14,7 @@ import {
 
 import { useRouter } from 'next/navigation';
 
-import { nopMicrobit, type KetQuaNop } from '@/app/bai-hoc/[slug]/code-actions';
+import { nopMicrobit, type KetQuaNop } from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
 
 import { TaiLenHex, type BaiNopHexHienThi } from './tai-len-hex';
 
@@ -718,7 +718,7 @@ export const KhuMicrobit = memo(function KhuMicrobit({
           {trangThai === 'dang-tai' ? (
             <p
               aria-live="polite"
-              className="absolute inset-x-0 top-0 z-10 m-0 bg-chinh-nhat px-4 py-2 text-sm text-chinh"
+              className="absolute inset-x-0 top-0 z-10 m-0 bg-chinh-nhat px-4 py-2 text-sm text-chinh-sang"
             >
               Đang mở trình soạn khối lệnh MakeCode… lần đầu có thể hơi lâu một chút.
             </p>
@@ -791,7 +791,7 @@ export const KhuMicrobit = memo(function KhuMicrobit({
       */}
       {coBaiTap ? (
         <details className="border-t border-vien px-4 py-3">
-          <summary className="min-h-cham cursor-pointer text-sm font-semibold text-chu-phu hover:text-chinh">
+          <summary className="min-h-cham cursor-pointer text-sm font-semibold text-chu-phu hover:text-chinh-sang">
             Trình soạn không mở được? Nộp tệp .hex thay thế
           </summary>
           <div className="mt-3">

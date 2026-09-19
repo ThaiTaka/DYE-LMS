@@ -182,7 +182,7 @@ export function XemKhoiLenh({
             type="button"
             onClick={() => setXemMau((v) => !v)}
             aria-expanded={xemMau}
-            className="min-h-cham rounded-nut border border-vien px-3.5 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+            className="min-h-cham rounded-nut border border-vien px-3.5 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
           >
             {xemMau ? 'Ẩn lời giải mẫu' : 'Xem lời giải mẫu'}
           </button>

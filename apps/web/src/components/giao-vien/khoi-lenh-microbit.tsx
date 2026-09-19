@@ -152,7 +152,7 @@ function Tab({
       onClick={onChon}
       className={`min-h-cham rounded-t-nut border-b-2 px-4 py-2 text-sm font-semibold ${
         chon
-          ? 'border-chinh text-chinh'
+          ? 'border-chinh text-chinh-sang'
           : 'border-transparent text-chu-phu hover:border-vien-dam hover:text-chu'
       }`}
     >

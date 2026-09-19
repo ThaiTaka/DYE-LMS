@@ -48,7 +48,7 @@ export function ThanhChang({ blocks }: { blocks: KhoiHienThi[] }) {
                 className={`flex min-h-cham items-center gap-2 rounded-nut border px-3 py-2 text-sm font-medium ${
                   xongHet
                     ? 'border-dung/30 bg-dung-nen text-dung'
-                    : 'border-vien bg-the text-chu-phu hover:border-chinh hover:text-chinh'
+                    : 'border-vien bg-the text-chu-phu hover:border-chinh hover:text-chinh-sang'
                 }`}
               >
                 <span aria-hidden="true">{xongHet ? '✓' : i + 1}</span>

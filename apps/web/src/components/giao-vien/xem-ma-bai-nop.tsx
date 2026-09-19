@@ -26,7 +26,7 @@ export function XemMaBaiNop({ code, tenHocSinh }: { code: string; tenHocSinh: st
         onClick={() => setMo((v) => !v)}
         aria-expanded={mo}
         aria-controls={vungId}
-        className="min-h-cham rounded-nut border border-vien px-3 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+        className="min-h-cham rounded-nut border border-vien px-3 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
       >
         {mo ? 'Đóng mã' : '</> Xem mã'}
       </button>

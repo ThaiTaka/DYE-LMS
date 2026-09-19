@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useRouter } from 'next/navigation';
 
-import { ghiNhanRoiTab, khoaBaiViPham } from '@/app/bai-hoc/[slug]/giam-sat-actions';
+import { ghiNhanRoiTab, khoaBaiViPham } from '@/app/(hoc-sinh)/bai-hoc/[slug]/giam-sat-actions';
 
 import { dangMoHopChonTep } from './tieu-diem';
 
@@ -505,7 +505,7 @@ function CanhBaoRoiTab({
           ref={nut}
           type="button"
           onClick={onDong}
-          className="min-h-cham w-full rounded-nut bg-thu-lai px-5 py-3 font-semibold text-white hover:opacity-90"
+          className="min-h-cham w-full rounded-nut bg-thu-lai px-5 py-3 font-semibold text-nen hover:opacity-90"
         >
           Tôi Đã Hiểu Và Sẽ Không Vi Phạm
         </button>

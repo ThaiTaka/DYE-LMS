@@ -115,7 +115,7 @@ export function TroLyAo() {
       <button
         type="button"
         onClick={() => doiTrangThai(true)}
-        className="fixed end-4 bottom-4 z-40 min-h-cham rounded-full border border-vien bg-the px-4 py-2 text-sm font-medium text-chu-phu shadow-sm hover:border-chinh hover:text-chinh"
+        className="fixed end-4 bottom-4 z-40 min-h-cham rounded-full border border-vien bg-the px-4 py-2 text-sm font-medium text-chu-phu shadow-sm hover:border-chinh hover:text-chinh-sang"
       >
         <span aria-hidden="true">🤖</span> Gọi Bí quay lại
       </button>
@@ -152,7 +152,7 @@ export function TroLyAo() {
                 <button
                   type="button"
                   onClick={() => setCau((c) => cauKhac(c))}
-                  className="min-h-cham rounded-nut border border-chinh/40 px-3 py-1.5 text-sm font-medium text-chinh hover:bg-the"
+                  className="min-h-cham rounded-nut border border-chinh/40 px-3 py-1.5 text-sm font-medium text-chinh-sang hover:bg-the"
                 >
                   Câu khác
                 </button>

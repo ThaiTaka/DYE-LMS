@@ -16,7 +16,7 @@ import type { BaiThiHienThi } from '@dye/core';
 export function TheKiemTra({ bai }: { bai: BaiThiHienThi }) {
   const nhan = {
     'chua-mo': { icon: '🔒', chu: 'Chưa mở', mau: 'text-chu-nhat' },
-    'san-sang': { icon: '📝', chu: 'Sẵn sàng', mau: 'text-chinh' },
+    'san-sang': { icon: '📝', chu: 'Sẵn sàng', mau: 'text-chinh-sang' },
     'dang-lam': { icon: '⏱', chu: 'Đang làm dở', mau: 'text-thu-lai' },
     'da-nop': {
       icon: bai.luot?.isPassed ? '✅' : '📄',
@@ -36,7 +36,7 @@ export function TheKiemTra({ bai }: { bai: BaiThiHienThi }) {
           {nhan.icon}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="m-0 text-sm font-semibold tracking-wide text-chinh uppercase">
+          <p className="m-0 text-sm font-semibold tracking-wide text-chinh-sang uppercase">
             Bài kiểm tra lớn · sau buổi {bai.afterLessonOrder}
           </p>
           <p className="m-0 text-lg font-bold">{bai.title}</p>
@@ -76,7 +76,7 @@ export function TheKiemTra({ bai }: { bai: BaiThiHienThi }) {
   return xemDuoc ? (
     <Link
       href={`/kiem-tra/${bai.slug}`}
-      className={`${lop} hover:border-chinh-dam focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-chinh`}
+      className={`${lop} hover:border-chinh-dam focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-chinh-sang`}
     >
       {noiDung}
     </Link>

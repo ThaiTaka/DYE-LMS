@@ -8,7 +8,7 @@ import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { KhoiNoiDung } from '@/components/hoc-sinh/khoi-noi-dung';
 import { ThanhChang } from '@/components/hoc-sinh/thanh-chang';
 import { TheoDoiTapTrung } from '@/components/hoc-sinh/theo-doi-tap-trung';
-import { VoHocSinh } from '@/components/hoc-sinh/vo';
+import { ChuNeon } from '@/components/ui/the-kinh';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireSession } from '@/lib/guard';
 import { duLieuBaiHoc } from '@/lib/student-data';
@@ -25,7 +25,7 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
   // boundary and not an HTTP 500.
   if (ketQua.trangThai === 'khoa') {
     return (
-      <VoHocSinh tenHienThi={actor.displayName}>
+      <>
         <DuongDan
           muc={[
             { nhan: 'Trang chính', href: '/bang-dieu-khien' },
@@ -49,7 +49,7 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
             Về bản đồ khoá học
           </Link>
         </section>
-      </VoHocSinh>
+      </>
     );
   }
 
@@ -70,7 +70,7 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
     null;
 
   return (
-    <VoHocSinh tenHienThi={actor.displayName} nhanh={bai.tier}>
+    <>
       <DuongDan
         muc={[
           { nhan: 'Trang chính', href: '/bang-dieu-khien' },
@@ -81,10 +81,12 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
       />
 
       <header className="mb-6">
-        <p className="m-0 text-sm font-semibold tracking-wide text-chinh uppercase">
+        <p className="m-0 text-sm font-semibold tracking-wide text-chinh-sang uppercase">
           Buổi {bai.order} · khoảng {bai.estimatedMinutes} phút
         </p>
-        <h1 className="mt-1 mb-3 text-3xl leading-tight font-bold sm:text-4xl">{bai.title}</h1>
+        <h1 className="mt-1 mb-3 text-3xl leading-tight font-extrabold sm:text-4xl">
+          <ChuNeon>{bai.title}</ChuNeon>
+        </h1>
         <p className="m-0 text-lg leading-relaxed text-chu-phu">{bai.summary}</p>
       </header>
 
@@ -100,7 +102,7 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
           <ul className="m-0 list-none space-y-2 p-0 text-lg leading-relaxed">
             {bai.objectives.map((m, i) => (
               <li key={i} className="flex gap-2.5">
-                <span aria-hidden="true" className="text-chinh">
+                <span aria-hidden="true" className="text-chinh-sang">
                   ○
                 </span>
                 <span>{m}</span>
@@ -212,7 +214,7 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
         {bai.truoc ? (
           <Link
             href={`/bai-hoc/${bai.truoc.slug}`}
-            className="flex min-h-cham items-center gap-2 rounded-nut border border-vien px-4 py-2.5 font-medium text-chu-phu hover:border-chinh hover:text-chinh"
+            className="flex min-h-cham items-center gap-2 rounded-nut border border-vien px-4 py-2.5 font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
           >
             <span aria-hidden="true">←</span>
             Buổi {bai.truoc.order}
@@ -244,6 +246,6 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
           </Link>
         )}
       </nav>
-    </VoHocSinh>
+    </>
   );
 }

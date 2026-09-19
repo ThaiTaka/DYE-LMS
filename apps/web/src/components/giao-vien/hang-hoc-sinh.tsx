@@ -83,7 +83,7 @@ export function HangHocSinh({
               </span>
             ) : null}
             {hs.mustChangePassword ? (
-              <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh">
+              <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh-sang">
                 Chưa đổi mật khẩu
               </span>
             ) : null}

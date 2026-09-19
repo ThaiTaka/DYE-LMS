@@ -552,6 +552,30 @@ model Problem {
   /// Progressive. Revealing one costs XP, never score.
   hints         String[]
   starterCode   String        @default("")
+  /// Scaffolding for Python exercises: the skeleton a student fills in.
+  ///
+  /// Distinct from `starterCode` on purpose. `starterCode` is what the editor
+  /// opens with and the student may delete every line of it; `templateCode` is
+  /// the frame the teacher wants kept — function signatures, `# TODO` gaps, the
+  /// I/O boilerplate a Cơ bản student should not have to type. The UI shows it
+  /// as read-only rails around the editable region, and "Đặt lại về mẫu"
+  /// restores it. Empty means "no template": the editor behaves exactly as before.
+  templateCode  String        @default("")
+  /// Every output that counts as correct, as a JSON array of strings.
+  ///
+  /// For answer-key problems ("what does this print?", "which value is x?")
+  /// there is often more than one right spelling — `3.0` and `3`, `True` and
+  /// `true`, with or without a trailing newline. The judge accepts the student's
+  /// trimmed output if it equals ANY entry (after the problem's TestCase
+  /// comparison rules) instead of one canonical `expectedOutput`. `[]` means
+  /// "not used": grading falls through to the test cases exactly as before.
+  ///
+  /// Quiz *questions* already have their own `Question.acceptedAnswers`
+  /// (String[]) for FILL_BLANK / SHORT_ANSWER; this field is the Problem-level
+  /// counterpart for code exercises. JSON rather than String[] so a later entry
+  /// can carry structure (a per-answer explanation, a regex flag) without
+  /// another migration.
+  acceptedAnswers Json        @default("[]")
   /// Teacher-only. Phase 10 executes every reference solution through the real
   /// judge to prove each seeded problem is actually solvable.
   solutionCode  String        @default("")

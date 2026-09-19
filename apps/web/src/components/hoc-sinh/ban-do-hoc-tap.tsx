@@ -90,9 +90,9 @@ function HocTiep({ bai }: { bai: { slug: string; title: string; order: number } 
   return (
     <section
       aria-labelledby="hoc-tiep"
-      className="rounded-the border-2 border-chinh bg-chinh-nhat p-5 shadow-sm sm:p-6"
+      className="kinh vien-neon rounded-the border-transparent p-5 sm:p-6"
     >
-      <p className="m-0 text-sm font-bold tracking-wide text-chinh uppercase">
+      <p className="m-0 text-sm font-bold tracking-wide text-chinh-sang uppercase">
         <span aria-hidden="true">👉 </span>Bước tiếp theo của em
       </p>
       <h2 id="hoc-tiep" className="mt-1 mb-4 text-2xl leading-snug font-bold sm:text-3xl">
@@ -100,7 +100,7 @@ function HocTiep({ bai }: { bai: { slug: string; title: string; order: number } 
       </h2>
       <Link
         href={`/bai-hoc/${bai.slug}`}
-        className="inline-flex min-h-[3.5rem] items-center gap-3 rounded-nut bg-chinh px-7 py-3 text-xl font-bold text-white shadow-md hover:bg-chinh-dam focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-chinh"
+        className="nut-neon min-h-[3.5rem] px-7 text-xl font-bold"
       >
         Học tiếp
         <span aria-hidden="true" className="text-2xl">
@@ -132,7 +132,7 @@ function CotMoc({
       <span
         aria-hidden="true"
         className={`flex size-11 shrink-0 items-center justify-center rounded-xl text-xl sm:size-14 sm:text-2xl ${
-          daXong ? 'bg-dung text-white' : 'bg-the border-2 border-vien'
+          daXong ? 'bg-dung text-nen' : 'bg-the border-2 border-vien'
         }`}
       >
         {daXong ? '🏆' : '🚩'}
@@ -163,22 +163,22 @@ function Buoc({ bai, laTiepTheo }: { bai: LessonAccess; laTiepTheo: boolean }) {
   const trangThai = bai.completed ? 'xong' : bai.unlocked ? (laTiepTheo ? 'tiep' : 'mo') : 'khoa';
 
   const vong = {
-    xong: 'bg-dung text-white',
+    xong: 'bg-dung text-nen',
     tiep: 'bg-chinh text-white ring-4 ring-chinh/30',
-    mo: 'bg-the border-2 border-chinh text-chinh',
+    mo: 'bg-the border-2 border-chinh text-chinh-sang',
     khoa: 'bg-the-mo border-2 border-vien text-chu-nhat',
   }[trangThai];
 
   const nhan = {
     xong: { chu: 'Đã xong', mau: 'text-dung', icon: '✅' },
-    tiep: { chu: 'Làm tiếp nhé!', mau: 'text-chinh', icon: '▶' },
+    tiep: { chu: 'Làm tiếp nhé!', mau: 'text-chinh-sang', icon: '▶' },
     mo: { chu: 'Đã mở', mau: 'text-chu-phu', icon: '📖' },
     khoa: { chu: 'Chưa mở', mau: 'text-chu-nhat', icon: '🔒' },
   }[trangThai];
 
   const vienThe = {
     xong: 'border-dung/40 bg-the',
-    tiep: 'border-chinh bg-chinh-nhat shadow-sm',
+    tiep: 'border-chinh bg-chinh-nhat shadow-neon',
     mo: 'border-vien bg-the',
     khoa: 'border-vien bg-the-mo/60',
   }[trangThai];
@@ -206,7 +206,7 @@ function Buoc({ bai, laTiepTheo }: { bai: LessonAccess; laTiepTheo: boolean }) {
       </span>
 
       {trangThai === 'tiep' ? (
-        <span className="hidden shrink-0 items-center gap-2 rounded-nut bg-chinh px-5 py-2.5 text-base font-bold text-white sm:inline-flex">
+        <span className="hidden shrink-0 items-center gap-2 rounded-nut border border-white/15 bg-linear-to-r from-chinh to-hong px-5 py-2.5 text-base font-bold text-white shadow-neon sm:inline-flex">
           Bắt đầu <span aria-hidden="true">→</span>
         </span>
       ) : null}
@@ -227,7 +227,7 @@ function Buoc({ bai, laTiepTheo }: { bai: LessonAccess; laTiepTheo: boolean }) {
     <Link
       href={`/bai-hoc/${bai.slug}`}
       aria-current={trangThai === 'tiep' ? 'step' : undefined}
-      className={`${chung} hover:border-chinh focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-chinh`}
+      className={`${chung} hover:border-chinh focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-chinh-sang`}
     >
       {noiDung}
     </Link>

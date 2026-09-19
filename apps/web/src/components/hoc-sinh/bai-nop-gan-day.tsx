@@ -1,5 +1,7 @@
 import Link from 'next/link';
 
+import { TheKinh } from '@/components/ui/the-kinh';
+
 import type { BaiNopGanDay as HangBaiNop } from '@/lib/student-data';
 
 /**
@@ -47,8 +49,8 @@ export function BaiNopGanDay({ baiNop }: { baiNop: HangBaiNop[] }) {
   if (baiNop.length === 0) return null;
 
   return (
-    <section aria-labelledby="tieu-de-bai-nop" className="mb-8">
-      <h2 id="tieu-de-bai-nop" className="mt-0 mb-1 text-xl font-bold">
+    <TheKinh as="section" aria-labelledby="tieu-de-bai-nop" className="p-5">
+      <h2 id="tieu-de-bai-nop" className="mt-0 mb-1 text-base font-bold">
         Bài em đã nộp gần đây
       </h2>
       <p className="mt-0 mb-4 text-sm text-chu-phu">
@@ -57,17 +59,20 @@ export function BaiNopGanDay({ baiNop }: { baiNop: HangBaiNop[] }) {
 
       <ul className="m-0 list-none space-y-2 p-0">
         {baiNop.map((s) => {
+          /*
+           * Stacked, not side by side: this panel lives in the dashboard's
+           * narrow column, where a title and a verdict fighting for one line
+           * both end up wrapped. Title, then where/when, then the verdict row.
+           */
           const noiDung = (
             <>
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold">{s.problemTitle}</span>
-                <span className="block text-sm text-chu-phu">
-                  {s.lesson ? `Buổi ${s.lesson.order} · ${s.lesson.title} · ` : ''}
-                  lần {s.attemptNo} · {gioPhut(s.nopLuc)}
-                </span>
+              <span className="block font-semibold">{s.problemTitle}</span>
+              <span className="block text-sm text-chu-phu">
+                {s.lesson ? `Buổi ${s.lesson.order} · ${s.lesson.title} · ` : ''}
+                lần {s.attemptNo} · {gioPhut(s.nopLuc)}
               </span>
 
-              <span className="flex shrink-0 flex-col items-end gap-0.5 text-sm">
+              <span className="mt-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-sm">
                 <span
                   className={
                     s.dangCho
@@ -81,7 +86,7 @@ export function BaiNopGanDay({ baiNop }: { baiNop: HangBaiNop[] }) {
                   {NHAN[s.verdict] ?? s.verdict}
                 </span>
                 {!s.dangCho ? (
-                  <span className="text-chu-phu">
+                  <span className="text-chu-phu tabular-nums">
                     {s.totalTests > 0 ? `${s.passedTests}/${s.totalTests} test · ` : ''}
                     {s.score}/{s.totalPoints} điểm
                   </span>
@@ -91,14 +96,14 @@ export function BaiNopGanDay({ baiNop }: { baiNop: HangBaiNop[] }) {
           );
 
           const lop =
-            'flex items-start justify-between gap-4 rounded-nut border border-vien bg-the p-4';
+            'block rounded-the-nho border border-vien bg-white/[0.03] p-3.5 transition-colors';
 
           return (
             <li key={s.id}>
               {s.lesson ? (
                 <Link
                   href={`/bai-hoc/${s.lesson.slug}`}
-                  className={`${lop} hover:border-chinh focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-chinh`}
+                  className={`${lop} hover:border-chinh-sang/60 hover:bg-white/[0.05]`}
                 >
                   {noiDung}
                 </Link>
@@ -109,6 +114,6 @@ export function BaiNopGanDay({ baiNop }: { baiNop: HangBaiNop[] }) {
           );
         })}
       </ul>
-    </section>
+    </TheKinh>
   );
 }

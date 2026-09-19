@@ -48,22 +48,22 @@ export function ThanhTienDo({
         aria-valuenow={giaTri}
         aria-valuetext={moTa}
         aria-label={nhan}
-        className={`w-full overflow-hidden rounded-full bg-the-mo ${
+        className={`w-full overflow-hidden rounded-full bg-white/[0.08] ${
           cao === 'lon' ? 'h-4' : 'h-3'
         }`}
       >
         {/*
-          Two different greens, not one.
+          Two different fills, not one.
 
-          The brand is emerald now, so "in progress" and "finished" would
-          otherwise be the same colour and the bar would stop saying anything
-          until it happened to reach the end. In progress is the bright fill
-          (`chinh-tuoi`); finished is the deep one, and the 🎉 line below
-          carries the same news in words.
+          In progress is the brand gradient, violet running to pink; finished
+          is solid green. If both were the gradient the bar would stop saying
+          anything until it happened to reach the end, and the 🎉 line below
+          carries the same news in words for anyone who cannot tell the two
+          apart.
         */}
         <div
           className={`h-full rounded-full transition-[width] duration-500 ${
-            xong ? 'bg-dung' : 'bg-chinh-tuoi'
+            xong ? 'bg-dung' : 'bg-linear-to-r from-chinh to-hong shadow-[0_0_12px_rgba(124,58,237,0.55)]'
           }`}
           style={{ width: `${giaTri}%` }}
         />

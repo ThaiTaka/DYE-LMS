@@ -69,9 +69,9 @@ export async function VoGiaoVien({
             href="/giao-vien"
             className="flex items-center gap-2 rounded text-lg font-bold text-chu"
           >
-            <DauHieu className="h-5 w-5 text-chinh" />
+            <DauHieu className="h-5 w-5 text-chinh-sang" />
             <span>DYE LMS</span>
-            <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh">
+            <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh-sang">
               {vaiTro === 'ADMIN' ? 'Quản trị' : 'Giáo viên'}
             </span>
           </Link>
@@ -140,7 +140,7 @@ function MucDieuHuong({
     >
       {children}
       {huy > 0 ? (
-        <span className="rounded-full bg-thu-lai px-2 py-0.5 text-xs font-bold text-white tabular-nums">
+        <span className="rounded-full bg-thu-lai px-2 py-0.5 text-xs font-bold text-nen tabular-nums">
           {huy}
           <span className="sr-only"> cảnh báo chưa xử lý</span>
         </span>

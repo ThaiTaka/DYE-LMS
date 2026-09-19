@@ -23,7 +23,7 @@ import type { ProjectStatus, ProjectTemplate } from '@prisma/client';
 
 export const NHAN_TRANG_THAI: Record<ProjectStatus, { nhan: string; lop: string }> = {
   DRAFT: { nhan: 'Đang làm', lop: 'bg-the-mo text-chu-phu' },
-  SUBMITTED: { nhan: 'Đã nộp, chờ thầy cô xem', lop: 'bg-chinh-nhat text-chinh' },
+  SUBMITTED: { nhan: 'Đã nộp, chờ thầy cô xem', lop: 'bg-chinh-nhat text-chinh-sang' },
   IN_REVIEW: { nhan: 'Thầy cô đang xem', lop: 'bg-thu-thach-nen text-thu-thach' },
   CHANGES_REQUESTED: { nhan: 'Cần chỉnh thêm', lop: 'bg-thu-lai-nen text-thu-lai' },
   APPROVED: { nhan: 'Đã duyệt 🎉', lop: 'bg-dung-nen text-dung' },

@@ -36,7 +36,7 @@ export default async function TrangKiemTra({ params }: { params: Promise<{ slug:
   if (bai.trangThai === 'chua-mo') {
     return (
       <main className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
-        <p className="m-0 text-sm font-semibold tracking-wide text-chinh uppercase">
+        <p className="m-0 text-sm font-semibold tracking-wide text-chinh-sang uppercase">
           Bài kiểm tra lớn · {bai.courseTitle}
         </p>
         <h1 className="mt-1 mb-3 text-3xl font-bold">{bai.title}</h1>
@@ -51,7 +51,7 @@ export default async function TrangKiemTra({ params }: { params: Promise<{ slug:
           <ul className="m-0 mb-6 list-disc space-y-1 ps-5">
             {bai.conThieu.map((b) => (
               <li key={b.slug}>
-                <Link href={`/bai-hoc/${b.slug}`} className="font-semibold text-chinh hover:underline">
+                <Link href={`/bai-hoc/${b.slug}`} className="font-semibold text-chinh-sang hover:underline">
                   Buổi {b.order} · {b.title}
                 </Link>
               </li>

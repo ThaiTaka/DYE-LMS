@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react';
 
-import { danhDauKhoiXong } from '@/app/bai-hoc/[slug]/actions';
+import { danhDauKhoiXong } from '@/app/(hoc-sinh)/bai-hoc/[slug]/actions';
 
 /**
  * "Em đã đọc xong" — the button that completes a reading block.
@@ -65,7 +65,7 @@ export function NutDaDocXong({
             }
           });
         }}
-        className="inline-flex min-h-[3.25rem] items-center gap-3 rounded-nut bg-chinh px-6 py-3 text-lg font-bold text-white shadow-sm hover:bg-chinh-dam focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-chinh disabled:opacity-60"
+        className="inline-flex min-h-[3.25rem] items-center gap-3 rounded-nut bg-chinh px-6 py-3 text-lg font-bold text-white shadow-sm hover:bg-chinh-dam focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-chinh-sang disabled:opacity-60"
       >
         <span aria-hidden="true" className="text-2xl">
           ✔
