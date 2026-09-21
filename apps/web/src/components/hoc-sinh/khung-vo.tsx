@@ -48,12 +48,15 @@ const MUC_CO_DINH: Array<{ href: string; nhan: string; icon: TenBieuTuong; chinh
  */
 export function KhungVo({
   tenHienThi,
+  anhDaiDien = null,
   nhanh,
   khoaHoc,
   dangXuat,
   children,
 }: {
   tenHienThi: string;
+  /** The signed-in student's picture; null falls back to their initials. */
+  anhDaiDien?: string | null | undefined;
   nhanh: KieuNhanh | null;
   khoaHoc: KhoaHocThanhBen[];
   dangXuat: () => Promise<void>;
@@ -181,7 +184,7 @@ export function KhungVo({
         {/* Who is signed in, and the way out. */}
         <div className="shrink-0 border-t border-vien p-3">
           <div className="flex items-center gap-3 rounded-the-nho border border-vien bg-white/[0.03] p-3">
-            <Avatar name={tenHienThi} trangTri />
+            <Avatar name={tenHienThi} anh={anhDaiDien} trangTri />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-chu">{tenHienThi}</span>
               {nhanh ? (
@@ -237,7 +240,7 @@ export function KhungVo({
               <span className="hidden text-sm font-medium text-chu-phu md:inline">
                 {tenHienThi}
               </span>
-              <Avatar name={tenHienThi} co="nho" />
+              <Avatar name={tenHienThi} anh={anhDaiDien} co="nho" />
             </div>
           </div>
         </header>

@@ -533,6 +533,35 @@ describe('CSP chỉ nới lỏng cho máy chủ phát triển', () => {
     expect(csp).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval'");
   });
 
+  /*
+   * `img-src` allows https:, and that is the ONLY scheme relaxation here.
+   *
+   * Profile pictures (`User.avatarUrl`) may point anywhere — a Google or
+   * GitHub avatar, a photo on the school's site — so without this the browser
+   * blocks every external one silently and the feature looks broken rather
+   * than forbidden. An image is not a script, and the pairing below is what
+   * makes that a safe trade: if a future edit ever widens `script-src` or
+   * `connect-src` the same way, this fails.
+   */
+  it('ảnh cho phép https:, nhưng script và connect thì tuyệt đối không', async () => {
+    for (const env of ['production', 'development']) {
+      const csp = await docCsp(env);
+      const chiThi = (ten: string) =>
+        csp
+          .split(';')
+          .map((d) => d.trim())
+          .find((d) => d.startsWith(`${ten} `)) ?? '';
+
+      expect(chiThi('img-src'), env).toContain('https:');
+      // http: stays out, so a picture cannot introduce mixed content. Padded
+      // with a space so the `https:` token cannot satisfy the check.
+      expect(`${chiThi('img-src')} `, env).not.toContain(' http: ');
+
+      expect(chiThi('script-src'), env).not.toContain('https:');
+      expect(chiThi('connect-src'), env).toBe("connect-src 'self'");
+    }
+  });
+
   it('NODE_ENV lạ hoặc thiếu thì vẫn dùng chính sách chặt', async () => {
     // Fail safe: only the exact string "development" relaxes the policy, so a
     // build with NODE_ENV unset ships the strict header rather than the loose

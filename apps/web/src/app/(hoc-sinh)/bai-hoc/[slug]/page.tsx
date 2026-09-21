@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 
 import { BiKhoaViPham } from '@/components/hoc-sinh/bi-khoa-vi-pham';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
-import { KhoiNoiDung } from '@/components/hoc-sinh/khoi-noi-dung';
+import { KhoiNoiDung, moiTruongCuaBai } from '@/components/hoc-sinh/khoi-noi-dung';
 import { ThanhChang } from '@/components/hoc-sinh/thanh-chang';
 import { TheoDoiTapTrung } from '@/components/hoc-sinh/theo-doi-tap-trung';
 import { ChuNeon } from '@/components/ui/the-kinh';
@@ -64,6 +64,16 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
    * cannot know where the cursor was — and it only ever ADDS a problem to the
    * set already selected by having a draft.
    */
+  /*
+   * Python or Micro:bit — decided once, for the whole lesson.
+   *
+   * A Micro:bit session that also carries a Python warm-up block used to open
+   * a CodeMirror editor beside the MakeCode iframe, so the page showed two
+   * workspaces and said nothing about which one the homework went in. Passing
+   * the answer down lets each block stand down instead of guessing.
+   */
+  const moiTruong = moiTruongCuaBai(bai.blocks);
+
   const khoiDangLam =
     bai.blocks.find((k) => k.baiTap !== null && !k.completed)?.blockId ??
     bai.blocks.find((k) => k.baiTap !== null)?.blockId ??
@@ -200,7 +210,7 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
                   <span className="h-px flex-1 bg-vien" />
                 </div>
               ) : null}
-              <KhoiNoiDung khoi={khoi} khoaViPham={bai.khoaViPham} />
+              <KhoiNoiDung khoi={khoi} moiTruong={moiTruong} khoaViPham={bai.khoaViPham} />
             </div>
           );
         })}

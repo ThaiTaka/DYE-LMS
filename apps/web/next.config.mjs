@@ -144,7 +144,35 @@ const nextConfig = {
                 ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
                 : "script-src 'self' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob:",
+              /*
+               * `https:` is here for ONE thing: profile pictures.
+               *
+               * `User.avatarUrl` accepts any http(s) URL (`anhHopLe` in
+               * @dye/core), which is how an account carries a picture that
+               * already exists somewhere — a Google or GitHub avatar, a photo
+               * on the school's own site. Without this the browser blocks
+               * every one of them before a byte is fetched, silently, and the
+               * feature looks broken rather than forbidden.
+               *
+               * What this does NOT do is weaken the policy that matters. An
+               * image is not a script: `script-src` is untouched, so a remote
+               * host still cannot execute anything here. The bare scheme is
+               * used rather than a host list because the URLs are typed in by
+               * teachers and are not knowable in advance; `http:` is
+               * deliberately left out so a picture cannot introduce mixed
+               * content on an https deployment.
+               *
+               * The cost is real and worth naming: a remote image request
+               * tells that host a visitor's IP and referrer. `Referrer-Policy:
+               * strict-origin-when-cross-origin` above trims the referrer to
+               * this origin, and `<Avatar>` falls back to initials whenever a
+               * picture fails to load, so nothing breaks if a host disappears.
+               *
+               * Lesson illustrations are a different question and still
+               * resolve to `'self'` in practice — see hinh-bai-hoc.tsx, which
+               * relies on a failed load collapsing to nothing.
+               */
+              "img-src 'self' https: data: blob:",
               "font-src 'self' data:",
               "connect-src 'self'",
               "frame-ancestors 'none'",

@@ -31,6 +31,17 @@ export interface Actor {
   role: Role;
   isActive: boolean;
   mustChangePassword: boolean;
+  /**
+   * The person's picture, or null when they have none.
+   *
+   * Optional on the INTERFACE, always present on what `login` and
+   * `validateSession` return. Every permission check in this package takes an
+   * `Actor` as input and none of them care what the person looks like, so
+   * requiring the field would mean editing dozens of call sites and fixtures
+   * to carry a value none of them read. The two places that mint an actor from
+   * the database always set it, which is what the UI depends on.
+   */
+  avatarUrl?: string | null;
 }
 
 export interface SessionContext {
@@ -131,6 +142,9 @@ export async function validateSession(
           role: true,
           isActive: true,
           mustChangePassword: true,
+          // Carried on the session so the shell can draw the person's picture
+          // without a second query on every page load.
+          avatarUrl: true,
         },
       },
     },

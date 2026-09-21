@@ -45,11 +45,14 @@ async function dangXuat(): Promise<void> {
  */
 export function VoHocSinh({
   tenHienThi,
+  anhDaiDien = null,
   nhanh,
   khoaHoc,
   children,
 }: {
   tenHienThi: string;
+  /** `session.user.image`. Null — the usual case — draws initials instead. */
+  anhDaiDien?: string | null | undefined;
   nhanh?: Tier | undefined;
   khoaHoc: KhoaHocThanhBen[];
   children: ReactNode;
@@ -62,7 +65,13 @@ export function VoHocSinh({
         Bỏ qua, tới nội dung chính
       </a>
 
-      <KhungVo tenHienThi={tenHienThi} nhanh={kieu} khoaHoc={khoaHoc} dangXuat={dangXuat}>
+      <KhungVo
+        tenHienThi={tenHienThi}
+        anhDaiDien={anhDaiDien}
+        nhanh={kieu}
+        khoaHoc={khoaHoc}
+        dangXuat={dangXuat}
+      >
         {children}
       </KhungVo>
 

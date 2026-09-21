@@ -39,7 +39,6 @@ import {
   mcq,
   mcqBlock,
   microbitTask,
-  playground,
   reflection,
   theory,
 } from '../builders.ts';
@@ -229,10 +228,29 @@ export const microbitBuoi01: LessonSpec = {
     // ═══════════════════════════════════════════════════════════════════════
     // Sân chơi
     // ═══════════════════════════════════════════════════════════════════════
-    playground(
+    /*
+     * This was a `playground()` — a PYTHON block, in a Micro:bit session.
+     *
+     * The lesson player renders a PLAYGROUND block as the CodeMirror Python
+     * editor, so this put a Python box on the same page as the MakeCode
+     * workspace below and left a ten-year-old to work out which one their
+     * homework went in. The editor was never the point either: the block's own
+     * text said "khung dưới đây chỉ để em ghi lại thứ mình định làm", which is
+     * a notebook, not a program.
+     *
+     * So the instructions stay as theory and the note-to-self becomes a
+     * reflection — the block kind that means exactly "think about this and
+     * write it in your vở". Nothing is lost, and there is one workspace on the
+     * page. Rule M7 in assertions.ts now refuses a PLAYGROUND anywhere in a
+     * Micro:bit course, so this cannot come back by accident.
+     *
+     * The mandated flow is unaffected: the `example()` block above is the
+     * hands-on step `assertPedagogicalFlow` looks for before the quiz.
+     */
+    theory(
       'Sân chơi: thử trước khi làm bài',
       [
-        'Mở MakeCode ở một tab khác và thử ba việc sau. Chưa chấm điểm gì cả — em cứ nghịch.',
+        'Mở MakeCode lên và thử ba việc sau. Chưa chấm điểm gì cả — em cứ nghịch.',
         '',
         '1. Kéo một khối `show string` và cho nó hiện tên em',
         '2. Sửa thành một câu dài (khoảng 20 chữ cái) và bấm chạy — đếm xem mất bao lâu',
@@ -241,16 +259,20 @@ export const microbitBuoi01: LessonSpec = {
         'Việc thứ ba quan trọng nhất: em tự nhìn thấy vì sao phải viết không dấu,',
         'thay vì chỉ đọc thầy cô dặn.',
         '',
-        'Khung dưới đây chỉ để em ghi lại thứ mình định làm — bài thật nằm ở phần sau.',
+        'Xong ba việc đó thì kéo xuống phần bài làm bên dưới — khu kéo thả MakeCode',
+        'nằm ngay trong trang, em không cần mở tab khác.',
       ].join('\n'),
       [
-        '# Em định cho board hiện chữ gì?',
-        '# Viết ra đây trước, rồi sang MakeCode kéo khối.',
-        '',
-        'chu_em_muon_hien = "..."',
-      ].join('\n'),
-      'Thử được cả ba việc trong MakeCode và tự trả lời được vì sao chữ có dấu không hiện ra.',
-      { minutes: 15 },
+        'Chữ có dấu không hiện được trên màn hình LED.',
+        'Câu càng dài thì chạy càng lâu — nên để dưới 10 chữ cái.',
+        'Nghịch thử không làm hỏng gì cả, cứ mạnh dạn bấm chạy.',
+      ],
+      { minutes: 12 },
+    ),
+
+    reflection(
+      'Em định cho board hiện chữ gì?',
+      'Trước khi làm bài, em ghi ra vở câu mình muốn cho board hiện lên — nhớ viết không dấu. Xong rồi bấm nút bên dưới.',
     ),
 
     // ═══════════════════════════════════════════════════════════════════════

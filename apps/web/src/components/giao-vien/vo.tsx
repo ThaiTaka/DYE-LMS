@@ -102,8 +102,14 @@ export async function VoGiaoVien({
           <div className="ms-auto flex items-center gap-3">
             <span className="hidden text-sm text-chu-phu md:inline">{tenHienThi}</span>
             {/* Named after the person, not decorative: below `md` it is the only
-                sign of who is signed in. */}
-            <Avatar name={tenHienThi} co="nho" />
+                sign of who is signed in.
+
+                The picture comes off the session `currentActor()` already read
+                for the badge counts above, so it costs nothing — no prop to
+                thread through the sixteen pages that mount this header, and no
+                second lookup. No picture, or one that fails to load, falls back
+                to the initials inside `<Avatar>`. */}
+            <Avatar name={tenHienThi} anh={actor?.avatarUrl} co="nho" />
             <form action={dangXuat}>
               <button
                 type="submit"

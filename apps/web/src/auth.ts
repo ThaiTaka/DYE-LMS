@@ -39,6 +39,19 @@ export interface DyeUser {
   displayName: string;
   role: Role;
   mustChangePassword: boolean;
+  /**
+   * The person's picture, or null.
+   *
+   * Named `image` because that is the field Auth.js already declares on
+   * `session.user`, and the token claim it maps to is `picture`. Keeping those
+   * two names means `session.user.image` works for any component that reads a
+   * session the ordinary way, without a DYE-specific field to learn.
+   *
+   * It is a URL, not a file: `@dye/core` validated the scheme when the account
+   * was created (`anhHopLe` — http(s) or site-relative only), so nothing
+   * `javascript:`-shaped can reach an `src` from here.
+   */
+  image: string | null;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
@@ -84,6 +97,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             displayName: result.actor.displayName,
             role: result.actor.role,
             mustChangePassword: result.mustChangePassword,
+            image: result.actor.avatarUrl ?? null,
             // Handed to `encode` below and never sent to the client as data.
             sessionToken: result.session.token,
           };
@@ -120,6 +134,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         displayName: actor.displayName,
         role: actor.role,
         mustChangePassword: actor.mustChangePassword,
+        /*
+         * Re-read from the database on every request, like everything else
+         * here — so a picture a teacher changes or removes is reflected on the
+         * next page load rather than at token expiry. The `picture` spelling
+         * is the standard JWT claim Auth.js maps onto `session.user.image`.
+         */
+        picture: actor.avatarUrl ?? null,
       };
     },
   },
@@ -134,6 +155,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token['displayName'] = u.displayName;
         token['role'] = u.role;
         token['mustChangePassword'] = u.mustChangePassword;
+        token.picture = u.image;
       }
       return token;
     },
@@ -147,6 +169,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           displayName: String(token['displayName'] ?? ''),
           role: token['role'] as Role,
           mustChangePassword: Boolean(token['mustChangePassword']),
+          /*
+           * Empty string is normalised to null so a component can test the
+           * field rather than test the field AND its emptiness. `<Avatar>`
+           * falls back to initials on null, and an empty `src` would otherwise
+           * make the browser re-request the current page as an image.
+           */
+          image: typeof token.picture === 'string' && token.picture !== '' ? token.picture : null,
         };
       }
       return session;
@@ -167,6 +196,7 @@ export async function currentActor(): Promise<{
   role: Role;
   isActive: true;
   mustChangePassword: boolean;
+  avatarUrl: string | null;
 } | null> {
   const session = await auth();
   const user = session?.user as (DyeUser & { id?: string }) | undefined;
@@ -179,5 +209,8 @@ export async function currentActor(): Promise<{
     role: user.role,
     isActive: true,
     mustChangePassword: user.mustChangePassword,
+    // Spelled `avatarUrl` here, `image` on the session: this shape is the one
+    // @dye/core's guards take, and theirs is the column name.
+    avatarUrl: user.image ?? null,
   };
 }

@@ -128,6 +128,7 @@ export default async function TrangLop({
                         <span className="flex items-center gap-3">
                           <Avatar
                             name={h.displayName}
+                            anh={h.anhDaiDien}
                             co="nho"
                             trangTri
                             className={h.isActive ? '' : 'opacity-50'}

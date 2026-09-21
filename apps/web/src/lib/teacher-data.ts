@@ -292,6 +292,8 @@ export interface HangHocSinh {
   studentId: string;
   displayName: string;
   username: string;
+  /** `User.avatarUrl`. Null — the usual case — draws the child's initials. */
+  anhDaiDien: string | null;
   isActive: boolean;
   tier: Tier;
   progress: CourseProgress;
@@ -333,7 +335,13 @@ export async function duLieuLop(
         where: { isActive: true },
         select: {
           student: {
-            select: { id: true, displayName: true, username: true, isActive: true },
+            select: {
+              id: true,
+              displayName: true,
+              username: true,
+              avatarUrl: true,
+              isActive: true,
+            },
           },
         },
       },
@@ -357,6 +365,7 @@ export async function duLieuLop(
         studentId: student.id,
         displayName: student.displayName,
         username: student.username,
+        anhDaiDien: student.avatarUrl,
         isActive: student.isActive,
         tier: progress.tier,
         progress,
@@ -413,6 +422,8 @@ export interface DuLieuHocSinh {
   studentId: string;
   displayName: string;
   username: string;
+  /** `User.avatarUrl`. Null — the usual case — draws the child's initials. */
+  anhDaiDien: string | null;
   isActive: boolean;
   classId: string;
   className: string;
@@ -438,6 +449,7 @@ export async function duLieuHocSinh(
       id: true,
       displayName: true,
       username: true,
+      avatarUrl: true,
       isActive: true,
       enrollments: {
         where: {
@@ -502,6 +514,7 @@ export async function duLieuHocSinh(
     studentId: student.id,
     displayName: student.displayName,
     username: student.username,
+    anhDaiDien: student.avatarUrl,
     isActive: student.isActive,
     classId: enrolment.class.id,
     className: enrolment.class.name,
@@ -559,6 +572,8 @@ export interface HocSinhChuaSanSang {
   studentId: string;
   displayName: string;
   username: string;
+  /** `User.avatarUrl`. Null — the usual case — draws the child's initials. */
+  anhDaiDien: string | null;
   isActive: boolean;
   lyDo: LyDoChuaXem;
   /**
@@ -588,6 +603,7 @@ export async function duLieuHocSinhChuaSanSang(
         role: true,
         displayName: true,
         username: true,
+        avatarUrl: true,
         isActive: true,
         enrollments: {
           where: {
@@ -623,6 +639,7 @@ export async function duLieuHocSinhChuaSanSang(
     studentId: student.id,
     displayName: student.displayName,
     username: student.username,
+    anhDaiDien: student.avatarUrl,
     isActive: student.isActive,
     lyDo,
     lopXepDuoc: lop.map((l) => ({ id: l.id, ten: l.name, ma: l.code })),
@@ -845,6 +862,8 @@ export interface HangNhanVien {
   id: string;
   username: string;
   displayName: string;
+  /** `User.avatarUrl`. Null — the usual case — draws their initials. */
+  anhDaiDien: string | null;
   role: Role;
   isActive: boolean;
   soLop: number;
@@ -889,6 +908,7 @@ export async function duLieuNhanVien(actor: Actor): Promise<DuLieuNhanVien> {
         id: true,
         username: true,
         displayName: true,
+        avatarUrl: true,
         role: true,
         isActive: true,
         _count: { select: { taughtClasses: true } },
@@ -919,6 +939,7 @@ export async function duLieuNhanVien(actor: Actor): Promise<DuLieuNhanVien> {
       id: s.id,
       username: s.username,
       displayName: s.displayName,
+      anhDaiDien: s.avatarUrl,
       role: s.role,
       isActive: s.isActive,
       soLop: s._count.taughtClasses,
@@ -1278,6 +1299,8 @@ export interface HangTaiKhoanHocSinh {
   id: string;
   username: string;
   displayName: string;
+  /** `User.avatarUrl`. Null — the usual case — draws the child's initials. */
+  anhDaiDien: string | null;
   isActive: boolean;
   mustChangePassword: boolean;
   /** Class names this student is actively enrolled in. */
@@ -1324,6 +1347,7 @@ export async function duLieuTaiKhoanHocSinh(actor: Actor): Promise<DuLieuTaiKhoa
         id: true,
         username: true,
         displayName: true,
+        avatarUrl: true,
         isActive: true,
         mustChangePassword: true,
         enrollments: {
@@ -1352,6 +1376,7 @@ export async function duLieuTaiKhoanHocSinh(actor: Actor): Promise<DuLieuTaiKhoa
       id: s.id,
       username: s.username,
       displayName: s.displayName,
+      anhDaiDien: s.avatarUrl,
       isActive: s.isActive,
       mustChangePassword: s.mustChangePassword,
       lop: s.enrollments.map((e) => e.class.name),

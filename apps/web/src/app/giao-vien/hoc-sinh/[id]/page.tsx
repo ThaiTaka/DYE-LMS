@@ -66,7 +66,7 @@ export default async function TrangHocSinh({
 
       <header className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="flex min-w-0 items-center gap-4">
-          <Avatar name={hs.displayName} co="lon" trangTri />
+          <Avatar name={hs.displayName} anh={hs.anhDaiDien} co="lon" trangTri />
           <div className="min-w-0">
             <h1 className="mt-0 mb-1 text-3xl font-bold">{hs.displayName}</h1>
             <p className="m-0 text-chu-phu">
@@ -245,7 +245,7 @@ function ChuaSanSang({ actor, chua }: { actor: Actor; chua: HocSinhChuaSanSang }
 
       <header className="mb-6 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
         <div className="flex min-w-0 items-center gap-4">
-          <Avatar name={chua.displayName} co="lon" trangTri />
+          <Avatar name={chua.displayName} anh={chua.anhDaiDien} co="lon" trangTri />
           <div className="min-w-0">
             <h1 className="mt-0 mb-1 text-3xl font-bold">{chua.displayName}</h1>
             <p className="m-0 text-chu-phu">

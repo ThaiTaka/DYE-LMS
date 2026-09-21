@@ -8,8 +8,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { assertCurriculumCompliance, CurriculumViolation } from '../prisma/seed/assertions.ts';
+import { apDungBoSung } from '../prisma/seed/courses/bo-sung/ap-dung.ts';
 import { allCourses } from '../prisma/seed/courses/index.ts';
-import type { CourseSpec, LessonSpec } from '../prisma/seed/types.ts';
+import type { BlockSpec, CourseSpec, LessonSpec } from '../prisma/seed/types.ts';
 
 const byCourse = (slug: string): CourseSpec => {
   const course = allCourses.find((c) => c.slug === slug);
@@ -301,6 +302,157 @@ describe('bộ kiểm tra tuân thủ tự phát hiện vi phạm', () => {
     }
 
     expect(() => assertCurriculumCompliance([broken])).toThrow(/pedagogical-flow/u);
+  });
+
+  /*
+   * Rule M7 — one workspace per Micro:bit session.
+   *
+   * `microbit-buoi-01` shipped a `playground()` warm-up, which the lesson
+   * player draws as the CodeMirror PYTHON editor. On a page that already has
+   * the MakeCode embed that is two workspaces and no way for a ten-year-old to
+   * tell which one their homework goes in. The seed is fixed; these are what
+   * keep it fixed.
+   */
+  const buoiMicrobit = (): CourseSpec => JSON.parse(JSON.stringify(byCourse('microbit-co-ban')));
+
+  it.each(['PLAYGROUND', 'MINI_CHALLENGE', 'CODING'] as const)(
+    'bắt được khối %s (khung Python) lọt vào khoá Micro:bit',
+    (loai) => {
+      const broken = buoiMicrobit();
+      const lesson = broken.modules[0]?.lessons[0];
+      lesson?.blocks.push({
+        type: loai,
+        title: 'Sân chơi Python lạc chỗ',
+        content: { kind: 'playground', markdown: '', starterCode: '', goal: '' },
+      });
+
+      expect(() => assertCurriculumCompliance([broken])).toThrow(/microbit-python-workspace/u);
+    },
+  );
+
+  it('vẫn cho phép example() trong khoá Micro:bit — nó là <pre>, không phải khung gõ', () => {
+    // Rule 13 needs this block as the hands-on step before a first assessment,
+    // so banning it would make the two rules impossible to satisfy together.
+    const ok = buoiMicrobit();
+    const lesson = ok.modules[0]?.lessons[0];
+    lesson?.blocks.push({
+      type: 'INTERACTIVE_EXAMPLE',
+      title: 'Ví dụ thêm',
+      content: { kind: 'example', markdown: 'abc', code: 'basic.showIcon(IconNames.Heart)' },
+    });
+
+    expect(() => assertCurriculumCompliance([ok])).not.toThrow();
+  });
+});
+
+/**
+ * The expansion packs, and the one block nobody authors.
+ *
+ * `apDungBoSung` is the only place a block lands in a lesson without that
+ * lesson's author choosing it: when appending tasks would make a theory-only
+ * session jump straight to assessment, it inserts the pack's `khoiDong`
+ * warm-up. No pack declares one today, so this is a fence around a gate nobody
+ * has walked through yet — which is the point. The first pack that does would
+ * otherwise reintroduce the two-workspace bug in a lesson nobody edited, and
+ * the only symptom would be a Python box on a hardware page.
+ */
+describe('apDungBoSung không chèn khung Python vào buổi Micro:bit', () => {
+  const buoiLyThuyet = (them: BlockSpec[]): CourseSpec => ({
+    slug: 'microbit-thu',
+    title: 'Micro:bit thử',
+    subtitle: 'Khoá dựng riêng cho bài kiểm tra này',
+    description: 'Khoá dựng riêng cho bài kiểm tra này.',
+    totalSessions: 1,
+    order: 99,
+    colorToken: 'chinh',
+    iconEmoji: '🤖',
+    modules: [
+      {
+        slug: 'mb-mod',
+        title: 'Mô-đun',
+        description: 'Mô-đun dựng riêng cho bài kiểm tra này.',
+        lessons: [
+          {
+            slug: 'mb-buoi-ly-thuyet',
+            title: 'Buổi chỉ có lý thuyết',
+            summary: 'Một buổi dựng riêng cho bài kiểm tra này.',
+            order: 1,
+            difficulty: 1,
+            status: 'REQUIRED',
+            objectives: ['Hiểu bài'],
+            blocks: [
+              { type: 'THEORY', title: 'Lý thuyết', content: { kind: 'theory', markdown: 'abc' } },
+              ...them,
+            ],
+          },
+        ],
+      },
+    ],
+  });
+
+  /** A graded Micro:bit task — enough to make the lesson a Micro:bit lesson. */
+  const baiMicrobit: BlockSpec = {
+    type: 'MICROBIT_WORKSPACE',
+    title: 'Hiện tên của em',
+    content: { kind: 'microbit', markdown: 'abc', goal: 'Tên chạy qua màn hình.' },
+  };
+
+  const sanChoiPython: BlockSpec = {
+    type: 'PLAYGROUND',
+    title: 'Khởi động',
+    content: { kind: 'playground', markdown: 'abc', starterCode: 'x = 1', goal: 'thử' },
+  };
+
+  const viDu: BlockSpec = {
+    type: 'INTERACTIVE_EXAMPLE',
+    title: 'Ví dụ',
+    content: { kind: 'example', markdown: 'abc', code: 'basic.showIcon(IconNames.Heart)' },
+  };
+
+  it('từ chối khi khối khởi động là sân chơi Python', () => {
+    expect(() =>
+      apDungBoSung(buoiLyThuyet([]), {
+        'mb-buoi-ly-thuyet': { khoiDong: sanChoiPython, khoi: [baiMicrobit] },
+      }),
+    ).toThrow(/Micro:bit/u);
+  });
+
+  it('nhận example() làm khối khởi động, và chèn đúng chỗ', () => {
+    const kq = apDungBoSung(buoiLyThuyet([]), {
+      'mb-buoi-ly-thuyet': { khoiDong: viDu, khoi: [baiMicrobit] },
+    });
+
+    const loai = kq.modules[0]?.lessons[0]?.blocks.map((b) => b.type);
+    // The lesson's own theory is still read first; the warm-up sits between it
+    // and the task that needed one.
+    expect(loai).toEqual(['THEORY', 'INTERACTIVE_EXAMPLE', 'MICROBIT_WORKSPACE']);
+  });
+
+  it('buổi Python vẫn được khởi động bằng sân chơi Python như cũ', () => {
+    const kq = apDungBoSung(buoiLyThuyet([]), {
+      'mb-buoi-ly-thuyet': {
+        khoiDong: sanChoiPython,
+        khoi: [{ type: 'QUIZ', title: 'Kiểm tra', content: { kind: 'quiz', markdown: 'abc' } }],
+      },
+    });
+
+    expect(kq.modules[0]?.lessons[0]?.blocks.map((b) => b.type)).toEqual([
+      'THEORY',
+      'PLAYGROUND',
+      'QUIZ',
+    ]);
+  });
+
+  it('buổi đã có phần thực hành thì không chèn gì cả', () => {
+    const kq = apDungBoSung(buoiLyThuyet([viDu]), {
+      'mb-buoi-ly-thuyet': { khoiDong: sanChoiPython, khoi: [baiMicrobit] },
+    });
+
+    expect(kq.modules[0]?.lessons[0]?.blocks.map((b) => b.type)).toEqual([
+      'THEORY',
+      'INTERACTIVE_EXAMPLE',
+      'MICROBIT_WORKSPACE',
+    ]);
   });
 });
 

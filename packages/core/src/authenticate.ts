@@ -127,6 +127,7 @@ export async function login(
       role: true,
       isActive: true,
       mustChangePassword: true,
+      avatarUrl: true,
       passwordHash: true,
     },
   });
@@ -167,6 +168,7 @@ export async function login(
     role: user.role,
     isActive: user.isActive,
     mustChangePassword: user.mustChangePassword,
+    avatarUrl: user.avatarUrl,
   };
 
   return { actor, session, mustChangePassword: user.mustChangePassword };

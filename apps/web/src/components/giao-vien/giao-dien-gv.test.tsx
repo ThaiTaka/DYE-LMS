@@ -70,6 +70,9 @@ const NHAN_SU = {
   id: 'gv1',
   username: 'co.lan',
   displayName: 'Cô Nguyễn Thị Lan',
+  // No picture is the ordinary case for a provisioned account, so that is what
+  // the fixture carries; the avatar's own tests cover the branch that has one.
+  anhDaiDien: null,
   role: 'TEACHER' as const,
   isActive: true,
   soLop: 2,

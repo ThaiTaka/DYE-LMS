@@ -14,6 +14,8 @@ export interface HocSinhHienThi {
   id: string;
   username: string;
   displayName: string;
+  /** `User.avatarUrl`. Null — the usual case — draws the child's initials. */
+  anhDaiDien: string | null;
   isActive: boolean;
   mustChangePassword: boolean;
   lop: string[];
@@ -74,7 +76,12 @@ export function HangHocSinh({
     <li className="rounded-the border border-vien bg-the p-4">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
         <div className="flex min-w-0 items-center gap-3">
-          <Avatar name={hs.displayName} trangTri className={hs.isActive ? '' : 'opacity-50'} />
+          <Avatar
+            name={hs.displayName}
+            anh={hs.anhDaiDien}
+            trangTri
+            className={hs.isActive ? '' : 'opacity-50'}
+          />
           <div className="min-w-0">
             <h3 className="mt-0 mb-1 flex flex-wrap items-center gap-2 text-base font-semibold">
               <Link href={`/giao-vien/hoc-sinh/${hs.id}`} className="hover:underline">

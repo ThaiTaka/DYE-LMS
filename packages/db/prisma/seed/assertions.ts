@@ -736,6 +736,40 @@ function assertMicrobitBasicNotes(course: CourseSpec): void {
       }
     }
   }
+
+  /*
+   * Rule M7: ONE workspace per session. No Python editors in a hardware course.
+   *
+   * The lesson player renders PLAYGROUND, MINI_CHALLENGE and CODING as the
+   * CodeMirror Python editor and MICROBIT_WORKSPACE as the MakeCode embed. A
+   * session carrying one of each therefore shows a child two workspaces and
+   * nothing to say which one their homework goes in — which is exactly what
+   * `microbit-buoi-01` did, with a `playground()` block whose own text called
+   * itself a notebook.
+   *
+   * The player now suppresses the Python editor in a Micro:bit lesson
+   * (`moiTruongCuaBai` in khoi-noi-dung.tsx), so this is belt AND braces on
+   * purpose: that guard keeps a child from seeing the wrong box, and this one
+   * keeps the wrong box from being authored in the first place. A rule that
+   * only lives in the renderer gets quietly re-broken by the next author.
+   *
+   * Note what is NOT banned: `example()` (INTERACTIVE_EXAMPLE) renders a static
+   * `<pre>`, not an editor, and the mandated flow in Rule 13 needs it as the
+   * hands-on step before a lesson's first assessment.
+   */
+  const KHU_PYTHON: ReadonlySet<string> = new Set(['PLAYGROUND', 'MINI_CHALLENGE', 'CODING']);
+  for (const lesson of lessons) {
+    const lac = lesson.blocks.find((b) => KHU_PYTHON.has(b.type));
+    if (lac) {
+      throw new CurriculumViolation(
+        'microbit-python-workspace',
+        `${lesson.slug} carries a ${lac.type} block ("${lac.title}"). That renders the ` +
+          'Python editor beside the MakeCode workspace, so a student cannot tell where ' +
+          'the work goes. Use microbitTask() for a task, or theory()/reflection() for ' +
+          'notes and thinking.',
+      );
+    }
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

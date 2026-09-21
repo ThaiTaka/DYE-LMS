@@ -6,12 +6,16 @@ import { useFormStatus } from 'react-dom';
 import { chuyenGiao, phanCongLop, voHieuHoa, xoaNhanVien } from '@/app/giao-vien/actions';
 import { CHUA_LAM } from '@/app/giao-vien/ket-qua';
 
+import { Avatar } from '@/components/ui/avatar';
+
 import { PhanHoi } from './dieu-khien-nhanh';
 
 export interface NhanVienHienThi {
   id: string;
   username: string;
   displayName: string;
+  /** `User.avatarUrl`. Null — the usual case — draws their initials. */
+  anhDaiDien: string | null;
   role: 'TEACHER' | 'ADMIN' | 'STUDENT';
   isActive: boolean;
   soLop: number;
@@ -109,27 +113,37 @@ export function HangNhanSu({
   return (
     <li className="rounded-the border border-vien bg-the p-5">
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-        <div className="min-w-0">
-          <h3 className="mt-0 mb-1 flex flex-wrap items-center gap-2 text-lg font-semibold">
-            {nv.displayName}
-            <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh-sang">
-              {nv.role === 'ADMIN' ? 'Quản trị' : 'Giáo viên'}
-            </span>
-            {nv.laToi ? (
-              <span className="rounded-full bg-the-mo px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
-                Đây là bạn
+        <div className="flex min-w-0 items-start gap-3">
+          {/* Decorative: the name is printed immediately beside it, and reading
+              it twice is worse than not reading it at all. */}
+          <Avatar
+            name={nv.displayName}
+            anh={nv.anhDaiDien}
+            trangTri
+            className={nv.isActive ? '' : 'opacity-50'}
+          />
+          <div className="min-w-0">
+            <h3 className="mt-0 mb-1 flex flex-wrap items-center gap-2 text-lg font-semibold">
+              {nv.displayName}
+              <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh-sang">
+                {nv.role === 'ADMIN' ? 'Quản trị' : 'Giáo viên'}
               </span>
-            ) : null}
-            {!nv.isActive ? (
-              <span className="rounded-full bg-the-mo px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
-                Đã ngưng hoạt động
-              </span>
-            ) : null}
-          </h3>
-          <p className="m-0 text-sm text-chu-nhat">
-            {nv.username} · phụ trách {nv.soLop} lớp
-            {nv.tenLop.length > 0 ? `: ${nv.tenLop.join(', ')}` : ''}
-          </p>
+              {nv.laToi ? (
+                <span className="rounded-full bg-the-mo px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
+                  Đây là bạn
+                </span>
+              ) : null}
+              {!nv.isActive ? (
+                <span className="rounded-full bg-the-mo px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
+                  Đã ngưng hoạt động
+                </span>
+              ) : null}
+            </h3>
+            <p className="m-0 text-sm text-chu-nhat">
+              {nv.username} · phụ trách {nv.soLop} lớp
+              {nv.tenLop.length > 0 ? `: ${nv.tenLop.join(', ')}` : ''}
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -186,16 +200,14 @@ export function HangNhanSu({
           <form key={soLanGiao} action={actionLop}>
             <input type="hidden" name="targetId" value={nv.id} />
 
-            <h4 className="mt-0 mb-2 text-sm font-bold">
-              Giao lớp cho {nv.displayName}
-            </h4>
+            <h4 className="mt-0 mb-2 text-sm font-bold">Giao lớp cho {nv.displayName}</h4>
             <p className="mt-0 mb-3 text-sm text-chu-phu">
               Mỗi lớp luôn có đúng một người phụ trách, nên giao lớp là{' '}
-              <strong className="text-chu">chuyển</strong> lớp từ người đang phụ trách sang thầy
-              cô này.{' '}
+              <strong className="text-chu">chuyển</strong> lớp từ người đang phụ trách sang thầy cô
+              này.{' '}
               <strong className="text-chu">
-                Người nhận lớp sẽ xem được dữ liệu của các em trong lớp đó, và người giao thì
-                không còn xem được nữa.
+                Người nhận lớp sẽ xem được dữ liệu của các em trong lớp đó, và người giao thì không
+                còn xem được nữa.
               </strong>
             </p>
 
@@ -229,14 +241,12 @@ export function HangNhanSu({
       {moXoa && !nv.laToi ? (
         <div id={vungId} className="mt-4 border-t border-vien pt-4">
           <div className="mb-4 rounded-nut bg-thu-lai-nen p-4 text-sm">
-            <p className="mt-0 mb-2 font-semibold text-thu-lai">
-              Nên cân nhắc trước khi xoá
-            </p>
+            <p className="mt-0 mb-2 font-semibold text-thu-lai">Nên cân nhắc trước khi xoá</p>
             <p className="m-0 text-chu-phu">
-              Xoá tài khoản sẽ gỡ bỏ vĩnh viễn người chịu trách nhiệm khỏi các quyết định sư phạm
-              về từng em học sinh. Trong hầu hết trường hợp,{' '}
-              <strong className="text-chu">ngưng quyền truy cập</strong> là lựa chọn đúng: cắt
-              truy cập ngay lập tức mà vẫn giữ nguyên hồ sơ.
+              Xoá tài khoản sẽ gỡ bỏ vĩnh viễn người chịu trách nhiệm khỏi các quyết định sư phạm về
+              từng em học sinh. Trong hầu hết trường hợp,{' '}
+              <strong className="text-chu">ngưng quyền truy cập</strong> là lựa chọn đúng: cắt truy
+              cập ngay lập tức mà vẫn giữ nguyên hồ sơ.
             </p>
           </div>
 
@@ -295,10 +305,7 @@ export function HangNhanSu({
 
             <div className="flex flex-wrap items-end gap-3">
               <div>
-                <label
-                  htmlFor={`ban-giao-${nv.id}`}
-                  className="mb-1.5 block text-sm font-semibold"
-                >
+                <label htmlFor={`ban-giao-${nv.id}`} className="mb-1.5 block text-sm font-semibold">
                   Bàn giao kèm khi xoá{' '}
                   <span className="font-normal text-chu-nhat">(không bắt buộc)</span>
                 </label>

@@ -9,6 +9,54 @@ import { KhuMicrobit } from './khu-microbit';
 import { KIEU_NHANH, KIEU_TRUY_CAP } from '../ui/nhanh';
 
 /**
+ * Which workspace a lesson belongs to.
+ *
+ * A lesson has exactly one. A Micro:bit session is worked in MakeCode, a
+ * Python session in the editor — and a page that puts both on screen asks a
+ * ten-year-old to work out which box their homework goes in.
+ */
+export type MoiTruongBai = 'PYTHON' | 'MICROBIT';
+
+/**
+ * Is this block hardware work?
+ *
+ * Two sources, because they can disagree. `type` is a column the curriculum
+ * asserts on (`MICROBIT_WORKSPACE`); `noiDung.kind` comes out of the block's
+ * JSON payload. A block authored with one and not the other used to render the
+ * Python editor for a MakeCode task, so this accepts either as proof.
+ */
+function laKhoiMicrobit(khoi: Pick<KhoiHienThi, 'type' | 'noiDung'>): boolean {
+  return khoi.type === 'MICROBIT_WORKSPACE' || khoi.noiDung.kind === 'microbit';
+}
+
+/**
+ * The lesson's workspace, decided once from all of its blocks.
+ *
+ * ── The bug this closes ──────────────────────────────────────────────────────
+ * `microbit-buoi-01` carried a Python `playground` block as a warm-up, so
+ * rendering each block on its own terms put a CodeMirror Python editor on the
+ * same page as the MakeCode iframe, with nothing to say which one the work
+ * goes in. That block is now theory + reflection, and Rule M7 in the seed
+ * assertions refuses a Python workspace anywhere in a Micro:bit course.
+ *
+ * This stays regardless, and is not redundant: the seed rule governs what the
+ * DYE curriculum ships, while this governs what the player DRAWS — including
+ * for a lesson a teacher authors later through the admin tools, which no seed
+ * assertion ever sees.
+ *
+ * So the decision is made per LESSON, not per block: one Micro:bit block makes
+ * the whole session a Micro:bit session, and the Python editors in it stand
+ * down. Their prose is kept — it is the instructions, and a warm-up that says
+ * "think about what you want the board to show" still reads correctly without
+ * a box to type Python into.
+ */
+export function moiTruongCuaBai(
+  blocks: readonly Pick<KhoiHienThi, 'type' | 'noiDung'>[],
+): MoiTruongBai {
+  return blocks.some(laKhoiMicrobit) ? 'MICROBIT' : 'PYTHON';
+}
+
+/**
  * Renders one lesson block.
  *
  * The wrapper is where the tier decision from Phase 4 becomes something a
@@ -18,9 +66,18 @@ import { KIEU_NHANH, KIEU_TRUY_CAP } from '../ui/nhanh';
  */
 export function KhoiNoiDung({
   khoi,
+  moiTruong,
   khoaViPham = null,
 }: {
   khoi: KhoiHienThi;
+  /**
+   * The lesson's workspace, from `moiTruongCuaBai`.
+   *
+   * Optional so a block can still be rendered on its own — in a test, or in a
+   * teacher preview of a single block — where there is no lesson to ask. The
+   * block then answers for itself, which is the old behaviour.
+   */
+  moiTruong?: MoiTruongBai | undefined;
   /** Set when an integrity lock is in force on this lesson. */
   khoaViPham?: DuLieuBaiHoc['khoaViPham'];
 }) {
@@ -69,7 +126,11 @@ export function KhoiNoiDung({
         {khamPha ? <p className="m-0 text-sm text-mo-rong">{truyCap.moTa}</p> : null}
       </header>
 
-      <NoiDungTheoLoai khoi={khoi} khoaViPham={khoaViPham} />
+      <NoiDungTheoLoai
+        khoi={khoi}
+        moiTruong={moiTruong ?? (laKhoiMicrobit(khoi) ? 'MICROBIT' : 'PYTHON')}
+        khoaViPham={khoaViPham}
+      />
     </section>
   );
 }
@@ -95,12 +156,24 @@ function laKhoiLamBai(nd: KhoiHienThi['noiDung']): nd is Extract<
 
 function NoiDungTheoLoai({
   khoi,
+  moiTruong,
   khoaViPham,
 }: {
   khoi: KhoiHienThi;
+  moiTruong: MoiTruongBai;
   khoaViPham: DuLieuBaiHoc['khoaViPham'];
 }) {
   const nd = khoi.noiDung;
+
+  /*
+   * Does the Python editor belong on this page at all?
+   *
+   * False in a Micro:bit lesson, and false for a block the curriculum marked
+   * `MICROBIT_WORKSPACE` whatever its payload says. Both checks, because both
+   * failure modes have happened: a Python warm-up seeded into a hardware
+   * session, and a hardware block whose JSON still said `challenge`.
+   */
+  const dungPython = moiTruong === 'PYTHON' && khoi.type !== 'MICROBIT_WORKSPACE';
 
   /*
    * The editor is REPLACED, not disabled.
@@ -176,6 +249,14 @@ function NoiDungTheoLoai({
       );
 
     case 'playground':
+      if (!dungPython) {
+        return (
+          <>
+            <VanBan>{nd.markdown}</VanBan>
+            <LamOMakeCode muc={nd.goal} />
+          </>
+        );
+      }
       return (
         <>
           <VanBan>{nd.markdown}</VanBan>
@@ -195,6 +276,14 @@ function NoiDungTheoLoai({
       );
 
     case 'challenge':
+      if (!dungPython) {
+        return (
+          <>
+            <VanBan>{nd.markdown}</VanBan>
+            <LamOMakeCode muc={khoi.baiTap?.title ?? ''} />
+          </>
+        );
+      }
       return (
         <>
           <VanBan>{nd.markdown}</VanBan>
@@ -203,11 +292,9 @@ function NoiDungTheoLoai({
       );
 
     /*
-     * The switch between Python and hardware happens here, per block.
-     *
-     * Doing it at block level rather than course level means one lesson could
-     * legitimately carry both — a Python exercise and a Micro:bit task — and
-     * neither component needs to know the other exists.
+     * The hardware workspace. Reached only in a Micro:bit lesson, because a
+     * block of this kind is itself what makes the lesson one — see
+     * `moiTruongCuaBai`. Nothing else on the page opens a second editor.
      */
     case 'microbit':
       return (
@@ -420,6 +507,33 @@ function NoiDungTheoLoai({
       return null;
     }
   }
+}
+
+/**
+ * Stands in for the Python editor in a Micro:bit lesson.
+ *
+ * Not an error and not a lock — the block's instructions are still printed
+ * above it, and this only answers the question they raise: "type it where?".
+ * A warm-up in a hardware session is thinking-out-loud before opening
+ * MakeCode, so it points at the workspace further down the page instead of
+ * offering a box whose contents nothing would ever read.
+ *
+ * Plain `bg-the-mo`, not glass: this sits inside a lesson block that already
+ * has a surface, and a second blurred layer on a school laptop buys nothing.
+ */
+function LamOMakeCode({ muc }: { muc: string }) {
+  return (
+    <div className="mt-4 rounded-nut border border-vien bg-the-mo p-4">
+      <p className="m-0 flex items-start gap-2 text-sm font-semibold text-chu">
+        <span aria-hidden="true">🧩</span>
+        Bài này em làm bằng khối lệnh MakeCode, không gõ Python.
+      </p>
+      {muc ? <p className="mt-2 mb-0 text-sm text-chu-phu">Mục tiêu: {muc}</p> : null}
+      <p className="mt-2 mb-0 text-sm text-chu-nhat">
+        Khu kéo thả nằm ở phần Micro:bit bên dưới — em cuộn xuống một chút nhé.
+      </p>
+    </div>
+  );
 }
 
 /**

@@ -35,7 +35,12 @@ export default async function LayoutHocSinh({ children }: { children: ReactNode 
   const { khoaHoc, nhanh } = await duLieuVoHocSinh(actor.id);
 
   return (
-    <VoHocSinh tenHienThi={actor.displayName} nhanh={nhanh} khoaHoc={khoaHoc}>
+    <VoHocSinh
+      tenHienThi={actor.displayName}
+      anhDaiDien={actor.avatarUrl}
+      nhanh={nhanh}
+      khoaHoc={khoaHoc}
+    >
       {children}
     </VoHocSinh>
   );

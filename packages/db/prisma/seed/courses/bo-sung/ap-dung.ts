@@ -33,6 +33,9 @@ export interface BoSungBaiHoc {
    * Warm-up inserted only when the lesson has no hands-on block before its first
    * assessment. Required whenever `khoi` contains an assessment block and the
    * lesson is otherwise theory-only.
+   *
+   * Must not be a Python workspace in a Micro:bit session — `apDungChoBai`
+   * throws on that. `example()` suits either kind and is the safe default.
    */
   khoiDong?: BlockSpec;
   /** The new blocks, appended in order. */
@@ -52,6 +55,14 @@ const DANH_GIA: ReadonlySet<string> = new Set([
 
 const THUC_HANH: ReadonlySet<string> = new Set(['INTERACTIVE_EXAMPLE', 'PLAYGROUND', 'PROJECT']);
 
+/**
+ * Block kinds the lesson player renders as the CodeMirror PYTHON editor.
+ *
+ * Kept here as well as in assertions.ts because this file is the one place
+ * that can put a block into a lesson the lesson's own author never wrote.
+ */
+const KHU_PYTHON: ReadonlySet<string> = new Set(['PLAYGROUND', 'MINI_CHALLENGE', 'CODING']);
+
 /** Would this block list trip `assertPedagogicalFlow`? */
 function viPhamLuongDay(khoi: BlockSpec[]): boolean {
   if (!khoi.some((b) => b.type === 'THEORY')) return false;
@@ -67,9 +78,34 @@ function apDungChoBai(bai: LessonSpec, them: BoSungBaiHoc): LessonSpec {
     if (!them.khoiDong) {
       throw new Error(
         `bo-sung/${bai.slug}: bai nay chua co khoi thuc hanh nao truoc phan danh gia, ` +
-          'nen phai khai bao `khoiDong` (mot playground khoi dong) trong ban bo sung.',
+          'nen phai khai bao `khoiDong` (mot khoi khoi dong) trong ban bo sung.',
       );
     }
+
+    /*
+     * A Micro:bit session may not be warmed up with a Python editor.
+     *
+     * This is the one place a block can arrive in a lesson without its author
+     * choosing it — `khoiDong` is declared by the expansion pack and inserted
+     * here — so it is the one place that can put a Python editor beside a
+     * MakeCode workspace without anyone writing that down. No expansion
+     * declares a `khoiDong` today, which is exactly why this needs to be a
+     * thrown error rather than a note: the first one that does would otherwise
+     * reintroduce the two-workspace bug silently, in a lesson nobody edited.
+     *
+     * An `example()` (INTERACTIVE_EXAMPLE) is the warm-up that works for both
+     * kinds of session — it renders a static snippet, not an editor — so there
+     * is always a correct answer available to the author this refuses.
+     */
+    const laBuoiMicrobit = khoi.some((b) => b.type === 'MICROBIT_WORKSPACE');
+    if (laBuoiMicrobit && KHU_PYTHON.has(them.khoiDong.type)) {
+      throw new Error(
+        `bo-sung/${bai.slug}: khoi khoi dong la ${them.khoiDong.type}, ma day la buoi ` +
+          'Micro:bit. Khoi do se mo khung soan thao Python ngay canh khu MakeCode, ' +
+          'nen hoc sinh khong biet lam bai o dau. Dung example() hoac theory() thay the.',
+      );
+    }
+
     // Inserted before the appended blocks, not at the very front: the lesson's
     // own theory should still be read first.
     khoi = [...bai.blocks, them.khoiDong, ...them.khoi];
