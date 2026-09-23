@@ -139,7 +139,7 @@ export function HangNhanSu({
                 </span>
               ) : null}
             </h3>
-            <p className="m-0 text-sm text-chu-nhat">
+            <p className="m-0 text-sm font-medium text-chu-nhat">
               {nv.username} · phụ trách {nv.soLop} lớp
               {nv.tenLop.length > 0 ? `: ${nv.tenLop.join(', ')}` : ''}
             </p>

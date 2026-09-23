@@ -108,7 +108,7 @@ export function HangCanhBao({ canhBao }: { canhBao: CanhBaoHang }) {
             Buổi {canhBao.buoi}: {canhBao.tenBai}
           </p>
 
-          <p className="mt-1 mb-0 text-sm text-chu-nhat">
+          <p className="mt-1 mb-0 text-sm font-medium text-chu-nhat">
             {canhBao.luc}
             {canhBao.tongVangGiay > 0
               ? ` · tổng thời gian ở ngoài tab: ${docThoiLuong(canhBao.tongVangGiay)}`

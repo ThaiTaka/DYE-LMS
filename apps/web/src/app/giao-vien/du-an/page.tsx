@@ -93,7 +93,7 @@ function Nhom({
                     </span>
                   </div>
 
-                  <p className="mt-1 mb-0 text-sm text-chu-nhat">
+                  <p className="mt-1 mb-0 text-sm font-medium text-chu-nhat">
                     Bản {h.version} · {h.soTep} tệp ·{' '}
                     {h.submittedAt.toLocaleString('vi-VN')}
                   </p>

@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 import { ChamMicrobit, XemKhoiLenh } from '@/components/giao-vien/cham-microbit';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
+import { SAC_THAI } from '@/components/ui/sac-thai';
 import { requireRole, xemDuoc } from '@/lib/guard';
 import { VanBan } from '@/lib/markdown';
 import { baiMicrobitDeCham } from '@/lib/teacher-data';
@@ -37,15 +38,13 @@ export default async function TrangChamMotBai({
           {bai.daCham ? (
             <span
               className={`rounded-full px-3 py-1 text-sm font-semibold ${
-                bai.verdict === 'ACCEPTED'
-                  ? 'bg-dung-nen text-dung'
-                  : 'bg-thu-lai-nen text-thu-lai'
+                bai.verdict === 'ACCEPTED' ? SAC_THAI.dung : SAC_THAI.thuLai
               }`}
             >
               {bai.verdict === 'ACCEPTED' ? `Đã chấm đạt · ${bai.score} điểm` : 'Đã chấm: chưa đạt'}
             </span>
           ) : (
-            <span className="rounded-full bg-chinh-nhat px-3 py-1 text-sm font-semibold text-chinh-sang">
+            <span className={`rounded-full px-3 py-1 text-sm font-semibold ${SAC_THAI.chinh}`}>
               Chờ chấm
             </span>
           )}

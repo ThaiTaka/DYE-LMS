@@ -417,7 +417,7 @@ export function KhuLamBai({
         Stated in visible text, not only in aria-describedby: a sighted keyboard
         user needs this exactly as much as a screen-reader user does.
       */}
-      <p id={`${id}-ban-phim`} className="m-0 border-t border-vien px-4 py-2 text-sm text-chu-nhat">
+      <p id={`${id}-ban-phim`} className="m-0 border-t border-vien px-4 py-2 text-sm font-medium text-chu-nhat">
         <kbd className="rounded border border-vien bg-the-mo px-1.5 py-0.5 font-mono text-xs">
           Tab
         </kbd>{' '}
@@ -537,7 +537,7 @@ export function KhuLamBai({
                 // The program read this. Without it a student whose code prints
                 // "Tổng: 15" has no idea where 15 came from, and one whose
                 // `input()` crashed cannot tell that it was fed nothing.
-                <p className="mt-0 mb-2 text-xs text-chu-nhat">
+                <p className="mt-0 mb-2 text-xs font-medium text-chu-nhat">
                   {dauVao.trim() ? 'Chạy với dữ liệu em nhập:' : 'Chạy với đầu vào mẫu:'}{' '}
                   <code className="rounded border border-vien bg-the-mo px-1.5 py-0.5 font-mono">
                     {ketQuaChay.dauVao.replace(/\n/g, ' ⏎ ')}

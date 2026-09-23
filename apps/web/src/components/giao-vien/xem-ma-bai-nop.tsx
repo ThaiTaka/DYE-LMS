@@ -33,7 +33,7 @@ export function XemMaBaiNop({ code, tenHocSinh }: { code: string; tenHocSinh: st
 
       {mo ? (
         <div id={vungId} className="mt-3">
-          <p className="mt-0 mb-2 text-xs text-chu-nhat">Bài của {tenHocSinh}</p>
+          <p className="mt-0 mb-2 text-xs font-medium text-chu-nhat">Bài của {tenHocSinh}</p>
           <pre className="m-0 max-h-96 overflow-auto rounded-nut bg-the-mo p-3 font-mono text-xs leading-relaxed whitespace-pre-wrap">
             {code}
           </pre>

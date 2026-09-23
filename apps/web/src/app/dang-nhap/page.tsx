@@ -48,7 +48,7 @@ export default async function TrangDangNhap({
           <span aria-hidden="true" className="text-chu-nhat">
             ·
           </span>
-          <p className="m-0 text-sm text-chu-nhat">
+          <p className="m-0 text-sm font-medium text-chu-nhat">
             Phát triển bởi <span className="chu-neon font-bold">Thái Taka</span>
           </p>
         </div>
@@ -70,7 +70,7 @@ export default async function TrangDangNhap({
         <FormDangNhap tiepTuc={tiepTuc} />
       </div>
 
-      <p className="mt-6 w-full max-w-md text-center text-sm text-chu-nhat">
+      <p className="mt-6 w-full max-w-md text-center text-sm font-medium text-chu-nhat">
         Quên mật khẩu? Hãy nhờ thầy cô đặt lại giúp em.
       </p>
     </main>

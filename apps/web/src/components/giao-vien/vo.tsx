@@ -7,6 +7,7 @@ import type { ReactNode } from 'react';
 import { currentActor, signOut } from '@/auth';
 import { DauHieu } from '@/components/dau-hieu';
 import { Avatar } from '@/components/ui/avatar';
+import { SAC_THAI } from '@/components/ui/sac-thai';
 import { db } from '@/lib/db';
 import { demCanhBaoChuaXuLy, demTuLuanChoCham } from '@/lib/teacher-data';
 
@@ -72,7 +73,7 @@ export async function VoGiaoVien({
           >
             <DauHieu className="h-5 w-5 text-chinh-sang" />
             <span>DYE LMS</span>
-            <span className="rounded-full bg-chinh-nhat px-2.5 py-0.5 text-xs font-semibold text-chinh-sang">
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${SAC_THAI.chinh}`}>
               {vaiTro === 'ADMIN' ? 'Quản trị' : 'Giáo viên'}
             </span>
           </Link>
@@ -84,11 +85,11 @@ export async function VoGiaoVien({
             <MucDieuHuong href="/giao-vien/giao-trinh">Giáo trình</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/hoc-sinh">Học sinh</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/ket-qua">Kết quả</MucDieuHuong>
-            <MucDieuHuong href="/giao-vien/tu-luan" huy={soTuLuan}>
+            <MucDieuHuong href="/giao-vien/tu-luan" huy={soTuLuan} nhanHuy="bài tự luận chờ chấm">
               Tự luận
             </MucDieuHuong>
             <MucDieuHuong href="/giao-vien/thong-ke">Thống kê</MucDieuHuong>
-            <MucDieuHuong href="/giao-vien/canh-bao" huy={soCanhBao}>
+            <MucDieuHuong href="/giao-vien/canh-bao" huy={soCanhBao} nhanHuy="cảnh báo chưa xử lý">
               Cảnh báo
             </MucDieuHuong>
             {vaiTro === 'ADMIN' ? (
@@ -126,7 +127,7 @@ export async function VoGiaoVien({
         {children}
       </main>
 
-      <footer className="mx-auto max-w-6xl px-4 pb-10 text-sm text-chu-nhat sm:px-6">
+      <footer className="mx-auto max-w-6xl px-4 pb-10 text-sm font-medium text-chu-nhat sm:px-6">
         DYE LMS · Khu vực dành cho thầy cô
       </footer>
     </>
@@ -137,11 +138,24 @@ function MucDieuHuong({
   href,
   children,
   huy = 0,
+  nhanHuy = '',
 }: {
   href: string;
   children: ReactNode;
-  /** Count badge. Rendered only when non-zero — a "0" is noise, not information. */
+  /**
+   * Count badge. Rendered only when non-zero — a "0" is noise, not information.
+   *
+   * Still a SOLID pill, unlike the status badges elsewhere (see sac-thai.ts):
+   * this one is a call to act — "3 essays are waiting on you" — which is
+   * exactly what a solid fill is for. It sits in the nav, never beside a CTA.
+   */
   huy?: number;
+  /**
+   * What the count counts, for screen readers. Per item: this used to be a
+   * hard-coded "cảnh báo chưa xử lý", so the essay queue was announced as
+   * "Tự luận, 3 unhandled alerts".
+   */
+  nhanHuy?: string;
 }) {
   return (
     <Link
@@ -152,7 +166,7 @@ function MucDieuHuong({
       {huy > 0 ? (
         <span className="rounded-full bg-thu-lai px-2 py-0.5 text-xs font-bold text-nen tabular-nums">
           {huy}
-          <span className="sr-only"> cảnh báo chưa xử lý</span>
+          {nhanHuy ? <span className="sr-only"> {nhanHuy}</span> : null}
         </span>
       ) : null}
     </Link>

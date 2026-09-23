@@ -108,7 +108,7 @@ function O({ nhan, giaTri, phu }: { nhan: string; giaTri: string; phu: string })
     <div className="rounded-the border border-vien bg-the p-5">
       <dt className="m-0 text-sm font-medium text-chu-phu">{nhan}</dt>
       <dd className="mt-1 mb-0 text-3xl font-bold tabular-nums">{giaTri}</dd>
-      <dd className="mt-1 mb-0 text-sm text-chu-nhat">{phu}</dd>
+      <dd className="mt-1 mb-0 text-sm font-medium text-chu-nhat">{phu}</dd>
     </div>
   );
 }

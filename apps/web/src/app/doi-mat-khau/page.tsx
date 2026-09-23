@@ -102,7 +102,7 @@ export default async function TrangDoiMatKhau({
               aria-describedby="goi-y-do-dai"
               className={O_NHAP}
             />
-            <p id="goi-y-do-dai" className="mt-1.5 mb-0 text-sm text-chu-nhat">
+            <p id="goi-y-do-dai" className="mt-1.5 mb-0 text-sm font-medium text-chu-nhat">
               Ít nhất {MIN_PASSWORD_LENGTH} ký tự.
             </p>
           </div>
@@ -130,7 +130,7 @@ export default async function TrangDoiMatKhau({
           </button>
         </form>
 
-        <p className="mt-5 mb-0 text-sm text-chu-nhat">
+        <p className="mt-5 mb-0 text-sm font-medium text-chu-nhat">
           Sau khi đổi, mọi thiết bị khác sẽ bị đăng xuất — kể cả thiết bị này.
         </p>
       </div>

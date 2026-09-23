@@ -181,15 +181,21 @@ export function KhungVo({
           ) : null}
         </nav>
 
-        {/* Who is signed in, and the way out. */}
-        <div className="shrink-0 border-t border-vien p-3">
-          <div className="flex items-center gap-3 rounded-the-nho border border-vien bg-white/[0.03] p-3">
+        {/*
+          Who is signed in, and the way out.
+
+          Straight on the sidebar surface, under one hairline — not a bordered
+          card inside it. The sidebar is already a panel; a second box here only
+          pushed the name and the sign-out button further apart.
+        */}
+        <div className="shrink-0 border-t border-vien px-3 py-3">
+          <div className="flex items-center gap-3 ps-2">
             <Avatar name={tenHienThi} anh={anhDaiDien} trangTri />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold text-chu">{tenHienThi}</span>
               {nhanh ? (
                 <span
-                  className={`mt-0.5 inline-flex items-center gap-1 rounded-full border px-2 py-px text-xs font-semibold ${nhanh.nen} ${nhanh.chu} ${nhanh.vien}`}
+                  className={`mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-px text-xs font-semibold ${nhanh.huyHieu}`}
                 >
                   <span aria-hidden="true">{nhanh.icon}</span>
                   {nhanh.nhan}
@@ -226,21 +232,48 @@ export function KhungVo({
               <BieuTuong ten="menu" />
             </button>
 
-            <TimKiem dichDen={dichDen} className="w-full max-w-md" />
+            {/*
+              Compact until it is used.
 
-            <div className="ms-auto flex shrink-0 items-center gap-3">
+              A jump box over a dozen destinations does not need half the bar
+              at rest; at `max-w-md` it squeezed the identity cluster into the
+              right edge. It sits at 12rem (16rem from `lg`) and opens to 20rem
+              while focused — on a phone, to whatever the row has left. Only
+              `width` is transitioned: `transition-all` would also animate the
+              border and background on every hover, for nothing.
+            */}
+            <TimKiem
+              dichDen={dichDen}
+              className="w-48 min-w-0 transition-[width] duration-300 ease-out focus-within:w-full sm:focus-within:w-80 lg:w-64 lg:focus-within:w-80"
+            />
+
+            {/*
+              Identity cluster: tier badge, then name + picture as one unit.
+              Two gaps, not one — the name belongs to the avatar, the badge is a
+              separate fact — so the eye reads "Cơ bản · Minh Khôi (MK)", not
+              three equal items in a row.
+            */}
+            <div className="ms-auto flex shrink-0 items-center gap-4">
               {nhanh ? (
                 <span
-                  className={`hidden items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold sm:inline-flex ${nhanh.nen} ${nhanh.chu} ${nhanh.vien}`}
+                  className={`hidden items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold sm:inline-flex ${nhanh.huyHieu}`}
                 >
                   <span aria-hidden="true">{nhanh.icon}</span>
                   Nhánh {nhanh.nhan}
                 </span>
               ) : null}
-              <span className="hidden text-sm font-medium text-chu-phu md:inline">
-                {tenHienThi}
+              <span className="flex items-center gap-2.5">
+                {/* Visual only: the avatar is the accessible name (it is an
+                    image named after the person). Reading both made a screen
+                    reader say the name twice from `md` up. */}
+                <span
+                  aria-hidden="true"
+                  className="hidden max-w-48 truncate text-sm font-medium text-chu-phu md:block"
+                >
+                  {tenHienThi}
+                </span>
+                <Avatar name={tenHienThi} anh={anhDaiDien} co="nho" />
               </span>
-              <Avatar name={tenHienThi} anh={anhDaiDien} co="nho" />
             </div>
           </div>
         </header>
@@ -252,7 +285,7 @@ export function KhungVo({
           {children}
         </main>
 
-        <footer className="mx-auto w-full max-w-7xl px-4 pb-8 text-sm text-chu-nhat sm:px-6 lg:px-8">
+        <footer className="mx-auto w-full max-w-7xl px-4 pb-8 text-sm font-medium text-chu-nhat sm:px-6 lg:px-8">
           DYE LMS · Nền tảng học lập trình và STEM Robotics
         </footer>
       </div>

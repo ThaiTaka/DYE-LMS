@@ -84,7 +84,7 @@ export function ChamTuLuan({
           {lessonTitle ? `${lessonTitle} · ` : ''}
           {diemToiDa} điểm
         </p>
-        <p className="m-0 mt-1 text-xs text-chu-nhat">Nộp lúc {nopLuc}</p>
+        <p className="m-0 mt-1 text-xs font-medium text-chu-nhat">Nộp lúc {nopLuc}</p>
       </div>
 
       <p className="mt-0 mb-2 text-sm font-semibold">{prompt}</p>

@@ -12,6 +12,9 @@ import { resolve } from 'node:path';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
+import { KIEU_NHANH } from '@/components/ui/nhanh';
+import { SAC_THAI } from '@/components/ui/sac-thai';
+
 import { parseNoiDung } from './block-content';
 import { VanBan, renderMarkdown } from './markdown';
 
@@ -266,6 +269,15 @@ function doSang(hex: string): number {
   return 0.2126 * kenh[0]! + 0.7152 * kenh[1]! + 0.0722 * kenh[2]!;
 }
 
+/** `mau` at `alpha` laid over the opaque `nen`, as the browser composites it. */
+function phuLen(mau: string, nen: string, alpha: number): string {
+  const kenh = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [a, b] = [kenh(mau), kenh(nen)];
+  return `#${a
+    .map((v, i) => Math.round(v * alpha + b[i]! * (1 - alpha)).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
 function tuongPhan(a: string, b: string): number {
   const [sang, toi] = [doSang(a), doSang(b)].sort((x, y) => y - x);
   return (sang! + 0.05) / (toi! + 0.05);
@@ -293,7 +305,7 @@ describe('Tương phản màu đạt chuẩn WCAG AA', () => {
    * (checked below under white text) and `chinh-sang` is the TEXT violet.
    * See the header of globals.css.
    */
-  const mauChu = ['chu', 'chu-phu', 'chu-nhat', 'chinh-sang', 'dung', 'thu-lai', 'loi'];
+  const mauChu = ['chu', 'chu-phu', 'chu-nhat', 'chinh-sang', 'dung', 'thu-lai', 'loi', 'canh-bao-chu'];
 
   it('mọi màu chữ trên nền thẻ đều đạt ít nhất 4.5:1', () => {
     const nenThe = token['the']!;
@@ -335,6 +347,54 @@ describe('Tương phản màu đạt chuẩn WCAG AA', () => {
   it('phản hồi đúng/thử lại đạt AA trên nền tương ứng', () => {
     expect(tuongPhan(token['dung']!, token['dung-nen']!)).toBeGreaterThanOrEqual(4.5);
     expect(tuongPhan(token['thu-lai']!, token['thu-lai-nen']!)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  /*
+   * Glass badges and warnings are translucent tints, so there is no hex to look
+   * up: the tint is composited over both surfaces it can sit on — the page and
+   * a card — and the text is checked against the result. The class strings are
+   * read from the real maps and components, so a tone changed there is
+   * re-checked here instead of silently drifting below AA.
+   */
+  const mauToken = (ten: string): string => (ten === 'white' ? '#ffffff' : token[ten]!);
+
+  it('huy hiệu kính: chữ đạt AA trên sắc nền trong suốt của chính nó', () => {
+    const lop = [...Object.values(SAC_THAI), ...Object.values(KIEU_NHANH).map((k) => k.huyHieu)];
+
+    for (const chuoi of lop) {
+      const nen = /\bbg-([a-z-]+)\/(\d+)\b/.exec(chuoi);
+      const chu = /\btext-([a-z-]+)\b/.exec(chuoi);
+      expect(nen && chu, `không đọc được "${chuoi}"`).toBeTruthy();
+
+      for (const be of ['nen', 'the']) {
+        const phuNen = phuLen(mauToken(nen![1]!), token[be]!, Number(nen![2]) / 100);
+        const ti = tuongPhan(mauToken(chu![1]!), phuNen);
+        expect(ti, `"${chuoi}" trên ${be} chỉ đạt ${ti.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('khung cảnh báo: tiêu đề và nội dung đạt AA trên nền cam', () => {
+    for (const tep of ['hoc-sinh/theo-doi-tap-trung.tsx', 'hoc-sinh/phong-thi.tsx']) {
+      const src = readFileSync(resolve(import.meta.dirname, '../components', tep), 'utf8');
+      const m = /bg-canh-bao\/(\d+)/.exec(src);
+      expect(m, `${tep} không còn dùng khung cảnh báo`).toBeTruthy();
+      const alpha = Number(m![1]) / 100;
+
+      for (const be of ['nen', 'the']) {
+        const phuNen = phuLen(token['canh-bao']!, token[be]!, alpha);
+        expect(tuongPhan(token['canh-bao-chu']!, phuNen)).toBeGreaterThanOrEqual(4.5);
+        expect(tuongPhan(token['canh-bao']!, phuNen)).toBeGreaterThanOrEqual(4.5);
+        // The exam room's footnote is the body colour at 80%.
+        const chuMo = phuLen(token['canh-bao-chu']!, phuNen, 0.8);
+        expect(tuongPhan(chuMo, phuNen)).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+  });
+
+  it('vạch cảnh báo nhìn thấy được trên nền (≥ 3:1 cho thành phần giao diện)', () => {
+    expect(tuongPhan(token['canh-bao']!, token['nen']!)).toBeGreaterThanOrEqual(3);
+    expect(tuongPhan(token['canh-bao']!, token['the']!)).toBeGreaterThanOrEqual(3);
   });
 
   it('mọi màu cú pháp Python đều đạt AA trên nền khung soạn thảo', () => {

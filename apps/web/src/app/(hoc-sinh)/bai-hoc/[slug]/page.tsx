@@ -8,6 +8,7 @@ import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { KhoiNoiDung, moiTruongCuaBai } from '@/components/hoc-sinh/khoi-noi-dung';
 import { ThanhChang } from '@/components/hoc-sinh/thanh-chang';
 import { TheoDoiTapTrung } from '@/components/hoc-sinh/theo-doi-tap-trung';
+import { SAC_THAI } from '@/components/ui/sac-thai';
 import { ChuNeon } from '@/components/ui/the-kinh';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireSession } from '@/lib/guard';
@@ -204,7 +205,9 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
                   className="flex items-center gap-3 pt-2"
                 >
                   <span className="h-px flex-1 bg-vien" />
-                  <span className="inline-flex items-center gap-2 rounded-full border border-mo-rong bg-mo-rong-nen px-4 py-1.5 text-sm font-bold text-mo-rong">
+                  <span
+                    className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold ${SAC_THAI.moRong}`}
+                  >
                     <span aria-hidden="true">🚀</span> Phần nâng cao — dành cho lộ trình của em
                   </span>
                   <span className="h-px flex-1 bg-vien" />

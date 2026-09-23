@@ -501,7 +501,7 @@ function CauTuLuan({
             >
               {dangGui ? 'Đang nộp…' : 'Nộp bài'}
             </button>
-            <span className="text-xs text-chu-nhat tabular-nums">{nhap.length}/5000</span>
+            <span className="text-xs font-medium text-chu-nhat tabular-nums">{nhap.length}/5000</span>
           </div>
         </>
       )}

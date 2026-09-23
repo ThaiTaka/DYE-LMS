@@ -60,8 +60,16 @@
 
   /* ── Text ─────────────────────────────────────────────────────────────── */
   --color-chu: #f8fafc; /* 17.6:1 on the page */
-  --color-chu-phu: #a3abc7; /* 8.2:1 on the page, 7.4:1 on a card */
-  --color-chu-nhat: #8b93ad; /* 6.2:1 on the page, 5.6:1 on a card — the "muted" step */
+  --color-chu-phu: #a3abc7; /* 8.3:1 on the page, 7.5:1 on a card */
+  /*
+   * The "muted" step — slate-400. It was #8b93ad (between slate-400 and -500),
+   * which passed AA on paper (5.6:1 on a card) but was the colour of every
+   * 15px label, timestamp and placeholder in the app, and at that size on a
+   * dim classroom projector it read as a smudge. Lifted one step: 7.4:1 on the
+   * page, 6.7:1 on a card. Small muted labels also carry `font-medium`, which
+   * does as much for legibility at 15px as the extra contrast does.
+   */
+  --color-chu-nhat: #94a3b8;
 
   /* ── Brand — neon violet → pink ───────────────────────────────────────── */
   --color-chinh: #7c3aed; /* FILL. White on it: 5.7:1. On the page as a border: 3.3:1. */
@@ -90,6 +98,19 @@
   /* Red is reserved for genuine system errors, never for a student's answer. */
   --color-loi: #f87171; /* 6.6:1 on the page, 5.4:1 on its own tinted panel */
   --color-loi-nen: #35263d;
+  /*
+   * Warnings — orange, and a different SHAPE from a note.
+   *
+   * A note ("tip", "what you'll learn") and a rule with consequences ("leaving
+   * this tab is counted, and N times locks the lesson") used to be the same
+   * grey box, so the one that mattered was skimmed like the one that did not.
+   * A warning is now `border-l-4 border-canh-bao bg-canh-bao/10 text-canh-bao-chu`:
+   * a heavy left rule and a tint, which is recognisable before a word is read.
+   * Orange, not amber — amber (`thu-lai`) already means "try again" on an
+   * answer, and a rule is not a verdict on the student.
+   */
+  --color-canh-bao: #f97316; /* rule + heading. 5.4:1 on its own tint over a card */
+  --color-canh-bao-chu: #fed7aa; /* body copy inside a warning. 11:1 on the tint */
 
   /* ── Tiers — positive scale, icon + colour ───────────────────────────── */
   --color-co-ban: #34d399;

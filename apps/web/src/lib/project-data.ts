@@ -16,17 +16,19 @@ import {
   type TepDuAn,
 } from '@dye/core';
 
+import { SAC_THAI } from '@/components/ui/sac-thai';
+
 import { db } from './db';
 import { khoDuAn } from './project-storage';
 
 import type { ProjectStatus, ProjectTemplate } from '@prisma/client';
 
 export const NHAN_TRANG_THAI: Record<ProjectStatus, { nhan: string; lop: string }> = {
-  DRAFT: { nhan: 'Đang làm', lop: 'bg-the-mo text-chu-phu' },
-  SUBMITTED: { nhan: 'Đã nộp, chờ thầy cô xem', lop: 'bg-chinh-nhat text-chinh-sang' },
-  IN_REVIEW: { nhan: 'Thầy cô đang xem', lop: 'bg-thu-thach-nen text-thu-thach' },
-  CHANGES_REQUESTED: { nhan: 'Cần chỉnh thêm', lop: 'bg-thu-lai-nen text-thu-lai' },
-  APPROVED: { nhan: 'Đã duyệt 🎉', lop: 'bg-dung-nen text-dung' },
+  DRAFT: { nhan: 'Đang làm', lop: SAC_THAI.trung },
+  SUBMITTED: { nhan: 'Đã nộp, chờ thầy cô xem', lop: SAC_THAI.chinh },
+  IN_REVIEW: { nhan: 'Thầy cô đang xem', lop: SAC_THAI.thuThach },
+  CHANGES_REQUESTED: { nhan: 'Cần chỉnh thêm', lop: SAC_THAI.thuLai },
+  APPROVED: { nhan: 'Đã duyệt 🎉', lop: SAC_THAI.dung },
 };
 
 export interface TheDuAn {

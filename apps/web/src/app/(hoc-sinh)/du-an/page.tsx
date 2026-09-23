@@ -56,7 +56,7 @@ export default async function TrangDuAn() {
 
                     <p className="mt-0 mb-3 text-sm text-chu-phu">{d.description}</p>
 
-                    <p className="m-0 flex flex-wrap gap-x-4 gap-y-1 text-sm text-chu-nhat">
+                    <p className="m-0 flex flex-wrap gap-x-4 gap-y-1 text-sm font-medium text-chu-nhat">
                       <span>
                         {d.soTep} tệp · {coChu(d.tongByte)}
                       </span>

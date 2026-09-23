@@ -145,7 +145,7 @@ export default async function TrangLop({
 
                       <td className="px-4 py-3">
                         <span
-                          className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${kieu.nen} ${kieu.chu} ${kieu.vien}`}
+                          className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${kieu.huyHieu}`}
                         >
                           <span aria-hidden="true">{kieu.icon}</span>
                           {kieu.nhan}

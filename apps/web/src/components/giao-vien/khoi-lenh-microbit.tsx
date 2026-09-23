@@ -98,7 +98,7 @@ export function KhoiLenhMicrobit({
         <div id={`${id}-bang-doc`} role="tabpanel" aria-labelledby={`${id}-doc`} className="p-4">
           {doDuoc ? (
             <>
-              <p className="mt-0 mb-3 text-sm break-words text-chu-nhat">
+              <p className="mt-0 mb-3 text-sm break-words font-medium text-chu-nhat">
                 {banDoc.soKhoi} khối lệnh
                 {banDoc.bien.length > 0 ? ` · biến em dùng: ${banDoc.bien.join(', ')}` : ''} · đây
                 là cách hệ thống đọc bài của em, bấm “XML gốc” để xem nguyên văn.
@@ -114,7 +114,7 @@ export function KhoiLenhMicrobit({
               <p className="mt-0 mb-3 rounded-nut bg-thu-lai-nen p-3 text-sm text-thu-lai">
                 {banDoc.loi}
               </p>
-              <p className="m-0 text-sm text-chu-nhat">
+              <p className="m-0 text-sm font-medium text-chu-nhat">
                 Nguyên văn bài nộp vẫn còn nguyên ở tab “XML gốc”.
               </p>
             </>

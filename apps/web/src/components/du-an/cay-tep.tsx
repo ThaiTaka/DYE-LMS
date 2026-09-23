@@ -175,7 +175,7 @@ function NutCay({
         >
           <span aria-hidden="true">{bieuTuong(t.path)}</span>
           <span className="truncate">{nut.ten}</span>
-          <span className="ms-auto shrink-0 text-xs text-chu-nhat tabular-nums">
+          <span className="ms-auto shrink-0 text-xs font-medium text-chu-nhat tabular-nums">
             {coChu(t.sizeBytes)}
           </span>
         </button>
@@ -185,7 +185,7 @@ function NutCay({
             type="button"
             onClick={() => onXoa(t.path)}
             aria-label={`Xoá ${t.path}`}
-            className="shrink-0 rounded p-1.5 text-sm text-chu-nhat hover:text-thu-lai"
+            className="shrink-0 rounded p-1.5 text-sm font-medium text-chu-nhat hover:text-thu-lai"
           >
             <span aria-hidden="true">✕</span>
           </button>

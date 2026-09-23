@@ -41,7 +41,7 @@ export default async function TrangGiaoVien() {
                   <h3 className="mt-0 mb-1 text-lg leading-snug font-semibold text-chu">
                     {l.name}
                   </h3>
-                  <p className="mt-0 mb-4 text-sm text-chu-nhat">
+                  <p className="mt-0 mb-4 text-sm font-medium text-chu-nhat">
                     {l.code}
                     {l.term ? ` · ${l.term}` : ''} · {l.siSo} học sinh
                   </p>

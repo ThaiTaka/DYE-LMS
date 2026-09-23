@@ -159,7 +159,7 @@ export function KhuDuAn({
               disabled={dangGui}
               className="block w-full text-sm file:me-3 file:min-h-cham file:rounded-nut file:border-0 file:bg-chinh file:px-4 file:py-2 file:text-sm file:font-semibold file:text-white hover:file:bg-chinh-dam"
             />
-            <p className="mt-2 mb-0 text-xs text-chu-nhat">
+            <p className="mt-2 mb-0 text-xs font-medium text-chu-nhat">
               Ảnh, âm thanh, .py, .json — mỗi tệp tối đa 5 MB.
             </p>
 
@@ -250,7 +250,7 @@ function SuaTep({
             Lưu tệp
           </button>
         ) : (
-          <span className="text-sm text-chu-nhat">Chỉ xem</span>
+          <span className="text-sm font-medium text-chu-nhat">Chỉ xem</span>
         )}
       </div>
 
@@ -279,7 +279,7 @@ function XemTaiNguyen({ projectId, tep }: { projectId: string; tep: TepDuAn }) {
     <div className="rounded-the border border-vien bg-the">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-vien px-4 py-2.5">
         <span className="font-mono text-sm font-semibold">{tep.path}</span>
-        <span className="text-sm text-chu-nhat">
+        <span className="text-sm font-medium text-chu-nhat">
           {tep.sniffedMime} · {coChu(tep.sizeBytes)}
         </span>
       </div>

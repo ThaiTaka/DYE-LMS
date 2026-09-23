@@ -754,7 +754,7 @@ export const KhuMicrobit = memo(function KhuMicrobit({
           </button>
         ) : null}
 
-        <p className="m-0 text-sm text-chu-nhat">
+        <p className="m-0 text-sm font-medium text-chu-nhat">
           {hetLuot
             ? baiNopCuoi?.verdict === 'ACCEPTED'
               ? '🎉 Bài này đã được chấm đạt.'

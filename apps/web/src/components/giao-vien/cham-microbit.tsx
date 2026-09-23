@@ -134,7 +134,7 @@ export function ChamMicrobit({
       </div>
 
       {!duNhanXet ? (
-        <p className="m-0 mt-3 text-sm text-chu-nhat">
+        <p className="m-0 mt-3 text-sm font-medium text-chu-nhat">
           Thầy cô viết vài dòng nhận xét trước khi kết luận nhé — em cần biết vì sao.
         </p>
       ) : null}

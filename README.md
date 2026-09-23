@@ -329,6 +329,25 @@ Ngoài ra có hai **cổng thường trực** chạy cùng mỗi lần test:
 
 ---
 
+## 📝 Nhật ký thay đổi
+
+### 2026-09-23 — UI/UX Accessibility and Visual Hierarchy Overhaul
+
+Đại tu độ dễ đọc và thứ bậc thị giác theo phản hồi UI/UX. Mọi màu vẫn đi qua token ngữ nghĩa trong [`globals.css`](apps/web/src/app/globals.css) — không dùng lớp màu thô như `text-slate-400`.
+
+| Hạng mục | Thay đổi |
+| --- | --- |
+| **Tương phản chữ mờ** | Token `--color-chu-nhat` nâng từ `#8b93ad` lên `#94a3b8` (slate-400): 7.4:1 trên nền trang, 6.7:1 trên thẻ (trước: 6.2 / 5.6). Chữ mờ cỡ nhỏ (`text-xs`/`text-sm`) thêm `font-medium` trên toàn app (49 chỗ). |
+| **Bỏ "hộp trong hộp"** | "Bài em đã nộp gần đây" và cụm người dùng ở thanh bên không còn thẻ viền lồng trong panel; thay bằng `divide-y divide-white/10` + `py-3.5`. |
+| **Huy hiệu dạng kính** | Module mới [`sac-thai.ts`](apps/web/src/components/ui/sac-thai.ts) (`SAC_THAI`) và trường `huyHieu` trong `KIEU_NHANH`: sắc 10% + viền 25% + chữ đủ đậm. Áp dụng cho nhánh (Cơ bản…), trạng thái dự án, kết quả chấm, Micro:bit, giáo trình; nhãn "Khám phá thêm" hết là khối vàng đặc. Chỉ nút gradient còn là thứ nổi nhất. |
+| **Cảnh báo khác ghi chú** | Token mới `--color-canh-bao` / `--color-canh-bao-chu`. Lời nhắc "rời khỏi tab" và "Luật phòng thi" dùng `border-l-4 border-canh-bao bg-canh-bao/10 text-canh-bao-chu`. |
+| **Thanh tìm kiếm & cụm hồ sơ** | Ô tìm kiếm gọn khi nghỉ (`w-48`, `lg:w-64`), mở rộng khi focus (`w-80`; trên điện thoại chiếm phần còn lại), chỉ chuyển động `width`. Tên + avatar gom thành một cụm, tên dài tự cắt `…`. |
+| **Sửa lỗi a11y / Tailwind v4** | `outline-none` → `outline-hidden` (v4: `outline-none` xoá hẳn viền focus trong Windows High Contrast). Tên học sinh không còn bị trình đọc màn hình đọc hai lần ở header. Huy hiệu đếm trên thanh giáo viên đọc đúng nội dung ("bài tự luận chờ chấm" thay vì luôn là "cảnh báo chưa xử lý"). |
+
+Kiểm tra tự động: `hien-thi.test.tsx` giờ tính tương phản cho từng huy hiệu kính và khung cảnh báo (phủ màu trong suốt lên cả nền trang lẫn nền thẻ), đọc thẳng từ các chuỗi lớp thật.
+
+---
+
 ## 🗺 Lộ trình
 
 | Phase | Nội dung | Trạng thái |

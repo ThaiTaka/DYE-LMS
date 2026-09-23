@@ -108,7 +108,7 @@ export default async function TrangKhongGianDuAn({
               <li key={b.versionId} className="rounded-the border border-vien bg-the p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
                   <span className="font-semibold">Bản {b.version}</span>
-                  <span className="text-sm text-chu-nhat">
+                  <span className="text-sm font-medium text-chu-nhat">
                     {b.submittedAt.toLocaleString('vi-VN')} · {b.soTep} tệp
                   </span>
                 </div>
@@ -127,7 +127,7 @@ export default async function TrangKhongGianDuAn({
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-2 mb-0 text-sm text-chu-nhat">Thầy cô chưa nhận xét bản này.</p>
+                  <p className="mt-2 mb-0 text-sm font-medium text-chu-nhat">Thầy cô chưa nhận xét bản này.</p>
                 )}
 
                 <p className="mt-3 mb-0">

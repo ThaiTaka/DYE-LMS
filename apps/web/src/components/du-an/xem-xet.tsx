@@ -128,7 +128,7 @@ export function XemXetDuAn({
             <div className="rounded-the border border-vien bg-the">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-vien px-4 py-2.5">
                 <span className="font-mono text-sm font-semibold">{chon.path}</span>
-                <span className="text-sm text-chu-nhat">Chỉ đọc</span>
+                <span className="text-sm font-medium text-chu-nhat">Chỉ đọc</span>
               </div>
               {dangTai ? (
                 <p className="m-0 p-6 text-chu-phu">Đang mở tệp…</p>
@@ -191,7 +191,7 @@ export function XemXetDuAn({
         </fieldset>
 
         {comment.trim().length < 3 ? (
-          <p className="m-0 text-sm text-chu-nhat">
+          <p className="m-0 text-sm font-medium text-chu-nhat">
             Thầy cô viết vài dòng nhận xét trước khi chọn kết luận nhé.
           </p>
         ) : null}
@@ -237,7 +237,7 @@ function XemTaiNguyen({ projectId, tep }: { projectId: string; tep: TepDuAn }) {
     <div className="rounded-the border border-vien bg-the">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-vien px-4 py-2.5">
         <span className="font-mono text-sm font-semibold">{tep.path}</span>
-        <span className="text-sm text-chu-nhat">
+        <span className="text-sm font-medium text-chu-nhat">
           {tep.sniffedMime} · {coChu(tep.sizeBytes)}
         </span>
       </div>

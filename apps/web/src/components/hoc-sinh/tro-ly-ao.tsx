@@ -343,7 +343,7 @@ export function TroLyAo() {
                   <h2 id={`${id}-tieu-de`} className="m-0 truncate text-sm font-bold text-chu">
                     Bí — trợ lý học tập
                   </h2>
-                  <p className="m-0 truncate text-xs text-chu-nhat">
+                  <p className="m-0 truncate text-xs font-medium text-chu-nhat">
                     {dangGui ? 'Đang đọc bài của em…' : 'Gợi ý từng bước, không làm hộ'}
                   </p>
                 </span>
@@ -378,7 +378,7 @@ export function TroLyAo() {
                 ))}
 
                 {dangGui ? (
-                  <p className="m-0 flex items-center gap-2 text-sm text-chu-nhat">
+                  <p className="m-0 flex items-center gap-2 text-sm font-medium text-chu-nhat">
                     <span aria-hidden="true">🤖</span>
                     Bí đang nghĩ…
                   </p>
@@ -412,7 +412,7 @@ export function TroLyAo() {
                     }
                   }}
                   placeholder="Em đang mắc chỗ nào?"
-                  className="min-h-11 flex-1 resize-none rounded-nut border border-white/10 bg-nen-sau/60 px-3 py-2 text-sm text-chu placeholder:text-chu-nhat focus-visible:border-chinh focus-visible:outline-none"
+                  className="min-h-11 flex-1 resize-none rounded-nut border border-white/10 bg-nen-sau/60 px-3 py-2 text-sm text-chu placeholder:text-chu-nhat focus-visible:border-chinh-sang focus-visible:ring-2 focus-visible:ring-chinh-sang/40 focus-visible:outline-hidden"
                 />
                 <button
                   type="submit"

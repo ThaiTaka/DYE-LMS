@@ -366,7 +366,7 @@ function ChonVaNopHex({
           📂
         </span>
         <span className="text-base font-semibold">Chọn tệp .hex hoặc kéo thả vào đây</span>
-        <span className="text-sm text-chu-nhat">Tối đa {GIOI_HAN_MB} MB</span>
+        <span className="text-sm font-medium text-chu-nhat">Tối đa {GIOI_HAN_MB} MB</span>
         <input
           ref={input}
           id={`${id}-tep`}

@@ -2,6 +2,7 @@ import Link from 'next/link';
 
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
+import { SAC_THAI } from '@/components/ui/sac-thai';
 import { requireRole } from '@/lib/guard';
 import { hangMicrobitChoCham } from '@/lib/teacher-data';
 
@@ -82,9 +83,7 @@ function Nhom({
                   {h.daCham ? (
                     <span
                       className={`rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${
-                        h.verdict === 'ACCEPTED'
-                          ? 'bg-dung-nen text-dung'
-                          : 'bg-thu-lai-nen text-thu-lai'
+                        h.verdict === 'ACCEPTED' ? SAC_THAI.dung : SAC_THAI.thuLai
                       }`}
                     >
                       {h.verdict === 'ACCEPTED' ? 'Đạt' : 'Chưa đạt'}
@@ -92,7 +91,7 @@ function Nhom({
                   ) : null}
                 </div>
 
-                <p className="mt-1 mb-0 text-sm text-chu-nhat">
+                <p className="mt-1 mb-0 text-sm font-medium text-chu-nhat">
                   {h.lessonOrder > 0 ? `Buổi ${h.lessonOrder} · ` : ''}
                   {h.lessonTitle} · lần nộp {h.attemptNo} ·{' '}
                   {h.nopLuc.toLocaleString('vi-VN')}

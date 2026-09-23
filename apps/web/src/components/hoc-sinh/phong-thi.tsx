@@ -393,14 +393,20 @@ function GioiThieu({
         The rules, in full, BEFORE the button. A student is held to what they
         were told; a rule applied without being stated first is a trap.
       */}
+      {/*
+        Drawn as a warning (heavy left rule, orange tint — see `--color-canh-bao`),
+        the same shape as the tab notice on a lesson page, so "this rule has a
+        penalty" looks the same everywhere a student meets one. It was a full
+        amber box before, which is the colour of "try again" on an answer.
+      */}
       <section
         aria-labelledby="luat-thi"
-        className="mb-6 rounded-the border-2 border-thu-lai bg-thu-lai-nen p-5"
+        className="mb-6 rounded-r-the border-l-4 border-canh-bao bg-canh-bao/10 p-5 text-canh-bao-chu"
       >
-        <h2 id="luat-thi" className="mt-0 mb-3 text-lg font-bold text-thu-lai">
-          Luật phòng thi
+        <h2 id="luat-thi" className="mt-0 mb-3 text-lg font-bold text-canh-bao">
+          <span aria-hidden="true">⚠️ </span>Luật phòng thi
         </h2>
-        <ul className="m-0 list-disc space-y-2 ps-5">
+        <ul className="m-0 list-disc space-y-2 ps-5 marker:text-canh-bao [&_strong]:text-chu">
           <li>
             Bài thi chạy ở chế độ <strong>toàn màn hình</strong>. Bấm &ldquo;Bắt đầu&rdquo; là vào
             toàn màn hình và đồng hồ bắt đầu chạy.
@@ -417,7 +423,7 @@ function GioiThieu({
           <li>Không sao chép, dán hay chuột phải trong lúc thi.</li>
           <li>Hết giờ, bài tự nộp với những câu em đã trả lời.</li>
         </ul>
-        <p className="mt-3 mb-0 text-sm text-chu-phu">
+        <p className="mt-3 mb-0 text-sm font-medium text-canh-bao-chu/80">
           Máy chỉ đếm số lần rời đi, không biết em đã mở gì. Nếu bị khoá nhầm (bật gõ tiếng Việt,
           thông báo hệ thống…), thầy cô có thể huỷ lượt thi để em thi lại.
         </p>

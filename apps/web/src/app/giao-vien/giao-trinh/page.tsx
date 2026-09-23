@@ -29,7 +29,7 @@ export default async function TrangChonGiaoTrinh() {
                 {c.iconEmoji}
               </span>
               <h2 className="mt-0 mb-1 text-lg leading-snug font-semibold text-chu">{c.title}</h2>
-              <p className="m-0 text-sm text-chu-nhat">{c.totalSessions} buổi</p>
+              <p className="m-0 text-sm font-medium text-chu-nhat">{c.totalSessions} buổi</p>
             </Link>
           </li>
         ))}

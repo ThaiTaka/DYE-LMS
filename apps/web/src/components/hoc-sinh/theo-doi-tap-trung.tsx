@@ -348,17 +348,34 @@ export function TheoDoiTapTrung({
 
   return (
     <>
-      <p className="m-0 flex items-start gap-2 rounded-nut border border-vien bg-the-mo px-3.5 py-2.5 text-sm text-chu-phu">
-        <span aria-hidden="true">👀</span>
-        <span>
-          Trang này có ghi lại <strong className="text-chu">số lần em rời khỏi tab</strong> trong
-          lúc học. Tới <strong className="text-chu">{nguongNhac} lần</strong> hệ thống sẽ nhắc em,
-          tới <strong className="text-chu">{nguongKhoa} lần</strong> bài sẽ bị khoá và tính 0 điểm
-          cho tới khi thầy cô mở lại. Hệ thống{' '}
+      {/*
+        A warning, and drawn as one.
+
+        This was the same grey box as a study tip, so students skimmed a rule
+        that can zero their lesson as if it were a tip. The heavy left rule and
+        orange tint (see `--color-canh-bao` in globals.css) mark it as "this has
+        consequences" before a word of it is read. `role="note"`, not `alert`:
+        it is standing information on page load, not an event, and must not
+        interrupt a screen reader on every visit.
+      */}
+      <div
+        role="note"
+        aria-label="Lưu ý về việc rời khỏi tab"
+        className="flex items-start gap-3 rounded-r-nut border-l-4 border-canh-bao bg-canh-bao/10 px-4 py-3 text-sm text-canh-bao-chu"
+      >
+        <span aria-hidden="true" className="text-base leading-6">
+          ⚠️
+        </span>
+        <p className="m-0">
+          <strong className="font-bold text-canh-bao">Đừng rời khỏi tab này.</strong> Trang này có
+          ghi lại <strong className="text-chu">số lần em rời khỏi tab</strong> trong lúc học. Tới{' '}
+          <strong className="text-chu">{nguongNhac} lần</strong> hệ thống sẽ nhắc em, tới{' '}
+          <strong className="text-chu">{nguongKhoa} lần</strong> bài sẽ bị khoá và tính 0 điểm cho
+          tới khi thầy cô mở lại. Hệ thống{' '}
           <strong className="text-chu">không biết em đã mở gì</strong> — nếu em đang thấy khó ở chỗ
           nào, cứ nói với thầy cô nhé.
-        </span>
-      </p>
+        </p>
+      </div>
 
       {soLanRoi !== null ? (
         <CanhBaoRoiTab soLan={soLanRoi} gioiHan={nguongKhoa} onDong={dong} />

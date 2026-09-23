@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
+import { SAC_THAI } from '@/components/ui/sac-thai';
 import { requireRole, xemDuoc } from '@/lib/guard';
 import { VanBan } from '@/lib/markdown';
 import { duLieuGiaoTrinh, type BaiHocGiaoVien } from '@/lib/teacher-data';
@@ -11,10 +12,10 @@ import { duLieuGiaoTrinh, type BaiHocGiaoVien } from '@/lib/teacher-data';
 import type { Tier } from '@prisma/client';
 
 const NHAN_TRANG_THAI: Record<string, { nhan: string; lop: string }> = {
-  REQUIRED: { nhan: 'Bắt buộc', lop: 'bg-chinh-nhat text-chinh-sang' },
-  RECOMMENDED: { nhan: 'Nên làm', lop: 'bg-thu-thach-nen text-thu-thach' },
-  OPTIONAL: { nhan: 'Tuỳ chọn', lop: 'bg-the-mo text-chu-phu' },
-  ADVANCED: { nhan: 'Nâng cao', lop: 'bg-nang-cao-nen text-nang-cao' },
+  REQUIRED: { nhan: 'Bắt buộc', lop: SAC_THAI.chinh },
+  RECOMMENDED: { nhan: 'Nên làm', lop: SAC_THAI.thuThach },
+  OPTIONAL: { nhan: 'Tuỳ chọn', lop: SAC_THAI.trung },
+  ADVANCED: { nhan: 'Nâng cao', lop: SAC_THAI.nangCao },
 };
 
 export default async function TrangGiaoTrinh({
@@ -47,7 +48,7 @@ export default async function TrangGiaoTrinh({
           {gt.title}
         </h1>
         <p className="mt-0 mb-3 text-lg text-chu-phu">{gt.subtitle}</p>
-        <p className="m-0 text-sm text-chu-nhat">
+        <p className="m-0 text-sm font-medium text-chu-nhat">
           {gt.totalSessions} buổi · {gt.modules.length} chương · {gt.soBuoiCoGhiChu} buổi có ghi chú
           giáo án
         </p>
@@ -81,7 +82,7 @@ export default async function TrangGiaoTrinh({
  * instructional note — and the body carries the detail.
  */
 function TheBaiHoc({ bai }: { bai: BaiHocGiaoVien }) {
-  const tt = NHAN_TRANG_THAI[bai.status] ?? { nhan: bai.status, lop: 'bg-the-mo text-chu-phu' };
+  const tt = NHAN_TRANG_THAI[bai.status] ?? { nhan: bai.status, lop: SAC_THAI.trung };
   const nhanhCoNoiDung = (Object.entries(bai.soKhoiTheoNhanh) as Array<[Tier, number]>).filter(
     ([, n]) => n > 0,
   );
@@ -105,7 +106,9 @@ function TheBaiHoc({ bai }: { bai: BaiHocGiaoVien }) {
         </span>
 
         {bai.teacherNotes ? (
-          <span className="rounded-full bg-mo-rong-nen px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-mo-rong">
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap ${SAC_THAI.moRong}`}
+          >
             📌 Có ghi chú
           </span>
         ) : null}
@@ -136,7 +139,7 @@ function TheBaiHoc({ bai }: { bai: BaiHocGiaoVien }) {
               Ghi chú giáo án · yêu cầu giảng dạy
             </h3>
             <VanBan>{bai.teacherNotes}</VanBan>
-            <p className="mt-3 mb-0 text-xs text-chu-nhat">
+            <p className="mt-3 mb-0 text-xs font-medium text-chu-nhat">
               Học sinh không nhìn thấy phần này.
             </p>
           </section>
@@ -152,7 +155,7 @@ function TheBaiHoc({ bai }: { bai: BaiHocGiaoVien }) {
                 ))}
               </ul>
             ) : (
-              <p className="m-0 text-sm text-chu-nhat">Chưa ghi mục tiêu.</p>
+              <p className="m-0 text-sm font-medium text-chu-nhat">Chưa ghi mục tiêu.</p>
             )}
           </div>
 
@@ -167,7 +170,7 @@ function TheBaiHoc({ bai }: { bai: BaiHocGiaoVien }) {
                 <span aria-hidden="true">{'●'.repeat(bai.difficulty)}</span>
                 <span className="sr-only">{bai.difficulty} trên 5</span>
                 <span className="text-chu-nhat"> {'○'.repeat(5 - bai.difficulty)}</span>
-                <span className="ms-2 text-xs text-chu-nhat">(chỉ để thầy cô lên kế hoạch)</span>
+                <span className="ms-2 text-xs font-medium text-chu-nhat">(chỉ để thầy cô lên kế hoạch)</span>
               </dd>
 
               <dt className="text-chu-nhat">Bài trước</dt>
@@ -201,7 +204,7 @@ function TheBaiHoc({ bai }: { bai: BaiHocGiaoVien }) {
                 return (
                   <li
                     key={tier}
-                    className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm font-medium ${kieu.nen} ${kieu.chu} ${kieu.vien}`}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${kieu.huyHieu}`}
                   >
                     <span aria-hidden="true">{kieu.icon}</span>
                     {kieu.nhan}: {soKhoi}

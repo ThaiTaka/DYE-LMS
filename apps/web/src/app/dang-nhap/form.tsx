@@ -6,7 +6,7 @@ import { useFormStatus } from 'react-dom';
 import { dangNhap, type TrangThaiDangNhap } from './actions';
 
 const O_NHAP =
-  'min-h-cham w-full rounded-nut border border-vien-dam bg-nen-sau/60 px-4 py-2.5 text-base text-chu outline-none transition-colors placeholder:text-chu-nhat focus:border-chinh-sang focus:ring-2 focus:ring-chinh-sang/40';
+  'min-h-cham w-full rounded-nut border border-vien-dam bg-nen-sau/60 px-4 py-2.5 text-base text-chu outline-hidden transition-colors placeholder:text-chu-nhat focus:border-chinh-sang focus:ring-2 focus:ring-chinh-sang/40';
 
 function NutGui() {
   const { pending } = useFormStatus();

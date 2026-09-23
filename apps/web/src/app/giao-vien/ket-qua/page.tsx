@@ -6,6 +6,7 @@ import { MoLaiKhoi } from '@/components/giao-vien/mo-lai-khoi';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { XemMaBaiNop } from '@/components/giao-vien/xem-ma-bai-nop';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
+import { SAC_THAI } from '@/components/ui/sac-thai';
 import { requireRole } from '@/lib/guard';
 import { duLieuKetQuaBaiNop, duLieuTuLuanChoCham } from '@/lib/teacher-data';
 
@@ -35,12 +36,12 @@ const THU_TU_LOC = [
 ];
 
 function mauKetQua(verdict: string): string {
-  if (verdict === 'ACCEPTED') return 'bg-dung-nen text-dung';
+  if (verdict === 'ACCEPTED') return SAC_THAI.dung;
   if (verdict === 'PENDING' || verdict === 'RUNNING' || verdict === 'SKIPPED') {
-    return 'bg-the-mo text-chu-phu';
+    return SAC_THAI.trung;
   }
-  if (verdict === 'INTERNAL_ERROR') return 'bg-thu-lai-nen text-thu-lai';
-  return 'bg-loi-nen text-loi';
+  if (verdict === 'INTERNAL_ERROR') return SAC_THAI.thuLai;
+  return SAC_THAI.loi;
 }
 
 function gioPhut(d: Date): string {
@@ -195,7 +196,7 @@ export default async function TrangKetQua({
                       {b.lessonTitle ? `${b.lessonTitle} · ` : ''}
                       {b.problemTitle}
                     </p>
-                    <p className="m-0 mt-1 text-xs text-chu-nhat">
+                    <p className="m-0 mt-1 text-xs font-medium text-chu-nhat">
                       Lần {b.attemptNo} · {gioPhut(b.nopLuc)}
                       {b.score !== null ? ` · ${b.score}/${b.totalPoints} điểm` : ''}
                     </p>
@@ -271,7 +272,7 @@ export default async function TrangKetQua({
           </ul>
 
           {data.conNua ? (
-            <p className="mt-4 text-sm text-chu-nhat">
+            <p className="mt-4 text-sm font-medium text-chu-nhat">
               Đang hiện {data.bai.length} bài mới nhất. Dùng bộ lọc ở trên để thu hẹp lại.
             </p>
           ) : null}

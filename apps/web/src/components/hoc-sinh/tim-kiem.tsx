@@ -99,7 +99,10 @@ export function TimKiem({ dichDen, className = '' }: { dichDen: DichDen[]; class
         autoComplete="off"
         aria-describedby={khongThay ? `${id}-loi` : undefined}
         aria-invalid={khongThay || undefined}
-        className={`h-10 w-full rounded-full border bg-white/[0.04] ps-11 pe-4 text-sm text-chu placeholder:text-chu-nhat focus:bg-white/[0.07] focus:outline-none focus-visible:ring-2 focus-visible:ring-chinh-sang ${
+        // `outline-hidden`, not `outline-none`: in Tailwind v4 the latter is a
+        // real `outline-style: none`, and Windows High Contrast strips the
+        // ring (a box-shadow) — so the field had no focus indicator at all there.
+        className={`h-10 w-full rounded-full border bg-white/[0.04] ps-11 pe-4 text-sm text-chu placeholder:text-chu-nhat focus:bg-white/[0.07] focus:outline-hidden focus-visible:ring-2 focus-visible:ring-chinh-sang ${
           khongThay ? 'border-thu-lai' : 'border-vien hover:border-vien-dam focus:border-chinh-sang'
         }`}
       />
@@ -116,7 +119,9 @@ export function TimKiem({ dichDen, className = '' }: { dichDen: DichDen[]; class
         <p
           id={`${id}-loi`}
           role="status"
-          className="absolute top-full left-0 z-10 mt-2 rounded-nut border border-thu-lai/50 bg-the px-3 py-2 text-sm text-thu-lai shadow-noi"
+          // Sized to its text, not to the form: the box is compact at rest and
+          // a message squeezed into 12rem wrapped to five lines.
+          className="absolute top-full left-0 z-10 mt-2 w-max max-w-[min(20rem,80vw)] rounded-nut border border-thu-lai/50 bg-the px-3 py-2 text-sm text-thu-lai shadow-noi"
         >
           Không có trang nào tên vậy. Thử gõ tên khoá học của em nhé.
         </p>

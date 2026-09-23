@@ -58,7 +58,9 @@ export default async function BangDieuKhien() {
                 <h2 id="tieu-de-khoa-hoc" className="m-0 text-xl font-bold">
                   Khoá học của em
                 </h2>
-                <span className="text-sm text-chu-nhat">{data.courses.length} khoá</span>
+                <span className="text-sm font-medium text-chu-nhat">
+                  {data.courses.length} khoá
+                </span>
               </div>
 
               {data.courses.length === 0 ? (
@@ -88,7 +90,7 @@ export default async function BangDieuKhien() {
                                   {c.title}
                                 </h3>
                                 <span
-                                  className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold ${kieu.nen} ${kieu.chu} ${kieu.vien}`}
+                                  className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${kieu.huyHieu}`}
                                 >
                                   <span aria-hidden="true">{kieu.icon}</span>
                                   {kieu.nhan}
@@ -106,7 +108,7 @@ export default async function BangDieuKhien() {
                               />
 
                               {c.progress.optional.total > 0 ? (
-                                <p className="mt-3 mb-0 text-sm text-chu-nhat">
+                                <p className="mt-3 mb-0 text-sm font-medium text-chu-nhat">
                                   🌟 {c.progress.optional.completed}/{c.progress.optional.total} bài
                                   khám phá thêm
                                 </p>

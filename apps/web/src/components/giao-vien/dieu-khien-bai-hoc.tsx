@@ -98,7 +98,7 @@ export function HangCanThiep({
             ) : null}
           </span>
           {!bai.unlocked && bai.lockReason ? (
-            <span className="mt-1 block text-sm text-chu-nhat">{bai.lockReason}</span>
+            <span className="mt-1 block text-sm font-medium text-chu-nhat">{bai.lockReason}</span>
           ) : null}
         </span>
 

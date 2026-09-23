@@ -7,6 +7,7 @@ import { NutDaDocXong } from './nut-da-doc-xong';
 import { KhuLamBai } from './khu-lam-bai';
 import { KhuMicrobit } from './khu-microbit';
 import { KIEU_NHANH, KIEU_TRUY_CAP } from '../ui/nhanh';
+import { SAC_THAI } from '../ui/sac-thai';
 
 /**
  * Which workspace a lesson belongs to.
@@ -97,13 +98,15 @@ export function KhoiNoiDung({
       <header className="mb-4">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           {khamPha ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-mo-rong px-3 py-1 text-xs font-bold text-nen">
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${SAC_THAI.moRong}`}
+            >
               <span aria-hidden="true">{truyCap.icon}</span>
               {truyCap.nhan}
             </span>
           ) : (
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold ${kieuNhanh.nen} ${kieuNhanh.chu} ${kieuNhanh.vien}`}
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${kieuNhanh.huyHieu}`}
             >
               <span aria-hidden="true">{kieuNhanh.icon}</span>
               {kieuNhanh.nhan}
@@ -419,7 +422,7 @@ function NoiDungTheoLoai({
         <>
           <div className="rounded-nut border border-vien bg-the-mo p-4">
             <p className="m-0">{nd.prompt}</p>
-            <p className="mt-3 mb-0 text-sm text-chu-nhat">
+            <p className="mt-3 mb-0 text-sm font-medium text-chu-nhat">
               Em ghi câu trả lời vào vở, rồi bấm nút bên dưới nhé.
             </p>
           </div>
@@ -464,7 +467,7 @@ function NoiDungTheoLoai({
               </ol>
             </div>
           ) : null}
-          <p className="mt-4 mb-0 text-sm text-chu-nhat">
+          <p className="mt-4 mb-0 text-sm font-medium text-chu-nhat">
             Khu vực nộp dự án sẽ được mở ở bản cập nhật sau.
           </p>
         </>
@@ -483,7 +486,7 @@ function NoiDungTheoLoai({
             >
               ▶ Xem video
               {nd.durationSec > 0 ? (
-                <span className="text-sm text-chu-nhat">
+                <span className="text-sm font-medium text-chu-nhat">
                   ({Math.round(nd.durationSec / 60)} phút)
                 </span>
               ) : null}
@@ -529,7 +532,7 @@ function LamOMakeCode({ muc }: { muc: string }) {
         Bài này em làm bằng khối lệnh MakeCode, không gõ Python.
       </p>
       {muc ? <p className="mt-2 mb-0 text-sm text-chu-phu">Mục tiêu: {muc}</p> : null}
-      <p className="mt-2 mb-0 text-sm text-chu-nhat">
+      <p className="mt-2 mb-0 text-sm font-medium text-chu-nhat">
         Khu kéo thả nằm ở phần Micro:bit bên dưới — em cuộn xuống một chút nhé.
       </p>
     </div>
