@@ -4,6 +4,7 @@ import { currentActor } from '@/auth';
 import { DauHieu } from '@/components/dau-hieu';
 
 import { FormDangNhap } from './form';
+import { NenMaLenh } from './nen-ma-lenh';
 
 export default async function TrangDangNhap({
   searchParams,
@@ -18,7 +19,11 @@ export default async function TrangDangNhap({
   const vuaDoiMatKhau = params['doi-mat-khau'] === 'xong';
 
   return (
-    <main className="relative isolate flex min-h-screen flex-col items-center justify-center px-4 py-16 text-chu sm:px-6 before:pointer-events-none before:absolute before:inset-0 before:-z-10 before:bg-[linear-gradient(to_right,rgba(167,139,250,0.10)_1px,transparent_1px),linear-gradient(to_bottom,rgba(167,139,250,0.10)_1px,transparent_1px)] before:bg-[size:40px_40px] before:[mask-image:radial-gradient(ellipse_70%_60%_at_50%_40%,#000_30%,transparent_100%)] before:content-[''] after:pointer-events-none after:absolute after:inset-0 after:-z-10 after:bg-[radial-gradient(ellipse_55%_40%_at_50%_40%,rgba(124,58,237,0.22),transparent_70%)] after:content-['']">
+    // `isolate` keeps the background's `-z-10` inside this page, above the
+    // body's own glow and below everything drawn here.
+    <main className="relative isolate flex min-h-screen flex-col items-center justify-center px-4 py-16 text-chu sm:px-6">
+      <NenMaLenh />
+
       <div className="mb-8 w-full max-w-md text-center">
         {/*
           The mark sits on a lit tile rather than being tinted itself.
@@ -53,7 +58,7 @@ export default async function TrangDangNhap({
           </p>
         </div>
 
-        <p className="m-0 text-chu-phu">Nền tảng học lập trình và STEM Robotics</p>
+        <p className="m-0 text-chu-phu">Nền tảng học lập trình và Robotics</p>
       </div>
 
       {vuaDoiMatKhau ? (
