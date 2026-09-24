@@ -110,7 +110,8 @@ describe('anhHuongXoaTaiKhoan — đo trước khi phá', () => {
       anhHuong.rangBuoc.nhanhDaGiao +
       anhHuong.rangBuoc.canThiepBaiHoc +
       anhHuong.rangBuoc.thongBao +
-      anhHuong.rangBuoc.nhanXet;
+      anhHuong.rangBuoc.nhanXet +
+      anhHuong.rangBuoc.baiTapVeNha;
     expect(anhHuong.tongRangBuoc).toBe(tongCong);
   });
 

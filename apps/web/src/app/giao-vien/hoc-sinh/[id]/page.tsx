@@ -15,8 +15,10 @@ import {
   duLieuHocSinhChuaSanSang,
   duLieuLuotThiHocSinh,
   duLieuTapTrungHocSinh,
+  duLieuTuLuanHocTapHocSinh,
   type HocSinhChuaSanSang,
 } from '@/lib/teacher-data';
+import { hienThiLuc } from '@/lib/thoi-gian';
 
 import type { Actor } from '@dye/core';
 
@@ -49,9 +51,10 @@ export default async function TrangHocSinh({
 
   // Loaded only after `duLieuHocSinh` has proved this actor may see this child,
   // and guarded again inside on the same permission.
-  const [tapTrung, luotThi] = await Promise.all([
+  const [tapTrung, luotThi, tuLuanHocTap] = await Promise.all([
     duLieuTapTrungHocSinh(actor, id),
     duLieuLuotThiHocSinh(actor, id),
+    duLieuTuLuanHocTapHocSinh(actor, id),
   ]);
 
   return (
@@ -192,6 +195,44 @@ export default async function TrangHocSinh({
                     ? ` · ${Math.max(1, Math.round(b.tongVangGiay / 60))} phút`
                     : ''}
                 </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {/*
+        Post-lesson reflections, newest first.
+
+        Each one is folded to a single line — lesson, length, date — because a
+        term of 150-word reflections is a long page, and a teacher usually
+        opens the one for the lesson they are thinking about. Rendered as plain
+        pre-wrapped text: it is a child's writing, not Markdown.
+      */}
+      {tuLuanHocTap.length > 0 ? (
+        <section aria-labelledby="tu-luan-hoc-tap" className="mb-6">
+          <h2 id="tu-luan-hoc-tap" className="mt-0 mb-1 text-xl font-bold">
+            Tự luận sau buổi học ({tuLuanHocTap.length})
+          </h2>
+          <p className="mt-0 mb-4 text-sm text-chu-phu">
+            Em tự viết về điều mình học được, ít nhất 150 chữ mỗi buổi.
+          </p>
+          <ul className="m-0 grid list-none gap-2 p-0">
+            {tuLuanHocTap.map((t) => (
+              <li key={t.id}>
+                <details className="group rounded-the-nho border border-vien bg-the">
+                  <summary className="flex min-h-cham cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-4 text-sm">
+                    <span className="font-semibold">
+                      {t.tenKhoaHoc} · Buổi {t.buoi} · {t.tenBai}
+                    </span>
+                    <span className="text-chu-phu tabular-nums">
+                      {t.soChu} chữ · {hienThiLuc(t.nopLuc)}
+                    </span>
+                  </summary>
+                  <p className="m-0 border-t border-vien px-4 py-3 leading-relaxed whitespace-pre-wrap">
+                    {t.noiDung}
+                  </p>
+                </details>
               </li>
             ))}
           </ul>

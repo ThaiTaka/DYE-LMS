@@ -103,6 +103,8 @@ export type AuthzRequest =
   | { resource: 'quizAttempt'; action: 'read'; attemptId: string }
   /** Editing an existing problem and its hidden tests. */
   | { resource: 'problem'; action: 'manage'; problemId: string }
+  /** A teacher-set homework: reading it (and handing in), or managing it and its hand-ins. */
+  | { resource: 'homework'; action: 'read' | 'manage'; homeworkId: string }
   /** Creating new curriculum content. */
   | { resource: 'curriculum'; action: 'create' };
 
@@ -279,6 +281,31 @@ export async function authorize(
       // so it is admin-only until an admin assigns ownership.
       if (problem.authorId && problem.authorId === me.id) return;
       throw new ForbiddenError('teacher-does-not-own-problem');
+    }
+
+    // ── Teacher-set homework ──────────────────────────────────────────────
+    case 'homework': {
+      if (me.role === 'ADMIN') return;
+
+      const homework = await db.homework.findUnique({
+        where: { id: request.homeworkId },
+        select: { classId: true },
+      });
+      if (!homework) throw new ForbiddenError('homework-not-found');
+
+      // Through the CLASS, never through `Homework.teacherId`. Reassigning a
+      // class hands its homework to the new teacher, and the author of work in
+      // a class they no longer run loses it along with the students.
+      if (me.role === 'TEACHER') {
+        if (await ownsClass(db, me.id, homework.classId)) return;
+        throw new ForbiddenError('teacher-does-not-own-class');
+      }
+
+      // Students may read (and hand in to) homework for a class they are
+      // actively in; they may never manage one.
+      if (request.action !== 'read') throw new ForbiddenError('student-cannot-manage-homework');
+      if (await isEnrolledIn(db, me.id, homework.classId)) return;
+      throw new ForbiddenError('student-not-enrolled');
     }
 
     // ── Creating new curriculum content ───────────────────────────────────

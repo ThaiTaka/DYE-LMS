@@ -3,13 +3,19 @@ import { redirect } from 'next/navigation';
 
 import { BaiNopGanDay } from '@/components/hoc-sinh/bai-nop-gan-day';
 import { MucVao, TheNoi, VaoTrang } from '@/components/hoc-sinh/chuyen-dong';
+import { LuoiBaiTap } from '@/components/hoc-sinh/the-bai-tap';
 import { TheHocTiep } from '@/components/hoc-sinh/the-hoc-tiep';
 import { BieuTuong } from '@/components/ui/bieu-tuong';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
+import { SAC_THAI } from '@/components/ui/sac-thai';
 import { ChuNeon, TheKinh } from '@/components/ui/the-kinh';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireSession } from '@/lib/guard';
-import { duLieuBangDieuKhien } from '@/lib/student-data';
+import { duLieuBangDieuKhien, type DuLieuBangDieuKhien } from '@/lib/student-data';
+import { conLai } from '@/lib/thoi-gian';
+
+/** Homework cards on the dashboard. The rest are one click away on `/bai-tap`. */
+const SO_THE_BAI_TAP = 4;
 
 export default async function BangDieuKhien() {
   const actor = await requireSession();
@@ -20,25 +26,52 @@ export default async function BangDieuKhien() {
 
   const data = await duLieuBangDieuKhien(actor.id);
   const ten = actor.displayName.split(' ').slice(-1)[0];
+  // One clock for the whole page, so every "còn 2 ngày" agrees with the others.
+  const bayGio = new Date();
+
+  // The list is sorted most-urgent-first, so the first to-do item is the
+  // deadline the greeting should mention.
+  const ganNhat = data.baiTapVeNha.find(
+    (b) => b.trangThai === 'chua-nop' || b.trangThai === 'qua-han',
+  );
 
   return (
     <>
-      {/* "Where am I?" — greeting, then the two numbers that matter live in the side column. */}
+      {/*
+        "Where am I?" — greeting, then the one sentence that matters today.
+
+        With homework outstanding the sub-line says so, with the nearest
+        deadline in words. It is a sentence, not a second call to action: the
+        gradient button in the hero stays the only one on the page.
+      */}
       <header className="mb-6">
         <h1 className="mt-0 mb-1 text-3xl font-extrabold sm:text-4xl">
           Chào <ChuNeon>{ten}</ChuNeon> 👋
         </h1>
-        <p className="m-0 text-chu-phu">Hôm nay em muốn học gì?</p>
+        {ganNhat ? (
+          <p className="m-0 text-chu-phu">
+            Em có{' '}
+            <a
+              href="#tieu-de-bai-tap"
+              className="font-semibold text-chinh-sang underline-offset-2 hover:underline"
+            >
+              {data.soBaiTapCanLam} bài tập về nhà
+            </a>{' '}
+            cần nộp — bài gần nhất {conLai(ganNhat.hanNop, bayGio).chu}.
+          </p>
+        ) : (
+          <p className="m-0 text-chu-phu">Hôm nay em muốn học gì?</p>
+        )}
       </header>
 
       {/*
         The asymmetric grid.
 
         Two columns from `xl`: a wide one (≈62%) for the things the student
-        acts on — the hero and the courses — and a narrow one (22rem, sticky)
-        for the things they glance at: counts, badges, recent hand-ins. Below
-        `xl` it is one column in the same reading order, so nothing moves
-        around between a laptop and a tablet.
+        acts on — the hero, their homework, their courses — and a narrow one
+        (22rem, sticky) for the things they glance at: counts, badges, recent
+        hand-ins. Below `xl` it is one column in the same reading order, so
+        nothing moves around between a laptop and a tablet.
 
         Everything arrives in sequence — the hero first, then the cards. It
         runs once, on load: the point is that the page reads as ready, not
@@ -49,6 +82,10 @@ export default async function BangDieuKhien() {
         <div className="grid gap-6">
           <MucVao>
             <TheHocTiep tiepTuc={data.tiepTuc} />
+          </MucVao>
+
+          <MucVao>
+            <PhanBaiTapVeNha data={data} bayGio={bayGio} />
           </MucVao>
 
           {/* "What did I learn?" — one card per course, progress on the student's own track. */}
@@ -189,5 +226,72 @@ export default async function BangDieuKhien() {
         </aside>
       </VaoTrang>
     </>
+  );
+}
+
+/**
+ * "Bài tập về nhà" — what the teacher asked for, and where each piece stands.
+ *
+ * ── Why it sits directly under the hero ──────────────────────────────────────
+ * "Học tiếp" answers "what's next in the course?"; this answers "what did my
+ * teacher ask me to do by Friday?". The second has a deadline, so it is the
+ * first thing below the fold on every screen size — above the courses, which
+ * are the long-term view.
+ *
+ * ── The one highlighted card ─────────────────────────────────────────────────
+ * With work outstanding the section is the page's `noiBat` panel — the
+ * gradient hairline `TheKinh` reserves for the one "look here" per screen.
+ * With nothing to do it drops to a plain panel: a glowing border around "no
+ * homework" would be asking for attention it has not earned.
+ */
+function PhanBaiTapVeNha({ data, bayGio }: { data: DuLieuBangDieuKhien; bayGio: Date }) {
+  const canLam = data.soBaiTapCanLam;
+  const hienThi = data.baiTapVeNha.slice(0, SO_THE_BAI_TAP);
+
+  return (
+    <TheKinh
+      as="section"
+      noiBat={canLam > 0}
+      aria-labelledby="tieu-de-bai-tap"
+      className="scroll-mt-24 p-5 sm:p-6"
+    >
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="grid size-11 shrink-0 place-items-center rounded-the-nho border border-white/10 bg-chinh-nhat text-chinh-sang"
+          >
+            <BieuTuong ten="baiTap" className="size-6" />
+          </span>
+          <h2 id="tieu-de-bai-tap" className="m-0 text-xl font-bold">
+            Bài tập về nhà
+          </h2>
+          {canLam > 0 ? (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${SAC_THAI.chinh}`}>
+              {canLam} bài cần làm
+            </span>
+          ) : null}
+        </div>
+
+        {data.baiTapVeNha.length > 0 ? (
+          <Link
+            href="/bai-tap"
+            className="inline-flex min-h-cham items-center gap-1.5 rounded-nut px-2 text-sm font-semibold text-chinh-sang hover:underline"
+          >
+            Xem tất cả ({data.baiTapVeNha.length})
+            <BieuTuong ten="muiTen" className="size-4" />
+          </Link>
+        ) : null}
+      </div>
+
+      {hienThi.length === 0 ? (
+        <p className="m-0 rounded-the-nho border border-white/10 bg-be-mat p-5 text-chu-phu">
+          <span aria-hidden="true">🎉 </span>
+          Em chưa có bài tập về nhà nào. Khi thầy cô giao bài, bài sẽ hiện ngay ở đây.
+        </p>
+      ) : (
+        <LuoiBaiTap baiTap={hienThi} bayGio={bayGio} />
+      )}
+    </TheKinh>
   );
 }

@@ -126,6 +126,14 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   'datLaiMatKhauHocSinh(': 'authorize(',
   'biKhoaTroLy(': 'isAiLocked',
   'moKhoaTroLy(': 'student-cannot-unlock-ai',
+  // Post-lesson reflection. The lesson id comes from the browser, so the
+  // gating engine re-resolves access before anything is stored.
+  'nopTuLuanHocTap(': 'assertLessonUnlocked(',
+  // Teacher-set homework. Setting one is `class: manage`; handing in and
+  // grading resolve the homework to its class through `authorize`.
+  'taoBaiTapVeNha(': 'authorize(',
+  'nopBaiTapVeNha(': 'authorize(',
+  'chamBaiTapVeNha(': 'authorize(',
 };
 
 const CACH_KIEM_QUYEN = [...KIEM_QUYEN_TRUC_TIEP, ...Object.keys(UY_QUYEN_CHO_CORE)];
@@ -236,7 +244,10 @@ describe('Mọi server action đều biết ai đang gọi', () => {
 
     for (const [ham, chot] of Object.entries(UY_QUYEN_CHO_CORE)) {
       const ten = ham.slice(0, -1);
-      const i = coreSrc.indexOf(`export async function ${ten}`);
+      // Matched WITH the opening parenthesis. A bare prefix let `nopBai` find
+      // `nopBaiTapVeNha` and `nopTuLuan` find `nopTuLuanHocTap` — whichever
+      // file the directory walk read first — and then vouch for the wrong body.
+      const i = coreSrc.indexOf(`export async function ${ham}`);
       expect(i, `khong tim thay ${ten} trong core`).toBeGreaterThan(-1);
 
       const than = coreSrc.slice(i, i + 2500);

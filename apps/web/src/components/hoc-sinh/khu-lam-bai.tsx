@@ -26,7 +26,7 @@ import {
 } from './ban-sao-cuc-bo';
 import { useTuLuu, type TrangThaiLuu } from './dung-tu-luu';
 import { SoSanhMa } from './so-sanh-ma';
-import { SoanThao } from './soan-thao';
+import { HuongDanBanPhim, SoanThao } from './soan-thao';
 
 const NHAN_LY_DO: Record<BanLuuHienThi['reason'], string> = {
   AUTO: 'tự lưu',
@@ -527,20 +527,7 @@ export function KhuLamBai({
         Stated in visible text, not only in aria-describedby: a sighted keyboard
         user needs this exactly as much as a screen-reader user does.
       */}
-      <p id={`${id}-ban-phim`} className="m-0 border-t border-vien px-4 py-2 text-sm font-medium text-chu-nhat">
-        <kbd className="rounded border border-vien bg-the-mo px-1.5 py-0.5 font-mono text-xs">
-          Tab
-        </kbd>{' '}
-        để thụt lề ·{' '}
-        <kbd className="rounded border border-vien bg-the-mo px-1.5 py-0.5 font-mono text-xs">
-          Esc
-        </kbd>{' '}
-        rồi{' '}
-        <kbd className="rounded border border-vien bg-the-mo px-1.5 py-0.5 font-mono text-xs">
-          Tab
-        </kbd>{' '}
-        để ra khỏi khung soạn thảo
-      </p>
+      <HuongDanBanPhim id={`${id}-ban-phim`} className="border-t border-vien px-4 py-2" />
 
       {/*
         Input for the program.

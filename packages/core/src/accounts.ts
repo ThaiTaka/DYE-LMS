@@ -2,13 +2,14 @@
  * Staff account lifecycle — retiring a teacher without losing the record.
  *
  * ── Why this module exists ───────────────────────────────────────────────────
- * Five foreign keys point at a teacher with ON DELETE RESTRICT:
+ * Six foreign keys point at a teacher with ON DELETE RESTRICT:
  *
  *     Class.teacherId              who runs the class
  *     TrackAssignment.assignedBy   who decided this child works on Nâng cao
  *     LessonOverride.createdBy     who unlocked this lesson, and why
  *     Announcement.authorId        what the class was told
  *     Feedback.authorId            what a student was told about their work
+ *     Homework.teacherId           what the class was asked to do at home
  *
  * Those are not an oversight to be worked around with CASCADE. Every one of them
  * records a decision a named adult made about a specific child, and the reason
@@ -67,6 +68,8 @@ export interface RangBuocXoa {
   thongBao: number;
   /** Written feedback on student work. */
   nhanXet: number;
+  /** Homework this teacher set. */
+  baiTapVeNha: number;
 }
 
 export interface AnhHuongXoaTaiKhoan {
@@ -99,16 +102,18 @@ export async function anhHuongXoaTaiKhoan(
   });
   if (!user) throw new ForbiddenError('account-not-found');
 
-  const [lop, hocSinh, nhanhDaGiao, canThiepBaiHoc, thongBao, nhanXet] = await Promise.all([
-    db.class.count({ where: { teacherId: userId } }),
-    db.enrollment.count({
-      where: { isActive: true, class: { teacherId: userId } },
-    }),
-    db.trackAssignment.count({ where: { assignedBy: userId } }),
-    db.lessonOverride.count({ where: { createdBy: userId } }),
-    db.announcement.count({ where: { authorId: userId } }),
-    db.feedback.count({ where: { authorId: userId } }),
-  ]);
+  const [lop, hocSinh, nhanhDaGiao, canThiepBaiHoc, thongBao, nhanXet, baiTapVeNha] =
+    await Promise.all([
+      db.class.count({ where: { teacherId: userId } }),
+      db.enrollment.count({
+        where: { isActive: true, class: { teacherId: userId } },
+      }),
+      db.trackAssignment.count({ where: { assignedBy: userId } }),
+      db.lessonOverride.count({ where: { createdBy: userId } }),
+      db.announcement.count({ where: { authorId: userId } }),
+      db.feedback.count({ where: { authorId: userId } }),
+      db.homework.count({ where: { teacherId: userId } }),
+    ]);
 
   const rangBuoc: RangBuocXoa = {
     lop,
@@ -117,12 +122,13 @@ export async function anhHuongXoaTaiKhoan(
     canThiepBaiHoc,
     thongBao,
     nhanXet,
+    baiTapVeNha,
   };
 
   // `hocSinh` is a consequence of `lop`, not an independent foreign key — it is
   // reported so an admin sees the human cost, but counting it as a blocker would
   // double-count the classes that already block.
-  const tongRangBuoc = lop + nhanhDaGiao + canThiepBaiHoc + thongBao + nhanXet;
+  const tongRangBuoc = lop + nhanhDaGiao + canThiepBaiHoc + thongBao + nhanXet + baiTapVeNha;
 
   return {
     userId: user.id,
@@ -248,6 +254,7 @@ export interface KetQuaChuyenGiao {
   thongBao: number;
   nhanXet: number;
   baiTap: number;
+  baiTapVeNha: number;
 }
 
 /**
@@ -310,6 +317,12 @@ export async function chuyenGiaoHoSoGiangDay(
       where: { authorId: fromTeacherId },
       data: { authorId: toTeacherId },
     });
+    // Authorship only. Who may MANAGE a homework follows the class, and the
+    // classes moved above, so this changes the name on the record — not access.
+    const baiTapVeNha = await tx.homework.updateMany({
+      where: { teacherId: fromTeacherId },
+      data: { teacherId: toTeacherId },
+    });
 
     return {
       lop: lop.count,
@@ -318,6 +331,7 @@ export async function chuyenGiaoHoSoGiangDay(
       thongBao: thongBao.count,
       nhanXet: nhanXet.count,
       baiTap: baiTap.count,
+      baiTapVeNha: baiTapVeNha.count,
     };
   });
 

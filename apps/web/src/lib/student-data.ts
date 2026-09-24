@@ -14,20 +14,27 @@ import 'server-only';
  * Answer checking happens in a server action (see quiz actions), never client-side.
  */
 import {
+  baiTapCuaHocSinh,
   courseProgress,
   danhSachKiemTra,
   khoaHienTai,
   lessonView,
+  moBaiTapChoHocSinh,
   resolveCourseAccess,
   resolveLessonAccess,
   tuLuanCuaHocSinh,
+  tuLuanHocTapCuaBai,
   traLoiCuaHocSinh,
   stageOf,
+  type Actor,
+  type BaiHocGanBaiTap,
+  type BaiTapCuaHocSinh,
   type BaiThiHienThi,
   type BlockAccess,
   type CourseProgress,
   type FlowStage,
   type LessonAccess,
+  type TrangThaiBaiTap,
   type TrangThaiTuLuan,
 } from '@dye/core';
 
@@ -138,6 +145,42 @@ export interface DuLieuBangDieuKhien {
    * the student was told about.
    */
   baiNopGanDay: BaiNopGanDay[];
+  /**
+   * Homework from the student's teachers, most urgent first — to do, then
+   * waiting on the teacher, then feedback to read. See `baiTapCuaHocSinh`.
+   */
+  baiTapVeNha: TheBaiTap[];
+  /** Not handed in yet, overdue included. The number the section leads with. */
+  soBaiTapCanLam: number;
+}
+
+/** One homework card. Dates are ISO strings: this crosses into client code. */
+export interface TheBaiTap {
+  id: string;
+  tieuDe: string;
+  tenLop: string;
+  baiHoc: BaiHocGanBaiTap | null;
+  hanNop: string;
+  trangThai: TrangThaiBaiTap;
+  nopLuc: string | null;
+  nopMuon: boolean;
+}
+
+function theBaiTap(b: BaiTapCuaHocSinh): TheBaiTap {
+  return {
+    id: b.id,
+    tieuDe: b.tieuDe,
+    tenLop: b.tenLop,
+    baiHoc: b.baiHoc,
+    hanNop: b.hanNop.toISOString(),
+    trangThai: b.trangThai,
+    nopLuc: b.nopLuc?.toISOString() ?? null,
+    nopMuon: b.nopMuon,
+  };
+}
+
+function canLam(b: { trangThai: TrangThaiBaiTap }): boolean {
+  return b.trangThai === 'chua-nop' || b.trangThai === 'qua-han';
 }
 
 export interface BaiNopGanDay {
@@ -225,7 +268,7 @@ export async function duLieuBangDieuKhien(studentId: string): Promise<DuLieuBang
   const conGoiY = courses.find((c) => c.progress.nextLesson);
   const target = chuaXong ?? conGoiY ?? null;
 
-  const [tongBaiDaXong, badges, streak, baiNop] = await Promise.all([
+  const [tongBaiDaXong, badges, streak, baiNop, baiTap] = await Promise.all([
     db.lessonProgress.count({ where: { studentId, state: 'COMPLETED' } }),
     db.studentBadge.findMany({
       where: { studentId },
@@ -250,9 +293,12 @@ export async function duLieuBangDieuKhien(studentId: string): Promise<DuLieuBang
         lesson: { select: { slug: true, title: true, order: true } },
       },
     }),
+    baiTapCuaHocSinh(db, studentId),
   ]);
 
   return {
+    baiTapVeNha: baiTap.map(theBaiTap),
+    soBaiTapCanLam: baiTap.filter(canLam).length,
     courses,
     tiepTuc:
       target && target.progress.nextLesson
@@ -533,6 +579,15 @@ export interface DuLieuBaiHoc {
     soCauKhongDiem: number;
     luc: string;
   } | null;
+
+  /**
+   * The student's post-lesson reflection, once written.
+   *
+   * Read with the page so the box renders already closed after a reload —
+   * the one-per-lesson rule lives in the database, and the page must not
+   * offer a form the server will refuse.
+   */
+  tuLuanHocTap: { noiDung: string; soChu: number; nopLuc: string } | null;
 }
 
 /**
@@ -813,7 +868,10 @@ export async function duLieuBaiHoc(
   const truoc = courseAccess.find((a) => a.order === lesson.order - 1) ?? null;
   const sau = courseAccess.find((a) => a.order === lesson.order + 1) ?? null;
 
-  const khoa = await khoaHienTai(db, studentId, lesson.id);
+  const [khoa, tuLuanHocTap] = await Promise.all([
+    khoaHienTai(db, studentId, lesson.id),
+    tuLuanHocTapCuaBai(db, studentId, lesson.id),
+  ]);
 
   return {
     trangThai: 'ok',
@@ -847,6 +905,73 @@ export async function duLieuBaiHoc(
               luc: khoa.luc.toISOString(),
             }
           : null,
+      tuLuanHocTap: tuLuanHocTap
+        ? {
+            noiDung: tuLuanHocTap.noiDung,
+            soChu: tuLuanHocTap.soChu,
+            nopLuc: tuLuanHocTap.nopLuc.toISOString(),
+          }
+        : null,
     },
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Homework
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** Every homework for this student's current classes, for `/bai-tap`. */
+export async function duLieuDanhSachBaiTap(studentId: string): Promise<TheBaiTap[]> {
+  return (await baiTapCuaHocSinh(db, studentId)).map(theBaiTap);
+}
+
+export interface DuLieuBaiTap {
+  id: string;
+  tieuDe: string;
+  /** Markdown, rendered by `VanBan`. */
+  moTa: string;
+  maMau: string;
+  hanNop: string;
+  tenLop: string;
+  baiHoc: BaiHocGanBaiTap | null;
+  trangThai: TrangThaiBaiTap;
+  baiNop: {
+    code: string;
+    nopLuc: string;
+    nopMuon: boolean;
+    daCham: boolean;
+    nhanXet: string | null;
+    chamLuc: string | null;
+  } | null;
+}
+
+/**
+ * One homework, for the page the student writes it on.
+ *
+ * Throws `ForbiddenError` for a homework outside the student's classes; the
+ * page wraps this in `xemDuoc` and redirects, because a stale link is a normal
+ * event and not a crash.
+ */
+export async function duLieuBaiTap(actor: Actor, homeworkId: string): Promise<DuLieuBaiTap> {
+  const b = await moBaiTapChoHocSinh(db, actor, homeworkId);
+  return {
+    id: b.id,
+    tieuDe: b.tieuDe,
+    moTa: b.moTa,
+    maMau: b.maMau,
+    hanNop: b.hanNop.toISOString(),
+    tenLop: b.tenLop,
+    baiHoc: b.baiHoc,
+    trangThai: b.trangThai,
+    baiNop: b.baiNop
+      ? {
+          code: b.baiNop.code,
+          nopLuc: b.baiNop.nopLuc.toISOString(),
+          nopMuon: b.baiNop.nopMuon,
+          daCham: b.baiNop.daCham,
+          nhanXet: b.baiNop.nhanXet,
+          chamLuc: b.baiNop.chamLuc?.toISOString() ?? null,
+        }
+      : null,
   };
 }

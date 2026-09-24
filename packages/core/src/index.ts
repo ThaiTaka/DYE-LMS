@@ -119,6 +119,50 @@ export {
   type TuLuanDaCham,
 } from './tu-luan';
 
+// ── Post-lesson reflections ──────────────────────────────────────────────────
+export {
+  demSoChu,
+  SO_CHU_TOI_THIEU_SUY_NGAM,
+  SUY_NGAM_TOI_DA_KY_TU,
+} from './dem-chu';
+
+export {
+  nopTuLuanHocTap,
+  tuLuanHocTapCuaBai,
+  tuLuanHocTapCuaHocSinh,
+  type KetQuaNopTuLuanHocTap,
+  type TuLuanHocTapDaNop,
+  type TuLuanHocTapHienThi,
+} from './tu-luan-hoc-tap';
+
+// ── Teacher-set homework ─────────────────────────────────────────────────────
+export {
+  BAI_TAP_AUDIT,
+  BAI_TAP_MO_TA_TOI_DA,
+  BAI_TAP_NHAN_XET_TOI_DA,
+  BAI_TAP_TIEU_DE_TOI_DA,
+  baiTapChoGiaoVien,
+  baiTapCuaGiaoVien,
+  baiTapCuaHocSinh,
+  chamBaiTapVeNha,
+  moBaiTapChoHocSinh,
+  nopBaiTapVeNha,
+  soBaiTapChoCham,
+  taoBaiTapVeNha,
+  type BaiHocGanBaiTap,
+  type BaiNopBaiTap,
+  type BaiTapChoGiaoVien,
+  type BaiTapChoHocSinh,
+  type BaiTapCuaGiaoVien,
+  type BaiTapCuaHocSinh,
+  type HangNopBaiTap,
+  type KetQuaChamBaiTap,
+  type KetQuaNopBaiTap,
+  type KetQuaTaoBaiTap,
+  type TaoBaiTapInput,
+  type TrangThaiBaiTap,
+} from './bai-tap-ve-nha';
+
 export {
   anhHuongXoaHocSinh,
   datLaiMatKhauHocSinh,

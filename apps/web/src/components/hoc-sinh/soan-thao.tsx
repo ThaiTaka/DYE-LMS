@@ -364,3 +364,21 @@ export function SoanThao({
     />
   );
 }
+
+const KBD = 'rounded border border-vien bg-the-mo px-1.5 py-0.5 font-mono text-xs';
+
+/**
+ * The editor's keyboard rule, in visible text — pass its `id` as `moTaBoi`.
+ *
+ * Stated on screen, not only in `aria-describedby`: a sighted keyboard user
+ * needs to know how to leave the editor exactly as much as a screen-reader
+ * user does. Lives here so every editor in the app says it the same way.
+ */
+export function HuongDanBanPhim({ id, className = '' }: { id: string; className?: string }) {
+  return (
+    <p id={id} className={`m-0 text-sm font-medium text-chu-nhat ${className}`}>
+      <kbd className={KBD}>Tab</kbd> để thụt lề · <kbd className={KBD}>Esc</kbd> rồi{' '}
+      <kbd className={KBD}>Tab</kbd> để ra khỏi khung soạn thảo
+    </p>
+  );
+}

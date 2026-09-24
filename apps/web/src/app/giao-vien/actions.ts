@@ -39,6 +39,8 @@ import {
   moKhoaViPham,
   moLaiKhoi,
   xuLyCanhBao,
+  chamBaiTapVeNha,
+  taoBaiTapVeNha,
   ForbiddenError,
 } from '@dye/core';
 import { revalidatePath } from 'next/cache';
@@ -47,6 +49,7 @@ import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
 import { lamMoiTrangTienDo } from '@/lib/lam-moi-tien-do';
 import { khoDuAn } from '@/lib/project-storage';
+import { docGioViecNam } from '@/lib/thoi-gian';
 
 import type { KetQuaHanhDong } from './ket-qua';
 
@@ -416,7 +419,8 @@ export async function chuyenGiao(
       trangThai: 'thanh-cong',
       thongDiep:
         `Đã bàn giao ${kq.lop} lớp, ${kq.nhanhDaGiao} phân nhánh, ` +
-        `${kq.canThiepBaiHoc} can thiệp bài học, ${kq.thongBao} thông báo và ${kq.nhanXet} nhận xét. ` +
+        `${kq.canThiepBaiHoc} can thiệp bài học, ${kq.thongBao} thông báo, ${kq.nhanXet} nhận xét ` +
+        `và ${kq.baiTapVeNha} bài tập về nhà. ` +
         `Người nhận từ giờ có quyền xem dữ liệu của các em trong những lớp này.`,
     };
   });
@@ -451,6 +455,7 @@ export async function xoaNhanVien(
         r.canThiepBaiHoc > 0 ? `${r.canThiepBaiHoc} can thiệp bài học` : '',
         r.thongBao > 0 ? `${r.thongBao} thông báo` : '',
         r.nhanXet > 0 ? `${r.nhanXet} nhận xét` : '',
+        r.baiTapVeNha > 0 ? `${r.baiTapVeNha} bài tập về nhà` : '',
       ]
         .filter(Boolean)
         .join(', ');
@@ -694,7 +699,10 @@ export async function xoaLop(
           `Lớp “${a.ten}” đang có ${a.hocSinhDangHoc} học sinh theo học. ` +
           `Xoá lớp sẽ gỡ các em ra khỏi lớp và xoá ${a.khoaHoc} khoá học đã gắn, ` +
           `${a.canThiepBaiHoc} can thiệp bài học và ${a.thongBao} thông báo của lớp. ` +
-          'Tài khoản và bài làm của từng em thì vẫn giữ nguyên. ' +
+          'Tài khoản và bài làm trong các khoá học của từng em thì vẫn giữ nguyên' +
+          (a.baiTapVeNha > 0
+            ? `, nhưng ${a.baiTapVeNha} bài tập về nhà của lớp sẽ bị xoá cùng bài các em đã nộp. `
+            : '. ') +
           'Nếu lớp chỉ vừa học xong, thầy cô nên “Lưu trữ” thay vì xoá. ' +
           'Muốn xoá thật thì tích vào ô xác nhận rồi bấm lại.',
       };
@@ -1397,6 +1405,112 @@ export async function resetStudentBlock(
       thongDiep:
         `Đã mở lại "${kq.tenKhoi}" cho ${kq.tenHocSinh}.` +
         (daXoa ? ` Đã xoá ${daXoa}; em có thể nộp lại.` : ' Em có thể nộp lại.'),
+    };
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Homework
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Set a homework for one class.
+ *
+ * The deadline arrives from `<input type="datetime-local">` as a wall-clock
+ * string with no zone, and is read as Vietnamese time — see `lib/thoi-gian.ts`
+ * for why `new Date()` on it would be seven hours out on the server.
+ */
+export async function giaoBaiTapVeNha(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const classId = String(form.get('classId') ?? '');
+    if (!classId) return { trangThai: 'loi', thongDiep: 'Thầy cô chọn lớp sẽ nhận bài giúp em.' };
+
+    const hanNop = docGioViecNam(String(form.get('hanNop') ?? ''));
+    if (!hanNop) return { trangThai: 'loi', thongDiep: 'Hạn nộp chưa đúng dạng ngày giờ.' };
+
+    const tieuDe = String(form.get('tieuDe') ?? '');
+    const kq = await taoBaiTapVeNha(db, actor, {
+      classId,
+      lessonId: String(form.get('lessonId') ?? '').trim() || null,
+      tieuDe,
+      moTa: String(form.get('moTa') ?? ''),
+      maMau: String(form.get('maMau') ?? ''),
+      hanNop,
+    });
+
+    if (kq.trangThai === 'khong-hop-le') return { trangThai: 'loi', thongDiep: kq.lyDo };
+
+    revalidatePath('/giao-vien/bai-tap');
+    revalidatePath('/bai-tap');
+    revalidatePath('/bang-dieu-khien');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep:
+        `Đã giao “${tieuDe.trim()}” cho lớp ${kq.tenLop}. ` +
+        (kq.soHocSinh > 0
+          ? `${kq.soHocSinh} em sẽ thấy bài ngay trên trang chính.`
+          : 'Lớp chưa có học sinh nào — các em được xếp vào lớp sau sẽ thấy bài.'),
+    };
+  });
+}
+
+/**
+ * Write feedback on one hand-in and mark it graded.
+ *
+ * `banDaXem` is the `submittedAt` of the version the teacher was reading. If
+ * the student handed in again since, nothing is written and the teacher is
+ * asked to look at the newer code first — see `chamBaiTapVeNha`.
+ */
+export async function chamBaiTap(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const submissionId = String(form.get('submissionId') ?? '');
+    const banDaXem = new Date(String(form.get('banDaXem') ?? ''));
+    if (!submissionId || Number.isNaN(banDaXem.getTime())) {
+      return { trangThai: 'loi', thongDiep: 'Thiếu bài cần chấm.' };
+    }
+
+    const kq = await chamBaiTapVeNha(
+      db,
+      actor,
+      submissionId,
+      String(form.get('nhanXet') ?? ''),
+      banDaXem,
+    );
+
+    if (kq.trangThai === 'khong-hop-le') return { trangThai: 'loi', thongDiep: kq.lyDo };
+    if (kq.trangThai === 'da-doi') {
+      return {
+        trangThai: 'tu-choi',
+        thongDiep:
+          `${kq.tenHocSinh} vừa nộp lại một bản mới. ` +
+          'Thầy cô tải lại trang để đọc bản đó rồi chấm nhé — nhận xét chưa được lưu.',
+      };
+    }
+
+    revalidatePath('/giao-vien/bai-tap');
+    revalidatePath('/giao-vien/bai-tap/[id]', 'page');
+    revalidatePath('/bai-tap');
+    revalidatePath('/bai-tap/[id]', 'page');
+    revalidatePath('/bang-dieu-khien');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep: kq.capNhat
+        ? `Đã cập nhật nhận xét cho ${kq.tenHocSinh}.`
+        : `Đã chấm bài của ${kq.tenHocSinh}. Em ấy sẽ thấy nhận xét trên trang bài tập.`,
     };
   });
 }

@@ -177,6 +177,9 @@ export async function createFixture(): Promise<Fixture> {
     // create both, so clear them before the users go.
     await db.feedback.deleteMany({ where: { authorId: { in: userIds } } });
     await db.announcement.deleteMany({ where: { authorId: { in: userIds } } });
+    // `Homework.teacherId` too. The class delete below cascades homework set in
+    // the fixture's classes; this also covers any a test set elsewhere.
+    await db.homework.deleteMany({ where: { teacherId: { in: userIds } } });
 
     // AuditLog uses SetNull on actor delete, so its rows would survive as
     // orphans. Remove them explicitly while the ids are still known.

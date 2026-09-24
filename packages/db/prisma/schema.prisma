@@ -218,7 +218,7 @@ model User {
 
   accounts             Account[]
   sessions             Session[]
-  taughtClasses        Class[]            @relation("ClassTeacher")
+  taughtClasses        Class[]              @relation("ClassTeacher")
   enrollments          Enrollment[]
   lessonProgress       LessonProgress[]
   blockProgress        BlockProgress[]
@@ -226,28 +226,31 @@ model User {
   codeDrafts           CodeDraft[]
   codeSnapshots        CodeSnapshot[]
   quizAttempts         QuizAttempt[]
-  trackAssignments     TrackAssignment[]  @relation("TrackStudent")
-  tracksAssigned       TrackAssignment[]  @relation("TrackAssigner")
-  overridesCreated     LessonOverride[]   @relation("OverrideAuthor")
-  overridesReceived    LessonOverride[]   @relation("OverrideStudent")
+  trackAssignments     TrackAssignment[]    @relation("TrackStudent")
+  tracksAssigned       TrackAssignment[]    @relation("TrackAssigner")
+  overridesCreated     LessonOverride[]     @relation("OverrideAuthor")
+  overridesReceived    LessonOverride[]     @relation("OverrideStudent")
   xpEvents             XpEvent[]
   earnedBadges         StudentBadge[]
   streak               Streak?
   gameProjects         GameProject[]
-  feedbackAuthored     Feedback[]         @relation("FeedbackAuthor")
+  feedbackAuthored     Feedback[]           @relation("FeedbackAuthor")
   auditLogs            AuditLog[]
   notifications        Notification[]
-  announcements        Announcement[]     @relation("AnnouncementAuthor")
-  problemsAuthored     Problem[]          @relation("ProblemAuthor")
+  announcements        Announcement[]       @relation("AnnouncementAuthor")
+  problemsAuthored     Problem[]            @relation("ProblemAuthor")
   focusEvents          FocusEvent[]
-  focusAlerts          FocusAlert[]       @relation("FocusAlertStudent")
-  focusAlertsSeen      FocusAlert[]       @relation("FocusAlertReviewer")
-  focusLocks           FocusLock[]        @relation("FocusLockStudent")
-  focusLocksCleared    FocusLock[]        @relation("FocusLockClearer")
-  examAttempts         ExamAttempt[]      @relation("ExamAttemptStudent")
-  examAttemptsVoided   ExamAttempt[]      @relation("ExamAttemptVoider")
-  aiViolations         AiViolationAlert[] @relation("AiViolationStudent")
-  aiViolationsResolved AiViolationAlert[] @relation("AiViolationResolver")
+  focusAlerts          FocusAlert[]         @relation("FocusAlertStudent")
+  focusAlertsSeen      FocusAlert[]         @relation("FocusAlertReviewer")
+  focusLocks           FocusLock[]          @relation("FocusLockStudent")
+  focusLocksCleared    FocusLock[]          @relation("FocusLockClearer")
+  examAttempts         ExamAttempt[]        @relation("ExamAttemptStudent")
+  examAttemptsVoided   ExamAttempt[]        @relation("ExamAttemptVoider")
+  aiViolations         AiViolationAlert[]   @relation("AiViolationStudent")
+  aiViolationsResolved AiViolationAlert[]   @relation("AiViolationResolver")
+  lessonReflections    LessonReflection[]
+  homeworkAuthored     Homework[]           @relation("HomeworkAuthor")
+  homeworkSubmissions  HomeworkSubmission[]
 
   @@index([role, isActive])
 }
@@ -316,6 +319,7 @@ model Class {
   announcements Announcement[]
   focusAlerts   FocusAlert[]
   focusLocks    FocusLock[]
+  homework      Homework[]
 
   @@index([teacherId, isArchived])
 }
@@ -447,6 +451,8 @@ model Lesson {
   focusEvents   FocusEvent[]
   focusAlerts   FocusAlert[]
   focusLocks    FocusLock[]
+  reflections   LessonReflection[]
+  homework      Homework[]
 
   @@unique([courseId, order])
   @@unique([courseId, slug])
@@ -1455,4 +1461,126 @@ model AiViolationAlert {
   @@index([resolved, createdAt])
   /// One student's history, and "resolve everything open for this student".
   @@index([studentId, resolved])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST-LESSON REFLECTION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// What a student says they learned today, in their own words.
+///
+/// ── Per lesson, not per block ───────────────────────────────────────────────
+/// A REFLECTION *block* is a prompt inside the lesson flow, and several are one
+/// line long — "jot down what the board should show" before a task — while
+/// `microbit-buoi-01` carries two of them. This is the write-up that closes the
+/// session, so it is keyed on the LESSON and there is at most one per student.
+/// It is drawn once, after the last block, never in place of a block.
+///
+/// ── The word count is stored, not re-derived ────────────────────────────────
+/// The 150-word floor is enforced on the server by `demSoChu`, and the count it
+/// measured is kept beside the text. A later change to the counting rule must
+/// not quietly re-judge what a child has already handed in.
+///
+/// ── Not a gate ──────────────────────────────────────────────────────────────
+/// Lesson completion is still computed from BlockProgress alone. Holding the
+/// next session hostage to 150 words is a different decision from asking for
+/// them, and nothing here makes it.
+model LessonReflection {
+  id        String   @id @default(cuid())
+  studentId String
+  lessonId  String
+  /// Capped at SUY_NGAM_TOI_DA_KY_TU by the only writer, `nopTuLuanHocTap`.
+  content   String   @db.Text
+  /// Words as `demSoChu` counted them at submit time.
+  wordCount Int
+  createdAt DateTime @default(now())
+
+  student User   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson  Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  /// One per student per lesson. Also what makes a double-click a no-op: the
+  /// second insert fails on this key rather than writing a duplicate.
+  @@unique([studentId, lessonId])
+  @@index([lessonId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TEACHER HOMEWORK
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A code exercise a teacher sets for one class, outside the seeded curriculum.
+///
+/// ── The class is required; the lesson is optional ──────────────────────────
+/// The class is the AUDIENCE. It is the only thing that says which children
+/// receive the work, and it is how authorisation reaches them — teacher →
+/// Class → Enrollment → student, the same path as everywhere else. A homework
+/// linked only to a lesson would have no recipients and no relationship to
+/// authorise through. The lesson is CONTEXT ("sau Buổi 5"), shown on the card
+/// and checked to belong to a course the class actually studies.
+///
+/// ── teacherId is the author, not the gate ───────────────────────────────────
+/// Who may manage a homework is decided by `Class.teacherId`, so reassigning a
+/// class hands its homework over with it. `teacherId` records who wrote it and
+/// is RESTRICT like `Announcement.authorId`: `anhHuongXoaTaiKhoan` counts it
+/// and `chuyenGiaoHoSoGiangDay` moves it before a staff account can be deleted.
+///
+/// Not judged: homework is read by a teacher, never run by the worker.
+model Homework {
+  id           String   @id @default(cuid())
+  teacherId    String
+  classId      String
+  lessonId     String?
+  title        String
+  /// Markdown, rendered by the same React-node renderer as lesson prose.
+  description  String   @db.Text
+  /// What the student's editor opens with. Empty means a blank editor.
+  templateCode String   @default("") @db.Text
+  deadline     DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  teacher     User                 @relation("HomeworkAuthor", fields: [teacherId], references: [id])
+  class       Class                @relation(fields: [classId], references: [id], onDelete: Cascade)
+  lesson      Lesson?              @relation(fields: [lessonId], references: [id], onDelete: SetNull)
+  submissions HomeworkSubmission[]
+
+  /// The student's list and the teacher's: one class, soonest deadline first.
+  @@index([classId, deadline])
+  @@index([teacherId])
+  @@index([lessonId])
+}
+
+/// One student's hand-in for one homework.
+///
+/// ── One row, overwritten until graded ───────────────────────────────────────
+/// Unique on (homework, student). Handing in again before the teacher has
+/// graded replaces the code: the teacher reads the latest attempt. Once
+/// `isGraded` is set the row is frozen for the student, so the feedback always
+/// describes the code printed beside it — the same reason ProjectVersion is
+/// immutable once submitted.
+///
+/// ── Late is recorded, not refused ───────────────────────────────────────────
+/// `submittedAt > Homework.deadline` is shown as "nộp muộn". A missed deadline
+/// is a conversation for the teacher to have, not a door for the system to
+/// close on a ten-year-old whose laptop died.
+///
+/// Who graded is in the AuditLog (`homework.graded`), as for essays.
+model HomeworkSubmission {
+  id              String    @id @default(cuid())
+  homeworkId      String
+  studentId       String
+  submittedCode   String    @db.Text
+  isGraded        Boolean   @default(false)
+  teacherFeedback String?   @db.Text
+  /// Moves forward on every re-submission.
+  submittedAt     DateTime  @default(now())
+  gradedAt        DateTime?
+
+  homework Homework @relation(fields: [homeworkId], references: [id], onDelete: Cascade)
+  student  User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([homeworkId, studentId])
+  /// The teacher's queue: ungraded hand-ins, per homework.
+  @@index([homeworkId, isGraded])
+  @@index([studentId])
 }

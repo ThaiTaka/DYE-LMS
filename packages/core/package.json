@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./text": "./src/text.ts",
+    "./dem-chu": "./src/dem-chu.ts",
     "./upload-guard": "./src/upload-guard.ts"
   },
   "scripts": {

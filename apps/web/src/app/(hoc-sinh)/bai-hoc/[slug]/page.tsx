@@ -6,6 +6,7 @@ import { notFound } from 'next/navigation';
 import { BiKhoaViPham } from '@/components/hoc-sinh/bi-khoa-vi-pham';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { KhoiNoiDung, moiTruongCuaBai } from '@/components/hoc-sinh/khoi-noi-dung';
+import { KhoiTuLuanHocTap } from '@/components/hoc-sinh/khoi-tu-luan-hoc-tap';
 import { ThanhChang } from '@/components/hoc-sinh/thanh-chang';
 import { TheoDoiTapTrung } from '@/components/hoc-sinh/theo-doi-tap-trung';
 import { SAC_THAI } from '@/components/ui/sac-thai';
@@ -217,6 +218,24 @@ export default async function TrangBaiHoc({ params }: { params: Promise<{ slug: 
             </div>
           );
         })}
+      </div>
+
+      {/*
+        The post-lesson reflection, once, after the last block.
+
+        Lesson-level, not a block: some lessons carry two short REFLECTION
+        prompts mid-flow ("jot down what the board should show"), and this is
+        the write-up that closes the session. It gates nothing — see
+        `LessonReflection` in the schema.
+      */}
+      <div className="mt-8">
+        <KhoiTuLuanHocTap
+          lessonId={bai.lessonId}
+          hocSinhId={actor.role === 'STUDENT' ? actor.id : undefined}
+          daNop={bai.tuLuanHocTap}
+          xemTruoc={actor.role !== 'STUDENT'}
+          biKhoa={bai.khoaViPham !== null}
+        />
       </div>
 
       {/* "What's next?" at the end of the lesson, too. */}

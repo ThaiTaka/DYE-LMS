@@ -65,6 +65,8 @@ export interface AnhHuongXoaLop {
   canThiepBaiHoc: number;
   thongBao: number;
   canhBaoTapTrung: number;
+  /** Homework set for the class. Cascades with it, hand-ins included. */
+  baiTapVeNha: number;
   /** True when nothing is attached and the delete is a formality. */
   trong: boolean;
 }
@@ -84,15 +86,23 @@ export async function anhHuongXoaLop(
   });
   if (!klass) throw new ForbiddenError('class-not-found');
 
-  const [hocSinhDangHoc, hocSinhTungHoc, khoaHoc, canThiepBaiHoc, thongBao, canhBaoTapTrung] =
-    await Promise.all([
-      db.enrollment.count({ where: { classId, isActive: true } }),
-      db.enrollment.count({ where: { classId } }),
-      db.classCourse.count({ where: { classId } }),
-      db.lessonOverride.count({ where: { classId } }),
-      db.announcement.count({ where: { classId } }),
-      db.focusAlert.count({ where: { classId } }),
-    ]);
+  const [
+    hocSinhDangHoc,
+    hocSinhTungHoc,
+    khoaHoc,
+    canThiepBaiHoc,
+    thongBao,
+    canhBaoTapTrung,
+    baiTapVeNha,
+  ] = await Promise.all([
+    db.enrollment.count({ where: { classId, isActive: true } }),
+    db.enrollment.count({ where: { classId } }),
+    db.classCourse.count({ where: { classId } }),
+    db.lessonOverride.count({ where: { classId } }),
+    db.announcement.count({ where: { classId } }),
+    db.focusAlert.count({ where: { classId } }),
+    db.homework.count({ where: { classId } }),
+  ]);
 
   return {
     classId: klass.id,
@@ -105,8 +115,13 @@ export async function anhHuongXoaLop(
     canThiepBaiHoc,
     thongBao,
     canhBaoTapTrung,
+    baiTapVeNha,
     trong:
-      hocSinhTungHoc === 0 && khoaHoc === 0 && canThiepBaiHoc === 0 && thongBao === 0,
+      hocSinhTungHoc === 0 &&
+      khoaHoc === 0 &&
+      canThiepBaiHoc === 0 &&
+      thongBao === 0 &&
+      baiTapVeNha === 0,
   };
 }
 

@@ -7,6 +7,7 @@ import {
   ghiNhanNoLuc,
   moKhoiCode,
   nopTuLuan,
+  nopTuLuanHocTap,
   traLoiCauHoi,
 } from '@dye/core';
 
@@ -175,6 +176,76 @@ export async function nopBaiTuLuan(
     }
     console.error('[tu-luan] nop that bai', error);
     return { trangThai: 'loi', thongDiep: 'Có lỗi kỹ thuật. Em thử lại giúp nhé.' };
+  }
+}
+
+export interface KetQuaTuLuanHocTapUI {
+  trangThai: 'da-nhan' | 'chua-du-chu' | 'qua-dai' | 'da-nop-roi' | 'tu-choi' | 'loi';
+  thongDiep: string;
+}
+
+/**
+ * Hand in the post-lesson reflection.
+ *
+ * The 150-word floor, the one-per-lesson rule, the gating check and the
+ * integrity lock all live in `nopTuLuanHocTap`; this only turns its answer into
+ * a sentence. Returned, never thrown, for the reason `nopBaiTuLuan` gives: a
+ * thrown error would swap the lesson for a crash page with a child's 150 words
+ * still in the box.
+ */
+export async function nopBaiTuLuanHocTap(
+  lessonId: string,
+  noiDung: string,
+): Promise<KetQuaTuLuanHocTapUI> {
+  try {
+    const actor = await currentActor();
+    if (!actor || actor.role !== 'STUDENT') {
+      return { trangThai: 'tu-choi', thongDiep: 'Chỉ học sinh mới nộp được bài tự luận này.' };
+    }
+
+    const kq = await nopTuLuanHocTap(db, actor, lessonId, noiDung);
+
+    switch (kq.trangThai) {
+      case 'chua-du-chu':
+        return {
+          trangThai: 'chua-du-chu',
+          thongDiep: `Em mới viết ${kq.soChu}/${kq.toiThieu} chữ. Viết thêm một chút nữa rồi gửi nhé.`,
+        };
+      case 'qua-dai':
+        return {
+          trangThai: 'qua-dai',
+          thongDiep: `Bài dài quá — tối đa ${kq.toiDa.toLocaleString('vi-VN')} ký tự. Em rút gọn giúp nhé.`,
+        };
+      case 'da-nop-roi':
+        // A second tab, or a double-click that lost the race. Re-render so the
+        // box shows the reflection that IS on record instead of an empty form.
+        revalidatePath('/bai-hoc/[slug]', 'page');
+        return {
+          trangThai: 'da-nop-roi',
+          thongDiep: 'Em đã gửi bài tự luận cho buổi này rồi.',
+        };
+      case 'bi-khoa':
+        return {
+          trangThai: 'tu-choi',
+          thongDiep:
+            'Bài này đang bị khoá vì hệ thống ghi nhận em rời khỏi tab quá nhiều lần. ' +
+            'Em nói với thầy cô để được mở lại nhé — bài viết của em vẫn còn trong ô.',
+        };
+      case 'da-nhan':
+        // The page reads the reflection from the server, so the box closes on
+        // the re-render rather than only in this tab's state.
+        revalidatePath('/bai-hoc/[slug]', 'page');
+        return {
+          trangThai: 'da-nhan',
+          thongDiep: `Đã gửi bài tự luận của em (${kq.soChu} chữ). Thầy cô sẽ đọc nhé!`,
+        };
+    }
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return { trangThai: 'tu-choi', thongDiep: error.message };
+    }
+    console.error('[tu-luan-hoc-tap] nop that bai', error);
+    return { trangThai: 'loi', thongDiep: 'Có lỗi kỹ thuật. Em thử lại giúp nhé — bài vẫn còn trong ô.' };
   }
 }
 

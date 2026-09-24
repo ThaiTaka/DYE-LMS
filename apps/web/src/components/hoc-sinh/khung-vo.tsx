@@ -21,6 +21,7 @@ export interface KhoaHocThanhBen {
 /** Fixed destinations, before the student's own courses. */
 const MUC_CO_DINH: Array<{ href: string; nhan: string; icon: TenBieuTuong; chinhXac?: boolean }> = [
   { href: '/bang-dieu-khien', nhan: 'Trang chính', icon: 'nha', chinhXac: true },
+  { href: '/bai-tap', nhan: 'Bài tập về nhà', icon: 'baiTap' },
   { href: '/du-an', nhan: 'Dự án game', icon: 'tayCam' },
 ];
 

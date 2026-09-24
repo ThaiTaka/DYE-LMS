@@ -82,6 +82,21 @@ const DUONG = {
       <path d="m8.5 12.2 2.4 2.4 4.8-5" />
     </>
   ),
+  /** Clipboard with code brackets — homework. */
+  baiTap: (
+    <>
+      <path d="M9 4.5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-12a2 2 0 0 0-2-2h-2" />
+      <rect x="9" y="3" width="6" height="3" rx="1" />
+      <path d="m10 11-2 2 2 2M14 11l2 2-2 2" />
+    </>
+  ),
+  /** Clock — a deadline. */
+  dongHo: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M12 7.5V12l3 2" />
+    </>
+  ),
 } as const;
 
 export type TenBieuTuong = keyof typeof DUONG;

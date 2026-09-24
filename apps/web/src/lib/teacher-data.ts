@@ -24,6 +24,8 @@ import 'server-only';
 import {
   anhHuongXoaTaiKhoan,
   authorize,
+  baiTapChoGiaoVien,
+  baiTapCuaGiaoVien,
   bocMarkdown,
   can,
   canhBaoTapTrung,
@@ -33,19 +35,23 @@ import {
   nguoiCoTheNhanBanGiao,
   NGUONG_CANH_BAO,
   resolveCourseAccess,
+  soBaiTapChoCham,
   soCanhBaoChuaXuLy,
   soCanhBaoTroLyChuaXuLy,
   stageOf,
+  tenBuoi,
   thongKeGiangDay,
   tierRank,
   tomTatTapTrung,
   luotThiCuaHocSinh,
   tuLuanChoCham,
   tuLuanDaCham,
+  tuLuanHocTapCuaHocSinh,
   soTuLuanChoCham,
   visibleStudentIds,
   type Actor,
   type AnhHuongXoaTaiKhoan,
+  type BaiHocGanBaiTap,
   type CanhBaoHienThi,
   type CanhBaoTroLyHienThi,
   type CourseProgress,
@@ -1604,4 +1610,222 @@ export async function duLieuLuotThiHocSinh(
   const duocXem = await can(db, actor, { resource: 'student', action: 'read', studentId });
   if (!duocXem) return [];
   return luotThiCuaHocSinh(db, studentId);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Homework
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** A class the homework form can target, with the lessons it may link to. */
+export interface LopChoBaiTap {
+  id: string;
+  ten: string;
+  ma: string;
+  soHocSinh: number;
+  /** Plain-text labels: these become `<option>` text, where Markdown is noise. */
+  khoaHoc: Array<{ id: string; ten: string; baiHoc: Array<{ id: string; nhan: string }> }>;
+}
+
+/** One row of the teacher's homework list. Dates are ISO: it crosses into client code. */
+export interface HangBaiTapGiaoVien {
+  id: string;
+  tieuDe: string;
+  tenLop: string;
+  baiHoc: BaiHocGanBaiTap | null;
+  hanNop: string;
+  taoLuc: string;
+  tacGia: string;
+  soHocSinh: number;
+  soDaNop: number;
+  soChoCham: number;
+}
+
+export interface DuLieuBaiTapGiaoVien {
+  lop: LopChoBaiTap[];
+  baiTap: HangBaiTapGiaoVien[];
+}
+
+/**
+ * The homework page: what can be set, and what has been.
+ *
+ * The class list is the same relationship `authorize({ resource: 'class' })`
+ * enforces when the form is submitted — a teacher's own classes, every class
+ * for an admin — so the form never offers a class the server would refuse.
+ * Archived classes are left out; `taoBaiTapVeNha` refuses them too.
+ */
+export async function duLieuBaiTapGiaoVien(actor: Actor): Promise<DuLieuBaiTapGiaoVien> {
+  const [lop, baiTap] = await Promise.all([
+    db.class.findMany({
+      where: { isArchived: false, ...(actor.role === 'ADMIN' ? {} : { teacherId: actor.id }) },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        _count: { select: { enrollments: { where: { isActive: true } } } },
+        classCourses: {
+          select: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+                order: true,
+                lessons: {
+                  where: { isPublished: true },
+                  orderBy: { order: 'asc' },
+                  select: { id: true, order: true, title: true },
+                },
+              },
+            },
+          },
+        },
+      },
+    }),
+    baiTapCuaGiaoVien(db, actor),
+  ]);
+
+  return {
+    lop: lop.map((l) => ({
+      id: l.id,
+      ten: l.name,
+      ma: l.code,
+      soHocSinh: l._count.enrollments,
+      khoaHoc: l.classCourses
+        .map((cc) => cc.course)
+        .sort((a, b) => a.order - b.order)
+        .map((c) => ({
+          id: c.id,
+          ten: c.title,
+          baiHoc: c.lessons.map((b) => ({ id: b.id, nhan: tenBuoi(b.order, b.title) })),
+        })),
+    })),
+    baiTap: baiTap.map((b) => ({
+      id: b.id,
+      tieuDe: b.tieuDe,
+      tenLop: b.tenLop,
+      baiHoc: b.baiHoc,
+      hanNop: b.hanNop.toISOString(),
+      taoLuc: b.taoLuc.toISOString(),
+      tacGia: b.tacGia,
+      soHocSinh: b.soHocSinh,
+      soDaNop: b.soDaNop,
+      soChoCham: b.soChoCham,
+    })),
+  };
+}
+
+export interface DuLieuMotBaiTapGiaoVien {
+  id: string;
+  tieuDe: string;
+  moTa: string;
+  maMau: string;
+  hanNop: string;
+  taoLuc: string;
+  classId: string;
+  tenLop: string;
+  baiHoc: BaiHocGanBaiTap | null;
+  tacGia: string;
+  hocSinh: Array<{
+    studentId: string;
+    tenHocSinh: string;
+    baiNop: {
+      id: string;
+      code: string;
+      nopLuc: string;
+      nopMuon: boolean;
+      daCham: boolean;
+      nhanXet: string | null;
+      chamLuc: string | null;
+    } | null;
+  }>;
+}
+
+/**
+ * One homework and the whole class roster against it.
+ *
+ * Throws `ForbiddenError` for a homework in a class this actor does not run;
+ * the page wraps it in `xemDuoc`.
+ */
+export async function duLieuMotBaiTapGiaoVien(
+  actor: Actor,
+  homeworkId: string,
+): Promise<DuLieuMotBaiTapGiaoVien> {
+  const b = await baiTapChoGiaoVien(db, actor, homeworkId);
+  return {
+    id: b.id,
+    tieuDe: b.tieuDe,
+    moTa: b.moTa,
+    maMau: b.maMau,
+    hanNop: b.hanNop.toISOString(),
+    taoLuc: b.taoLuc.toISOString(),
+    classId: b.classId,
+    tenLop: b.tenLop,
+    baiHoc: b.baiHoc,
+    tacGia: b.tacGia,
+    hocSinh: b.hocSinh.map((h) => ({
+      studentId: h.studentId,
+      tenHocSinh: h.tenHocSinh,
+      baiNop: h.baiNop
+        ? {
+            id: h.baiNop.id,
+            code: h.baiNop.code,
+            nopLuc: h.baiNop.nopLuc.toISOString(),
+            nopMuon: h.baiNop.nopMuon,
+            daCham: h.baiNop.daCham,
+            nhanXet: h.baiNop.nhanXet,
+            chamLuc: h.baiNop.chamLuc?.toISOString() ?? null,
+          }
+        : null,
+    })),
+  };
+}
+
+/**
+ * Ungraded homework hand-ins, for the nav badge. Never throws — like the other
+ * badges, a failure in a decorative count must not take down the page.
+ */
+export async function demBaiTapChoCham(actor: Actor): Promise<number> {
+  try {
+    return await soBaiTapChoCham(db, actor);
+  } catch {
+    return 0;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Post-lesson reflections
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface TuLuanHocTapGiaoVien {
+  id: string;
+  buoi: number;
+  tenBai: string;
+  tenKhoaHoc: string;
+  noiDung: string;
+  soChu: number;
+  nopLuc: string;
+}
+
+/**
+ * This student's reflections, for their page. Empty rather than thrown when
+ * the actor may not read them: the page has already proved access, and a
+ * section that cannot load should disappear, not take the page with it.
+ */
+export async function duLieuTuLuanHocTapHocSinh(
+  actor: Actor,
+  studentId: string,
+): Promise<TuLuanHocTapGiaoVien[]> {
+  const duocXem = await can(db, actor, { resource: 'student', action: 'read', studentId });
+  if (!duocXem) return [];
+
+  const ds = await tuLuanHocTapCuaHocSinh(db, actor, studentId);
+  return ds.map((t) => ({
+    id: t.id,
+    buoi: t.buoi,
+    tenBai: bocMarkdown(t.tenBai),
+    tenKhoaHoc: t.tenKhoaHoc,
+    noiDung: t.noiDung,
+    soChu: t.soChu,
+    nopLuc: t.nopLuc.toISOString(),
+  }));
 }

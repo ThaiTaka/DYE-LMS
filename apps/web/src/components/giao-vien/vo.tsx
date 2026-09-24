@@ -9,7 +9,7 @@ import { DauHieu } from '@/components/dau-hieu';
 import { Avatar } from '@/components/ui/avatar';
 import { SAC_THAI } from '@/components/ui/sac-thai';
 import { db } from '@/lib/db';
-import { demCanhBaoChuaXuLy, demTuLuanChoCham } from '@/lib/teacher-data';
+import { demBaiTapChoCham, demCanhBaoChuaXuLy, demTuLuanChoCham } from '@/lib/teacher-data';
 
 async function dangXuat(): Promise<void> {
   'use server';
@@ -53,11 +53,15 @@ export async function VoGiaoVien({
    * a decorative count can never take down the page it decorates.
    */
   const actor = await currentActor();
-  // Both counts, in parallel: neither may fail the page (each answers 0 on
+  // Every count, in parallel: none may fail the page (each answers 0 on
   // error), and a badge that only shows on some pages is worse than none.
-  const [soCanhBao, soTuLuan] = actor
-    ? await Promise.all([demCanhBaoChuaXuLy(actor), demTuLuanChoCham(actor)])
-    : [0, 0];
+  const [soCanhBao, soTuLuan, soBaiTap] = actor
+    ? await Promise.all([
+        demCanhBaoChuaXuLy(actor),
+        demTuLuanChoCham(actor),
+        demBaiTapChoCham(actor),
+      ])
+    : [0, 0, 0];
 
   return (
     <>
@@ -87,6 +91,13 @@ export async function VoGiaoVien({
             <MucDieuHuong href="/giao-vien/ket-qua">Kết quả</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/tu-luan" huy={soTuLuan} nhanHuy="bài tự luận chờ chấm">
               Tự luận
+            </MucDieuHuong>
+            <MucDieuHuong
+              href="/giao-vien/bai-tap"
+              huy={soBaiTap}
+              nhanHuy="bài tập về nhà chờ chấm"
+            >
+              Bài tập
             </MucDieuHuong>
             <MucDieuHuong href="/giao-vien/thong-ke">Thống kê</MucDieuHuong>
             <MucDieuHuong href="/giao-vien/canh-bao" huy={soCanhBao} nhanHuy="cảnh báo chưa xử lý">
