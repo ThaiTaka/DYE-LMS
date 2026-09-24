@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
@@ -6,7 +7,6 @@ import { MucVao, TheNoi, VaoTrang } from '@/components/hoc-sinh/chuyen-dong';
 import { LuoiBaiTap } from '@/components/hoc-sinh/the-bai-tap';
 import { TheHocTiep } from '@/components/hoc-sinh/the-hoc-tiep';
 import { BieuTuong } from '@/components/ui/bieu-tuong';
-import { LogoDYE } from '@/components/ui/logo-dye';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
 import { SAC_THAI } from '@/components/ui/sac-thai';
 import { ChuNeon, TheKinh } from '@/components/ui/the-kinh';
@@ -41,19 +41,25 @@ export default async function BangDieuKhien() {
       {/*
         The welcome banner — whose platform this is, then "where am I?".
 
-        Two tiers in one frame. On top, the logo and the full name in the
-        logo's own colours (violet → pink → mint): the loudest type on the page,
-        but a `<p>`, not the `<h1>` — a screen reader arriving here wants "Chào
-        Minh", not the product name the sidebar already said. Under a hairline,
-        the greeting keeps the heading, then the one sentence that matters
-        today. With homework outstanding it says so, with the nearest deadline
-        in words; it is a sentence, not a second call to action — the gradient
-        button in the hero stays the only one on the page.
+        The same typography as the login page's branding cluster, so the
+        student walks from one into the other: the full name as a mint →
+        violet eyebrow in tracked capitals, then the loud line under it. Here
+        the loud line is the greeting, and it is the `<h1>` — a screen reader
+        arriving here wants "Chào Minh", not the product name the sidebar
+        already said. Then the one sentence that matters today: with homework
+        outstanding it says so, with the nearest deadline in words — a
+        sentence, not a second call to action; the gradient button in the hero
+        stays the only one on the page.
+
+        The mascot stands still here, unlike on the login page. Bí already
+        bobs in the corner of every student page, and two moving robots on one
+        screen would be two things pulling at a child's eye. Its alt is empty
+        because it only decorates the words beside it.
 
         No `kinh` blur: this is chrome over the page glow, and the blur is kept
         for the panels a student acts on. The glow, the grid (the login page's
         data grid, fading out to the right) and the top scanline are gradients,
-        painted once and never animated. The title's glow is a `drop-shadow`
+        painted once and never animated. The eyebrow's glow is a `drop-shadow`
         filter because `text-shadow` would paint over clipped gradient text.
       */}
       <header className="relative isolate mb-6 overflow-hidden rounded-the border border-vien bg-be-mat/70 p-5 shadow-mem sm:p-7">
@@ -63,33 +69,43 @@ export default async function BangDieuKhien() {
           <div className="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-chinh-sang/70 to-transparent" />
         </div>
 
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-5">
-          <LogoDYE className="size-12 shrink-0 drop-shadow-neon sm:size-16" />
-          <p className="m-0 text-2xl leading-tight font-extrabold tracking-tight text-balance drop-shadow-[0_0_18px_rgba(167,139,250,0.35)] sm:text-3xl">
-            <span className="bg-linear-to-r from-chinh-sang via-hong-sang to-ngoc bg-clip-text pb-[0.05em] text-transparent">
-              Dalat Young Engineers Learning Management System
-            </span>
-          </p>
-        </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
+          {/* Glow on the wrapper, mask on the image — see the login page for why. */}
+          <div className="shrink-0 drop-shadow-[0_0_15px_rgba(94,234,212,0.5)]">
+            <Image
+              src="/hinh/logo.png"
+              alt=""
+              width={96}
+              height={96}
+              priority
+              className="size-20 [mask-image:linear-gradient(to_bottom,#000_72%,transparent)] sm:size-24"
+            />
+          </div>
 
-        <div className="mt-5 border-t border-vien pt-4">
-          <h1 className="mt-0 mb-1 text-xl font-bold sm:text-2xl">
-            Chào <ChuNeon>{ten}</ChuNeon> 👋
-          </h1>
-          {ganNhat ? (
-            <p className="m-0 text-chu-phu">
-              Em có{' '}
-              <a
-                href="#tieu-de-bai-tap"
-                className="font-semibold text-chinh-sang underline-offset-2 hover:underline"
-              >
-                {data.soBaiTapCanLam} bài tập về nhà
-              </a>{' '}
-              cần nộp — bài gần nhất {conLai(ganNhat.hanNop, bayGio).chu}.
+          <div className="min-w-0">
+            <p className="m-0 text-xs leading-relaxed font-semibold tracking-widest text-balance uppercase drop-shadow-[0_0_8px_rgba(94,234,212,0.35)]">
+              <span className="bg-linear-to-r from-ngoc to-chinh-sang bg-clip-text text-transparent">
+                DaLat Young Engineers Learning Management System
+              </span>
             </p>
-          ) : (
-            <p className="m-0 text-chu-phu">Hôm nay em muốn học gì?</p>
-          )}
+            <h1 className="mt-2 mb-1 text-3xl leading-tight font-extrabold sm:text-4xl">
+              Chào <ChuNeon>{ten}</ChuNeon> 👋
+            </h1>
+            {ganNhat ? (
+              <p className="m-0 text-chu-phu">
+                Em có{' '}
+                <a
+                  href="#tieu-de-bai-tap"
+                  className="font-semibold text-chinh-sang underline-offset-2 hover:underline"
+                >
+                  {data.soBaiTapCanLam} bài tập về nhà
+                </a>{' '}
+                cần nộp — bài gần nhất {conLai(ganNhat.hanNop, bayGio).chu}.
+              </p>
+            ) : (
+              <p className="m-0 text-chu-phu">Hôm nay em muốn học gì?</p>
+            )}
+          </div>
         </div>
       </header>
 

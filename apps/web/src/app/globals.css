@@ -80,8 +80,9 @@
   --color-hong: #ec4899; /* the gradient's far end; decorative only */
   --color-hong-sang: #f9a8d4;
   /*
-   * Mint — the logo's eyes and signal node (logo-dye.tsx), and the far end of
-   * the dashboard's brand title. The one cool note against violet and pink.
+   * Mint — the logo's eyes and signal node (logo-dye.tsx), the mascot's glow,
+   * and the start of the brand eyebrow's gradient on the login page and the
+   * dashboard banner. The one cool note against violet and pink.
    * Not `dung`: that green means "correct", and a logo is not a verdict.
    */
   --color-ngoc: #5eead4; /* 12:1 on the page */
@@ -195,6 +196,9 @@
   --animate-con-tro-go: con-tro-go 12s infinite;
   --animate-hien-ket-qua: hien-ket-qua 12s infinite;
   --animate-nhay: nhay 1.1s step-end infinite;
+  /* The login mascot's drift: 6px up and back over 6s. Its resting frame
+     (0% / 100%) is where it sits when still, so reduced motion loses nothing. */
+  --animate-troi: troi 6s ease-in-out infinite;
 
   /* The track holds the file three times; moving it up by one copy lands on a
      frame identical to the first, so the loop has no seam. */
@@ -266,6 +270,12 @@
   @keyframes nhay {
     50% {
       opacity: 0;
+    }
+  }
+
+  @keyframes troi {
+    50% {
+      transform: translate3d(0, -6px, 0);
     }
   }
 }
