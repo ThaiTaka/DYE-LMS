@@ -305,7 +305,18 @@ describe('Tương phản màu đạt chuẩn WCAG AA', () => {
    * (checked below under white text) and `chinh-sang` is the TEXT violet.
    * See the header of globals.css.
    */
-  const mauChu = ['chu', 'chu-phu', 'chu-nhat', 'chinh-sang', 'dung', 'thu-lai', 'loi', 'canh-bao-chu'];
+  const mauChu = [
+    'chu',
+    'chu-phu',
+    'chu-nhat',
+    'chinh-sang',
+    'hong-sang',
+    'ngoc',
+    'dung',
+    'thu-lai',
+    'loi',
+    'canh-bao-chu',
+  ];
 
   it('mọi màu chữ trên nền thẻ đều đạt ít nhất 4.5:1', () => {
     const nenThe = token['the']!;

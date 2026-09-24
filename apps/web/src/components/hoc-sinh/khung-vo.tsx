@@ -4,9 +4,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { DauHieu } from '@/components/dau-hieu';
 import { Avatar } from '@/components/ui/avatar';
 import { BieuTuong, type TenBieuTuong } from '@/components/ui/bieu-tuong';
+import { LogoDYE } from '@/components/ui/logo-dye';
 
 import { TimKiem, type DichDen } from './tim-kiem';
 
@@ -127,9 +127,7 @@ export function KhungVo({
             href="/bang-dieu-khien"
             className="flex min-h-cham items-center gap-2.5 rounded-nut text-lg font-bold text-chu"
           >
-            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-linear-to-br from-chinh to-hong shadow-neon">
-              <DauHieu className="size-5 text-white" />
-            </span>
+            <LogoDYE className="size-9 shrink-0 drop-shadow-neon" />
             <span>
               DYE <span className="chu-neon">LMS</span>
             </span>

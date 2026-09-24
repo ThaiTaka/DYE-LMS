@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { currentActor } from '@/auth';
-import { DauHieu } from '@/components/dau-hieu';
+import { LogoDYE } from '@/components/ui/logo-dye';
 
 import { FormDangNhap } from './form';
 import { NenMaLenh } from './nen-ma-lenh';
@@ -26,19 +26,12 @@ export default async function TrangDangNhap({
 
       <div className="mb-8 w-full max-w-md text-center">
         {/*
-          The mark sits on a lit tile rather than being tinted itself.
-
-          The gradient is the same violet-to-pink as the author name below, but
-          applied as the tile's background with the glyph drawn over it in dark
-          ink (`text-white`, which the SVG picks up through
-          `currentColor`). Gradient-filling the strokes themselves would need
-          an SVG paint server, and at 32px the result is a thin line washing
-          through three shades — legible as a shape only by accident. A solid
-          glyph on a glowing tile reads at any size and carries the same accent.
+          The logo at its largest in the app, over the violet glow the
+          background already pools behind this spot. It carries its own
+          gradient; `drop-shadow-neon` lights the hexagon itself, not a square
+          around it.
         */}
-        <span className="inline-flex rounded-nut bg-linear-to-br from-chinh to-hong p-2.5 text-white shadow-neon">
-          <DauHieu className="h-8 w-8" />
-        </span>
+        <LogoDYE className="mx-auto block size-16 drop-shadow-neon" />
 
         {/*
           Product name and author on one line.

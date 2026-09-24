@@ -1,7 +1,7 @@
 /**
  * Line icons for the student shell.
  *
- * The app has no icon library on purpose (see `dau-hieu.tsx`): every glyph is
+ * The app has no icon library on purpose (see `logo-dye.tsx`): every glyph is
  * either an emoji or drawn here, so nothing can go missing behind a school
  * firewall and nothing adds to the first-paint bundle. These are 24-unit,
  * 1.75-stroke outlines — the "line-style" the shell asks for — and inherit

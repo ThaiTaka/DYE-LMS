@@ -79,6 +79,12 @@
   --color-chinh-nhat: #282056; /* tinted panel (violet at 18% over a card); `chinh-sang` reads 5.9:1 on it */
   --color-hong: #ec4899; /* the gradient's far end; decorative only */
   --color-hong-sang: #f9a8d4;
+  /*
+   * Mint — the logo's eyes and signal node (logo-dye.tsx), and the far end of
+   * the dashboard's brand title. The one cool note against violet and pink.
+   * Not `dung`: that green means "correct", and a logo is not a verdict.
+   */
+  --color-ngoc: #5eead4; /* 12:1 on the page */
 
   /* ── Secondary — electric blue ────────────────────────────────────────── */
   --color-phu: #3b82f6; /* fill */
@@ -262,6 +268,21 @@
       opacity: 0;
     }
   }
+}
+
+/*
+ * `shadow-neon` as a `filter`, so the glow follows a shape's outline (the
+ * logo's hexagon) instead of lighting up its bounding box.
+ *
+ * `inline`, unlike every other token: `drop-shadow()` takes ONE shadow, so
+ * Tailwind splits the value at each comma into its own function — but it splits
+ * whatever the utility would reference. From a plain `@theme` that is
+ * `var(--drop-shadow-neon)`, one "value" holding two shadows, which makes the
+ * whole `filter` invalid and draws no glow at all. Inlined, it splits the
+ * shadows themselves.
+ */
+@theme inline {
+  --drop-shadow-neon: 0 0 10px rgba(124, 58, 237, 0.6), 0 4px 14px rgba(236, 72, 153, 0.3);
 }
 
 /* ── Base ───────────────────────────────────────────────────────────────── */

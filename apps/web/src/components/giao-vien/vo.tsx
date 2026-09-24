@@ -5,8 +5,8 @@ import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { currentActor, signOut } from '@/auth';
-import { DauHieu } from '@/components/dau-hieu';
 import { Avatar } from '@/components/ui/avatar';
+import { LogoDYE } from '@/components/ui/logo-dye';
 import { SAC_THAI } from '@/components/ui/sac-thai';
 import { db } from '@/lib/db';
 import { demBaiTapChoCham, demCanhBaoChuaXuLy, demTuLuanChoCham } from '@/lib/teacher-data';
@@ -75,7 +75,7 @@ export async function VoGiaoVien({
             href="/giao-vien"
             className="flex items-center gap-2 rounded text-lg font-bold text-chu"
           >
-            <DauHieu className="h-5 w-5 text-chinh-sang" />
+            <LogoDYE className="size-7 shrink-0" />
             <span>DYE LMS</span>
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${SAC_THAI.chinh}`}>
               {vaiTro === 'ADMIN' ? 'Quản trị' : 'Giáo viên'}
