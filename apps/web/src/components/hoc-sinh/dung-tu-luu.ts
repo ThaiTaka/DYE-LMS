@@ -11,6 +11,11 @@ export interface TuLuu {
   trangThai: TrangThaiLuu;
   luuLuc: Date | null;
   thongDiep: string;
+  /**
+   * The exact text the server last confirmed it holds, or null before the
+   * first save. Lets the browser-side backup forget a copy once it is safe.
+   */
+  maDaLuu: string | null;
   /** Call on every keystroke; the hook does the debouncing. */
   ghiNhan: (code: string) => void;
   /** Force an immediate save — used before submitting or leaving. */
@@ -39,6 +44,7 @@ export function useTuLuu(blockId: string, doTre = 1500): TuLuu {
   const [trangThai, setTrangThai] = useState<TrangThaiLuu>('nghi');
   const [luuLuc, setLuuLuc] = useState<Date | null>(null);
   const [thongDiep, setThongDiep] = useState('');
+  const [maDaLuu, setMaDaLuu] = useState<string | null>(null);
 
   const dongHo = useRef<ReturnType<typeof setTimeout> | null>(null);
   /** Latest text the student has typed. */
@@ -48,12 +54,13 @@ export function useTuLuu(blockId: string, doTre = 1500): TuLuu {
   const dangChay = useRef(false);
   const conSong = useRef(true);
 
-  const ganKetQua = useCallback((kq: KetQuaLuu) => {
+  const ganKetQua = useCallback((kq: KetQuaLuu, code: string) => {
     if (!conSong.current) return;
 
     if (kq.trangThai === 'da-luu' || kq.trangThai === 'khong-doi') {
       setTrangThai('da-luu');
       setThongDiep('');
+      setMaDaLuu(code);
       if (kq.luuLuc) setLuuLuc(new Date(kq.luuLuc));
       return;
     }
@@ -78,7 +85,7 @@ export function useTuLuu(blockId: string, doTre = 1500): TuLuu {
       try {
         const kq = await tuDongLuu(blockId, code);
         daGui.current = code;
-        ganKetQua(kq);
+        ganKetQua(kq, code);
       } catch {
         if (conSong.current) {
           setTrangThai('loi');
@@ -152,5 +159,5 @@ export function useTuLuu(blockId: string, doTre = 1500): TuLuu {
     };
   }, [blockId]);
 
-  return { trangThai, luuLuc, thongDiep, ghiNhan, luuNgay };
+  return { trangThai, luuLuc, thongDiep, maDaLuu, ghiNhan, luuNgay };
 }

@@ -212,6 +212,19 @@ export {
   type KhoaHienThi,
 } from './khoa-vi-pham';
 
+// ── Tutor moderation lock ────────────────────────────────────────────────────
+export {
+  biKhoaTroLy,
+  canhBaoTroLy,
+  khoaTroLyViPham,
+  moKhoaTroLy,
+  soCanhBaoTroLyChuaXuLy,
+  type CanhBaoTroLyHienThi,
+  type KetQuaKhoaTroLy,
+  type KetQuaMoKhoaTroLy,
+  type NguonPhatHien,
+} from './tro-ly-vi-pham';
+
 // ── Teaching analytics ───────────────────────────────────────────────────────
 export {
   thongKeGiangDay,

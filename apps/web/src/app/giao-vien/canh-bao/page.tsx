@@ -1,10 +1,11 @@
 import Link from 'next/link';
 
+import { CanhBaoTroLy, type CanhBaoTroLyHang } from '@/components/giao-vien/canh-bao-tro-ly';
 import { HangCanhBao, type CanhBaoHang } from '@/components/giao-vien/danh-sach-canh-bao';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
 import { requireRole } from '@/lib/guard';
-import { duLieuCanhBao } from '@/lib/teacher-data';
+import { duLieuCanhBao, duLieuCanhBaoTroLy } from '@/lib/teacher-data';
 
 /**
  * The focus-alert feed.
@@ -31,7 +32,10 @@ export default async function TrangCanhBao({
   const { tat_ca } = await searchParams;
   const xemTatCa = tat_ca === 'co';
 
-  const data = await duLieuCanhBao(actor, { chiChuaXuLy: !xemTatCa });
+  const [data, troLy] = await Promise.all([
+    duLieuCanhBao(actor, { chiChuaXuLy: !xemTatCa }),
+    duLieuCanhBaoTroLy(actor, { chiChuaXuLy: !xemTatCa }),
+  ]);
 
   const dinhDangGio = new Intl.DateTimeFormat('vi-VN', {
     day: '2-digit',
@@ -56,6 +60,21 @@ export default async function TrangCanhBao({
     nguoiXuLy: c.nguoiXuLy,
   }));
 
+  const danhSachTroLy: CanhBaoTroLyHang[] = troLy.map((c) => ({
+    id: c.id,
+    studentId: c.studentId,
+    tenHocSinh: c.tenHocSinh,
+    username: c.username,
+    noiDung: c.noiDung,
+    loai: c.loai,
+    nguon: c.nguon,
+    daXuLy: c.daXuLy,
+    conKhoa: c.conKhoa,
+    luc: dinhDangGio.format(c.luc),
+    nguoiXuLy: c.nguoiXuLy,
+  }));
+  const soTroLyChuaXuLy = danhSachTroLy.filter((c) => !c.daXuLy).length;
+
   return (
     <VoGiaoVien tenHienThi={actor.displayName} vaiTro={actor.role === 'ADMIN' ? 'ADMIN' : 'TEACHER'}>
       <DuongDan muc={[{ nhan: 'Tổng quan', href: '/giao-vien' }, { nhan: 'Cảnh báo' }]} />
@@ -69,8 +88,30 @@ export default async function TrangCanhBao({
           {data.soChuaXuLy > 0
             ? `Đang có ${data.soChuaXuLy} cảnh báo chưa xử lý.`
             : 'Không có cảnh báo nào đang chờ.'}
+          {soTroLyChuaXuLy > 0 ? ` ${soTroLyChuaXuLy} em đang bị khoá trợ lý Bí.` : ''}
         </p>
       </header>
+
+      {/*
+        Tutor locks first: unlike a focus alert, each of these has already taken
+        something away from a child, and only this page can give it back.
+        Rendered only when there is something to show, so a quiet day does not
+        grow an empty box above the focus feed.
+      */}
+      {danhSachTroLy.length > 0 ? (
+        <section aria-labelledby="tro-ly-bi-khoa" className="mb-8">
+          <h2 id="tro-ly-bi-khoa" className="mt-0 mb-2 text-xl font-bold">
+            {xemTatCa ? 'Trợ lý Bí — mọi lần khoá' : 'Trợ lý Bí đang bị khoá'} ({danhSachTroLy.length})
+          </h2>
+          <p className="mt-0 mb-4 text-chu-phu">
+            Khi một em gửi cho Bí lời chửi thề, xúc phạm hoặc nội dung người lớn, Bí không trả lời
+            và tự khoá trợ lý của em cho tới khi thầy cô mở lại. Tin nhắn gốc ở ngay bên dưới —{' '}
+            <strong className="text-chu">máy có thể nhầm</strong>, nên thầy cô đọc rồi quyết định.
+            Khoá chỉ tắt trợ lý; bài làm và điểm của em không bị ảnh hưởng.
+          </p>
+          <CanhBaoTroLy canhBao={danhSachTroLy} />
+        </section>
+      ) : null}
 
       <section
         aria-labelledby="canh-bao-nghia-la-gi"

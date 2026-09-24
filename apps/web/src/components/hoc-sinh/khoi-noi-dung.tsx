@@ -269,6 +269,7 @@ function NoiDungTheoLoai({
               maBanDau={khoi.maBanDau}
               coBanNhap={khoi.coBanNhap}
               luuLucBanDau={khoi.luuLucBanDau}
+              hocSinhId={khoi.hocSinhId}
               // A playground has nothing to hand in; it is for trying things.
               coBaiTap={false}
               nhan="Khung soạn thảo"
@@ -593,6 +594,7 @@ function ThuThachLapTrinh({ khoi }: { khoi: KhoiHienThi }) {
         maBanDau={khoi.maBanDau}
         coBanNhap={khoi.coBanNhap}
         luuLucBanDau={khoi.luuLucBanDau}
+        hocSinhId={khoi.hocSinhId}
         coBaiTap={baiTap !== null}
         coDauVaoMau={(baiTap?.viDu.length ?? 0) > 0}
         soLanDaNop={khoi.soLanDaNop}

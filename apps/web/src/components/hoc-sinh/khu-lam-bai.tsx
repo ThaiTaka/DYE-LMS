@@ -16,6 +16,14 @@ import {
   type KetQuaChayThuUI,
 } from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
 
+import {
+  docBanSao,
+  khoaBanSao,
+  nenKhoiPhuc,
+  useBanSaoCucBo,
+  xoaBanSao,
+  type BanSaoCucBo,
+} from './ban-sao-cuc-bo';
 import { useTuLuu, type TrangThaiLuu } from './dung-tu-luu';
 import { SoSanhMa } from './so-sanh-ma';
 import { SoanThao } from './soan-thao';
@@ -112,6 +120,12 @@ export interface KhuLamBaiProps {
   soLanDaNop?: number | undefined;
   /** The hand-in on record, so the frozen editor can say what became of it. */
   baiNopCuoi?: { verdict: string; dangCho: boolean } | null | undefined;
+  /**
+   * Whose browser backup this editor reads and writes. Without it there is no
+   * browser backup at all — on a shared laptop, a copy keyed only by block
+   * would be offered to whichever child sat down next.
+   */
+  hocSinhId?: string | undefined;
 }
 
 /**
@@ -132,6 +146,7 @@ export function KhuLamBai({
   coDauVaoMau = false,
   soLanDaNop = 0,
   baiNopCuoi = null,
+  hocSinhId,
 }: KhuLamBaiProps) {
   const [ma, setMa] = useState(maBanDau);
   const [moLichSu, setMoLichSu] = useState(false);
@@ -172,13 +187,63 @@ export function KhuLamBai({
   /** Was anything still being judged on the previous poll? */
   const dangChoTruoc = useRef(false);
 
+  /*
+   * The browser backup (see `ban-sao-cuc-bo.ts`).
+   *
+   * `coSo` is the server version the student is currently typing on top of:
+   * the one the page was rendered with, then whatever each autosave confirms.
+   * A frozen editor gets no key — there is nothing left to protect, and a
+   * restore prompt over a handed-in exercise would only confuse.
+   */
+  const khoaLuu = hocSinhId && !hetLuot ? khoaBanSao(hocSinhId, blockId) : null;
+  const coSo = tuLuu.luuLuc?.toISOString() ?? luuLucBanDau;
+  const banSao = useBanSaoCucBo(khoaLuu, coSo);
+  /** A browser copy newer than the server's, waiting for the student to decide. */
+  const [banSaoCho, setBanSaoCho] = useState<BanSaoCucBo | null>(null);
+
+  /*
+   * Read once, after mount — `localStorage` does not exist during the server
+   * render, and reading it in initial state would be a hydration mismatch.
+   * Compared against what the SERVER sent, so the question is "is this copy
+   * ahead of the database", not "is it different from what is on screen".
+   */
+  useEffect(() => {
+    if (!khoaLuu) return;
+    const bs = docBanSao(khoaLuu);
+    if (nenKhoiPhuc(bs, maBanDau, luuLucBanDau)) setBanSaoCho(bs);
+    // Identical to the server, or behind it: nothing worth keeping.
+    else if (bs) xoaBanSao(khoaLuu);
+    // Once per editor, against the version the page was rendered with.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [khoaLuu]);
+
+  // The server has confirmed a text: the browser copy is no longer ahead of it.
+  const { daDongBo } = banSao;
+  useEffect(() => {
+    if (tuLuu.maDaLuu !== null) daDongBo(tuLuu.maDaLuu);
+  }, [tuLuu.maDaLuu, daDongBo]);
+
   const doiMa = useCallback(
     (moi: string) => {
       setMa(moi);
       tuLuu.ghiNhan(moi);
+      banSao.ghiNhan(moi);
     },
-    [tuLuu],
+    [tuLuu, banSao],
   );
+
+  /** Put the browser copy in the editor; autosave then carries it to the server. */
+  const khoiPhucBanSao = useCallback(() => {
+    if (!banSaoCho) return;
+    setMa(banSaoCho.code);
+    setBanSaoCho(null);
+    setThongBao('Đã khôi phục bài em gõ lúc mất kết nối. Hệ thống đang lưu lại lên máy chủ.');
+  }, [banSaoCho]);
+
+  const boQuaBanSao = useCallback(() => {
+    banSao.xoa();
+    setBanSaoCho(null);
+  }, [banSao]);
 
   const napLichSu = useCallback(async () => {
     const [ls, nopLs] = await Promise.all([layLichSu(blockId), layLichSuNop(blockId)]);
@@ -334,6 +399,9 @@ export function KhuLamBai({
       const kq = await nop(blockId, maRef.current);
       setThongBao(kq.thongDiep);
       if (kq.trangThai === 'da-nhan') {
+        // Handed in and stored: the browser copy has nothing left to protect.
+        banSao.xoa();
+        setBanSaoCho(null);
         // Fresh budget: this is a new attempt, not a continuation of the last.
         soLanHoi.current = 0;
         setVuaNop(true);
@@ -341,7 +409,7 @@ export function KhuLamBai({
         await napLichSu();
       }
     });
-  }, [blockId, napLichSu, tuLuu]);
+  }, [blockId, napLichSu, tuLuu, banSao]);
 
   return (
     /*
@@ -367,7 +435,49 @@ export function KhuLamBai({
         />
       </div>
 
-      {coBanNhap ? (
+      {/*
+        The restore offer.
+
+        A question, never an automatic swap: the student may have finished the
+        exercise on another computer since, and silently replacing that with an
+        older offline copy would be the exact loss this feature exists to
+        prevent. `role="alert"` because it appears after first paint, once
+        storage has been read, and a screen-reader user needs to hear there is
+        a choice waiting.
+      */}
+      {banSaoCho ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-thu-lai/30 bg-thu-lai-nen px-4 py-2.5"
+        >
+          <p className="m-0 text-sm font-medium text-thu-lai">
+            <span aria-hidden="true">💾 </span>
+            Máy này còn giữ một bản em gõ lúc{' '}
+            {new Date(banSaoCho.luuLuc).toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}{' '}
+            mà chưa kịp lưu lên hệ thống ({banSaoCho.code.split('\n').length} dòng). Em có muốn
+            khôi phục không?
+          </p>
+          <span className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={khoiPhucBanSao}
+              className="min-h-cham rounded-nut bg-chinh px-3.5 py-1.5 text-sm font-semibold text-white hover:bg-chinh-dam"
+            >
+              Khôi phục bản này
+            </button>
+            <button
+              type="button"
+              onClick={boQuaBanSao}
+              className="min-h-cham rounded-nut border border-vien px-3.5 py-1.5 text-sm font-medium text-chu-phu hover:border-chinh hover:text-chinh-sang"
+            >
+              Bỏ qua
+            </button>
+          </span>
+        </div>
+      ) : coBanNhap ? (
         <p className="m-0 border-b border-vien bg-chinh-nhat px-4 py-2 text-sm text-chinh-sang">
           <span aria-hidden="true">↩ </span>
           Đây là bài em đang làm dở. Em cứ tiếp tục nhé.

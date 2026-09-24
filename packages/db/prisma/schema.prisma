@@ -205,40 +205,49 @@ model User {
   locale             String    @default("vi")
   isActive           Boolean   @default(true)
   mustChangePassword Boolean   @default(false)
+  /// Bí (the tutor) refuses this user until a teacher lifts it.
+  ///
+  /// Set only by the tutor's moderation trap, and only on a STUDENT, in the same
+  /// transaction as the `AiViolationAlert` that explains it — a flag with no row
+  /// behind it would be a punishment nobody can account for. Lifted by
+  /// `moKhoaTroLy`, which resolves the alerts and writes the audit row.
+  isAiLocked         Boolean   @default(false)
   lastLoginAt        DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  accounts           Account[]
-  sessions           Session[]
-  taughtClasses      Class[]           @relation("ClassTeacher")
-  enrollments        Enrollment[]
-  lessonProgress     LessonProgress[]
-  blockProgress      BlockProgress[]
-  submissions        Submission[]
-  codeDrafts         CodeDraft[]
-  codeSnapshots      CodeSnapshot[]
-  quizAttempts       QuizAttempt[]
-  trackAssignments   TrackAssignment[] @relation("TrackStudent")
-  tracksAssigned     TrackAssignment[] @relation("TrackAssigner")
-  overridesCreated   LessonOverride[]  @relation("OverrideAuthor")
-  overridesReceived  LessonOverride[]  @relation("OverrideStudent")
-  xpEvents           XpEvent[]
-  earnedBadges       StudentBadge[]
-  streak             Streak?
-  gameProjects       GameProject[]
-  feedbackAuthored   Feedback[]        @relation("FeedbackAuthor")
-  auditLogs          AuditLog[]
-  notifications      Notification[]
-  announcements      Announcement[]    @relation("AnnouncementAuthor")
-  problemsAuthored   Problem[]         @relation("ProblemAuthor")
-  focusEvents        FocusEvent[]
-  focusAlerts        FocusAlert[]      @relation("FocusAlertStudent")
-  focusAlertsSeen    FocusAlert[]      @relation("FocusAlertReviewer")
-  focusLocks         FocusLock[]       @relation("FocusLockStudent")
-  focusLocksCleared  FocusLock[]       @relation("FocusLockClearer")
-  examAttempts       ExamAttempt[]     @relation("ExamAttemptStudent")
-  examAttemptsVoided ExamAttempt[]     @relation("ExamAttemptVoider")
+  accounts             Account[]
+  sessions             Session[]
+  taughtClasses        Class[]            @relation("ClassTeacher")
+  enrollments          Enrollment[]
+  lessonProgress       LessonProgress[]
+  blockProgress        BlockProgress[]
+  submissions          Submission[]
+  codeDrafts           CodeDraft[]
+  codeSnapshots        CodeSnapshot[]
+  quizAttempts         QuizAttempt[]
+  trackAssignments     TrackAssignment[]  @relation("TrackStudent")
+  tracksAssigned       TrackAssignment[]  @relation("TrackAssigner")
+  overridesCreated     LessonOverride[]   @relation("OverrideAuthor")
+  overridesReceived    LessonOverride[]   @relation("OverrideStudent")
+  xpEvents             XpEvent[]
+  earnedBadges         StudentBadge[]
+  streak               Streak?
+  gameProjects         GameProject[]
+  feedbackAuthored     Feedback[]         @relation("FeedbackAuthor")
+  auditLogs            AuditLog[]
+  notifications        Notification[]
+  announcements        Announcement[]     @relation("AnnouncementAuthor")
+  problemsAuthored     Problem[]          @relation("ProblemAuthor")
+  focusEvents          FocusEvent[]
+  focusAlerts          FocusAlert[]       @relation("FocusAlertStudent")
+  focusAlertsSeen      FocusAlert[]       @relation("FocusAlertReviewer")
+  focusLocks           FocusLock[]        @relation("FocusLockStudent")
+  focusLocksCleared    FocusLock[]        @relation("FocusLockClearer")
+  examAttempts         ExamAttempt[]      @relation("ExamAttemptStudent")
+  examAttemptsVoided   ExamAttempt[]      @relation("ExamAttemptVoider")
+  aiViolations         AiViolationAlert[] @relation("AiViolationStudent")
+  aiViolationsResolved AiViolationAlert[] @relation("AiViolationResolver")
 
   @@index([role, isActive])
 }
@@ -544,14 +553,14 @@ model LessonOverride {
 // ═══════════════════════════════════════════════════════════════════════════
 
 model Problem {
-  id            String        @id @default(cuid())
-  slug          String        @unique
-  title         String
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  title           String
   /// Markdown, Vietnamese.
-  statement     String
+  statement       String
   /// Progressive. Revealing one costs XP, never score.
-  hints         String[]
-  starterCode   String        @default("")
+  hints           String[]
+  starterCode     String        @default("")
   /// Scaffolding for Python exercises: the skeleton a student fills in.
   ///
   /// Distinct from `starterCode` on purpose. `starterCode` is what the editor
@@ -560,7 +569,7 @@ model Problem {
   /// I/O boilerplate a Cơ bản student should not have to type. The UI shows it
   /// as read-only rails around the editable region, and "Đặt lại về mẫu"
   /// restores it. Empty means "no template": the editor behaves exactly as before.
-  templateCode  String        @default("")
+  templateCode    String        @default("")
   /// Every output that counts as correct, as a JSON array of strings.
   ///
   /// For answer-key problems ("what does this print?", "which value is x?")
@@ -575,27 +584,27 @@ model Problem {
   /// counterpart for code exercises. JSON rather than String[] so a later entry
   /// can carry structure (a per-answer explanation, a regex flag) without
   /// another migration.
-  acceptedAnswers Json        @default("[]")
+  acceptedAnswers Json          @default("[]")
   /// Teacher-only. Phase 10 executes every reference solution through the real
   /// judge to prove each seeded problem is actually solvable.
-  solutionCode  String        @default("")
-  tier          Tier          @default(CO_BAN)
-  judgeMode     JudgeMode     @default(IO_MATCH)
-  runtimeImage  RuntimeImage  @default(PY_BASE)
-  networkPolicy NetworkPolicy @default(NONE)
-  timeLimitMs   Int           @default(2000)
-  memoryLimitMb Int           @default(256)
-  totalPoints   Int           @default(100)
+  solutionCode    String        @default("")
+  tier            Tier          @default(CO_BAN)
+  judgeMode       JudgeMode     @default(IO_MATCH)
+  runtimeImage    RuntimeImage  @default(PY_BASE)
+  networkPolicy   NetworkPolicy @default(NONE)
+  timeLimitMs     Int           @default(2000)
+  memoryLimitMb   Int           @default(256)
+  totalPoints     Int           @default(100)
   /// UNIT_TEST mode: hidden pytest suite run against the student's module.
-  unitTestCode  String?
+  unitTestCode    String?
   /// PY_WEB runtime: routes served on 127.0.0.1:8000 so `requests` works with
   /// zero egress and deterministic grading.
-  mockFixtures  Json?
+  mockFixtures    Json?
   /// Required when networkPolicy != NONE. The worker refuses the job otherwise.
-  authorizedBy  String?
-  authorId      String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  authorizedBy    String?
+  authorId        String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   author        User?                 @relation("ProblemAuthor", fields: [authorId], references: [id])
   testCases     TestCase[]
@@ -691,6 +700,10 @@ model Submission {
   feedback Feedback[]
 
   @@index([studentId, problemId, createdAt])
+  /// "This student's hand-ins in this lesson": the integrity lock reads it to
+  /// decide what to zero, and lifting the lock deletes by it. Neither query
+  /// names a problem, so the index above cannot serve them.
+  @@index([studentId, lessonId])
   /// Powers teacher analytics: most-failed coding challenges.
   @@index([problemId, verdict])
   @@index([verdict, createdAt])
@@ -1388,4 +1401,58 @@ model ExamStrike {
   attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
 
   @@index([attemptId, createdAt])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AI TUTOR GUARDRAILS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// What the tutor's moderation found in a student's message.
+///
+/// Three kinds and no more. Frustration ("khó quá", "chán quá"), off-topic
+/// questions and attempts to get the answer are NOT violations: the tutor turns
+/// those away itself, and none of them should cost a child their access.
+enum AiViolationType {
+  /// Swearing, including the abbreviated forms students type.
+  PROFANITY
+  /// Aimed at a person — the tutor, a classmate, a teacher.
+  INSULT
+  /// Sexual or 18+ content.
+  NSFW
+}
+
+/// One message that tripped the tutor's moderation, and the lock it caused.
+///
+/// ── Why a row and not just `User.isAiLocked` ─────────────────────────────────
+/// Taking a tool away from a child is consequential, so it leaves the evidence
+/// behind: what was typed, what it was judged to be, and which check judged it.
+/// The teacher reading the alert decides whether the machine was right — a
+/// student quoting an error message or a classmate's name that happens to be a
+/// swear word in another dialect looks identical to a keyword filter.
+///
+/// `resolved` flips when a teacher lifts the lock, together with who did it and
+/// when. Nothing is deleted: an alert about a child that was silently cleared is
+/// worse than one nobody looked at.
+model AiViolationAlert {
+  id            String          @id @default(cuid())
+  studentId     String
+  /// The student's message, verbatim, capped at the route's prompt limit.
+  promptText    String
+  violationType AiViolationType
+  /// "tu-khoa" (the word list) or "mo-hinh" (the model classifier). Shown to the
+  /// teacher, because a word-list hit and a judgement call deserve different
+  /// amounts of benefit of the doubt.
+  detectedBy    String
+  resolved      Boolean         @default(false)
+  resolvedById  String?
+  resolvedAt    DateTime?
+  createdAt     DateTime        @default(now())
+
+  student    User  @relation("AiViolationStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  resolvedBy User? @relation("AiViolationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  /// The teacher feed: open alerts, newest first.
+  @@index([resolved, createdAt])
+  /// One student's history, and "resolve everything open for this student".
+  @@index([studentId, resolved])
 }

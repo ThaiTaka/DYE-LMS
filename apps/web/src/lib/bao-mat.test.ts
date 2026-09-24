@@ -117,6 +117,15 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   // own submission; the teacher's reset runs `authorize(student: manage)`.
   'xoaBaiNopHex(': 'submission-not-yours',
   'moLaiKhoi(': 'authorize(',
+  // The tutor. Every signed-in user may ask it something; the gate is the
+  // moderation lock, read from the database before any model is called.
+  // Lifting that lock is a teacher write: the role check refuses the student
+  // themself (whom `student: manage` would otherwise admit), then `authorize`.
+  // Teacher password reset. `resetMatKhauHocSinh` also refuses non-staff
+  // itself, because `student: manage` alone admits a student's own id.
+  'datLaiMatKhauHocSinh(': 'authorize(',
+  'biKhoaTroLy(': 'isAiLocked',
+  'moKhoaTroLy(': 'student-cannot-unlock-ai',
 };
 
 const CACH_KIEM_QUYEN = [...KIEM_QUYEN_TRUC_TIEP, ...Object.keys(UY_QUYEN_CHO_CORE)];

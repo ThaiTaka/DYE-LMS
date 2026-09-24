@@ -32,6 +32,7 @@ import {
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
+import { KHOANG_CHO_NOP_MS, thongDiepChoLai, thuChiemLuot } from '@/lib/gioi-han-toc-do';
 import { chayThuTrongSandbox, xepHangChamBai } from '@/lib/judge-queue';
 import { khoDuAn } from '@/lib/project-storage';
 import { lamMoiTrangTienDo } from '@/lib/lam-moi-tien-do';
@@ -42,6 +43,25 @@ export interface KetQuaLuu {
   trangThai: 'da-luu' | 'khong-doi' | 'tu-choi' | 'loi';
   luuLuc: string | null;
   thongDiep: string;
+}
+
+/**
+ * The hand-in cooldown, as a refusal the editor can show.
+ *
+ * Taken AFTER the session is resolved — the key is the student, and an
+ * anonymous caller is refused by `hocSinhHienTai` before it can occupy anyone's
+ * slot — and BEFORE any query, which is the point of it. Shared by code,
+ * Micro:bit blocks and the .hex route, so switching button does not reset it.
+ */
+function chanNopDon(actor: Actor): KetQuaNop | null {
+  const cho = thuChiemLuot('nop', actor.id, KHOANG_CHO_NOP_MS);
+  if (cho.duocPhep) return null;
+  return {
+    trangThai: 'tu-choi',
+    submissionId: null,
+    attemptNo: null,
+    thongDiep: thongDiepChoLai(cho.conLaiMs),
+  };
 }
 
 /** Resolve the signed-in student, or refuse. Staff do not have drafts. */
@@ -336,6 +356,9 @@ export async function chayThu(
 export async function nop(blockId: string, code: string): Promise<KetQuaNop> {
   try {
     const actor = await hocSinhHienTai();
+    const doiDa = chanNopDon(actor);
+    if (doiDa) return doiDa;
+
     const kq = await nopBai(db, actor.id, blockId, code);
 
     // The row is already safe. Enqueueing only makes judging prompt, so a queue
@@ -385,6 +408,11 @@ export async function nopMicrobit(blockId: string, blocksXml: string): Promise<K
         thongDiep: 'Vùng làm việc đang trống. Em kéo vài khối lệnh vào rồi nộp nhé.',
       };
     }
+
+    // After the empty-workspace check: that refusal touches nothing, and a
+    // student who drags a block in and presses again should not be told to wait.
+    const doiDa = chanNopDon(actor);
+    if (doiDa) return doiDa;
 
     const kq = await nopBaiMicrobit(db, actor.id, blockId, blocksXml);
 

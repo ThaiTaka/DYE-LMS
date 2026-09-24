@@ -35,6 +35,7 @@ import {
   xoaTaiKhoanHocSinh,
   xoaTaiKhoanNhanVien,
   huyLuotThi,
+  moKhoaTroLy,
   moKhoaViPham,
   moLaiKhoi,
   xuLyCanhBao,
@@ -1239,6 +1240,48 @@ export async function moKhoaBaiViPham(
       thongDiep:
         `Đã mở khoá cho ${kq.tenHocSinh}.` +
         (hoanLai ? ` Điểm của ${hoanLai} đã được trả lại như cũ.` : ''),
+    };
+  });
+}
+
+/**
+ * Give a student their tutor back after a moderation lock.
+ *
+ * The lock was applied by a word list or a model reading one message, and
+ * either can be wrong — a dialect word, a quoted error, a classmate's joke
+ * typed on the wrong laptop. The teacher has read the message on the alert and
+ * decided; this records that decision with their name and reason and closes
+ * every open alert for the student.
+ *
+ * `moKhoaTroLy` refuses a student acting on themself before `authorize` runs,
+ * since `student: manage` would otherwise let them through for their own id.
+ */
+export async function moKhoaTroLyHocSinh(
+  _truoc: KetQuaHanhDong,
+  form: FormData,
+): Promise<KetQuaHanhDong> {
+  return chay(async () => {
+    const actor = await currentActor();
+    if (!actor) return { trangThai: 'tu-choi', thongDiep: 'Phiên đăng nhập đã hết hạn.' };
+
+    const studentId = String(form.get('studentId') ?? '');
+    const ghiChu = String(form.get('ghiChu') ?? '').trim();
+    if (!studentId) return { trangThai: 'loi', thongDiep: 'Thiếu học sinh cần mở khoá.' };
+    if (ghiChu.length < 3) {
+      return {
+        trangThai: 'loi',
+        thongDiep: 'Thầy cô ghi ngắn gọn lý do mở khoá giúp em nhé (ít nhất 3 ký tự).',
+      };
+    }
+
+    const kq = await moKhoaTroLy(db, actor, studentId, ghiChu);
+
+    revalidatePath('/giao-vien/canh-bao');
+    revalidatePath('/giao-vien');
+
+    return {
+      trangThai: 'thanh-cong',
+      thongDiep: `Đã mở lại trợ lý Bí cho ${kq.tenHocSinh}.`,
     };
   });
 }

@@ -27,12 +27,14 @@ import {
   bocMarkdown,
   can,
   canhBaoTapTrung,
+  canhBaoTroLy,
   courseProgress,
   khoaHocChoLop,
   nguoiCoTheNhanBanGiao,
   NGUONG_CANH_BAO,
   resolveCourseAccess,
   soCanhBaoChuaXuLy,
+  soCanhBaoTroLyChuaXuLy,
   stageOf,
   thongKeGiangDay,
   tierRank,
@@ -45,6 +47,7 @@ import {
   type Actor,
   type AnhHuongXoaTaiKhoan,
   type CanhBaoHienThi,
+  type CanhBaoTroLyHienThi,
   type CourseProgress,
   type FlowStage,
   type KhoaHocChonDuoc,
@@ -1530,13 +1533,35 @@ export async function duLieuCanhBao(
   };
 }
 
-/** Open-alert count for the nav badge. Never throws — a badge must not 500 a page. */
+/**
+ * Open-alert count for the nav badge — focus alerts and tutor locks together,
+ * because both live on the same page and both are waiting on this teacher.
+ * Never throws — a badge must not 500 a page.
+ */
 export async function demCanhBaoChuaXuLy(actor: Actor): Promise<number> {
   try {
-    return await soCanhBaoChuaXuLy(db, actor);
+    const [tapTrung, troLy] = await Promise.all([
+      soCanhBaoChuaXuLy(db, actor),
+      soCanhBaoTroLyChuaXuLy(db, actor),
+    ]);
+    return tapTrung + troLy;
   } catch {
     return 0;
   }
+}
+
+/**
+ * The tutor-lock feed, scoped by `canhBaoTroLy` in @dye/core exactly as the
+ * focus feed is — an admin sees every student, a teacher the ones they teach.
+ */
+export async function duLieuCanhBaoTroLy(
+  actor: Actor,
+  options: { chiChuaXuLy?: boolean } = {},
+): Promise<CanhBaoTroLyHienThi[]> {
+  return canhBaoTroLy(db, actor, {
+    ...(options.chiChuaXuLy ? { chiChuaXuLy: true } : {}),
+    gioiHan: 200,
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

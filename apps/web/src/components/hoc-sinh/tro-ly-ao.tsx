@@ -177,6 +177,16 @@ export function TroLyAo() {
   const [tinNhan, setTinNhan] = useState<TinNhan[]>([]);
   const [soanThao, setSoanThao] = useState('');
   const [dangGui, setDangGui] = useState(false);
+  /**
+   * The server said this student's tutor is locked.
+   *
+   * Learned from the first answer rather than fetched on mount: a lock is rare,
+   * and asking on every page load would be a request per navigation for every
+   * student to discover what almost none of them have. Not persisted either —
+   * the server is the authority, and a teacher who lifts the lock should not
+   * have to wait for a stale flag in the browser to expire.
+   */
+  const [biKhoa, setBiKhoa] = useState(false);
 
   const oCuon = useRef<HTMLDivElement | null>(null);
   const oNhap = useRef<HTMLTextAreaElement | null>(null);
@@ -270,6 +280,7 @@ export function TroLyAo() {
        */
       const kq = (await res.json()) as KetQuaTroLy;
       themTinNhan('bi', kq.traLoi || 'Bí chưa nghĩ ra gì để nói. Em hỏi lại giúp Bí nhé.');
+      if (kq.trangThai === 'bi-khoa') setBiKhoa(true);
     } catch {
       themTinNhan(
         'bi',
@@ -344,7 +355,11 @@ export function TroLyAo() {
                     Bí — trợ lý học tập
                   </h2>
                   <p className="m-0 truncate text-xs font-medium text-chu-nhat">
-                    {dangGui ? 'Đang đọc bài của em…' : 'Gợi ý từng bước, không làm hộ'}
+                    {biKhoa
+                      ? 'Đang tạm khoá'
+                      : dangGui
+                        ? 'Đang đọc bài của em…'
+                        : 'Gợi ý từng bước, không làm hộ'}
                   </p>
                 </span>
 
@@ -386,43 +401,60 @@ export function TroLyAo() {
               </div>
 
               {/* ── Composer ────────────────────────────────────────────── */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void gui();
-                }}
-                className="flex shrink-0 items-end gap-2 border-t border-white/10 p-3"
-              >
-                <label htmlFor={`${id}-o-nhap`} className="sr-only">
-                  Hỏi Bí một câu
-                </label>
-                <textarea
-                  id={`${id}-o-nhap`}
-                  ref={oNhap}
-                  rows={2}
-                  value={soanThao}
-                  onChange={(e) => setSoanThao(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Enter sends, Shift+Enter is a new line. A twelve-year-old
-                    // reaches for Enter; the modifier is there for the rare
-                    // question that needs two lines.
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      void gui();
-                    }
-                  }}
-                  placeholder="Em đang mắc chỗ nào?"
-                  className="min-h-11 flex-1 resize-none rounded-nut border border-white/10 bg-nen-sau/60 px-3 py-2 text-sm text-chu placeholder:text-chu-nhat focus-visible:border-chinh-sang focus-visible:ring-2 focus-visible:ring-chinh-sang/40 focus-visible:outline-hidden"
-                />
-                <button
-                  type="submit"
-                  disabled={dangGui || soanThao.trim() === ''}
-                  className="grid size-11 shrink-0 place-items-center rounded-nut bg-chinh font-semibold text-white hover:bg-chinh-dam disabled:cursor-not-allowed disabled:opacity-40"
+              {biKhoa ? (
+                /*
+                 * No text box to type into a wall. The sentence says what
+                 * happened and who can undo it — never what the student is —
+                 * and it is amber, not red: a lock is something a teacher
+                 * will look at, not a verdict.
+                 */
+                <p
+                  role="status"
+                  className="m-0 shrink-0 border-t border-white/10 bg-thu-lai-nen px-4 py-3 text-sm font-medium text-thu-lai"
                 >
-                  <span aria-hidden="true">➤</span>
-                  <span className="sr-only">Gửi câu hỏi cho Bí</span>
-                </button>
-              </form>
+                  <span aria-hidden="true">🔒 </span>
+                  Quyền truy cập AI của em đã bị khóa do vi phạm. Vui lòng liên hệ giáo viên để mở
+                  lại.
+                </p>
+              ) : (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void gui();
+                  }}
+                  className="flex shrink-0 items-end gap-2 border-t border-white/10 p-3"
+                >
+                  <label htmlFor={`${id}-o-nhap`} className="sr-only">
+                    Hỏi Bí một câu
+                  </label>
+                  <textarea
+                    id={`${id}-o-nhap`}
+                    ref={oNhap}
+                    rows={2}
+                    value={soanThao}
+                    onChange={(e) => setSoanThao(e.target.value)}
+                    onKeyDown={(e) => {
+                      // Enter sends, Shift+Enter is a new line. A twelve-year-old
+                      // reaches for Enter; the modifier is there for the rare
+                      // question that needs two lines.
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        void gui();
+                      }
+                    }}
+                    placeholder="Em đang mắc chỗ nào?"
+                    className="min-h-11 flex-1 resize-none rounded-nut border border-white/10 bg-nen-sau/60 px-3 py-2 text-sm text-chu placeholder:text-chu-nhat focus-visible:border-chinh-sang focus-visible:ring-2 focus-visible:ring-chinh-sang/40 focus-visible:outline-hidden"
+                  />
+                  <button
+                    type="submit"
+                    disabled={dangGui || soanThao.trim() === ''}
+                    className="grid size-11 shrink-0 place-items-center rounded-nut bg-chinh font-semibold text-white hover:bg-chinh-dam disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <span aria-hidden="true">➤</span>
+                    <span className="sr-only">Gửi câu hỏi cho Bí</span>
+                  </button>
+                </form>
+              )}
             </m.div>
           ) : null}
         </AnimatePresence>

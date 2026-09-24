@@ -147,6 +147,8 @@ services:
       AUTH_URL: ${AUTH_URL:?AUTH_URL is required}
       AUTH_TRUST_HOST: 'true'
       PROJECT_STORAGE_DIR: /data/uploads/projects
+      # Optional. Unset, Bí answers with an honest stand-in and still moderates.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     volumes:
       # Uploaded project files. A named volume, NOT a bind mount into the image:
       # the container filesystem is replaced on every deploy.

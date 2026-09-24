@@ -2,6 +2,7 @@ import { ForbiddenError, GIOI_HAN_HEX_BYTE, kiemTraConLuot, moKhoiCode } from '@
 
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
+import { KHOANG_CHO_NOP_MS, thongDiepChoLai, thuChiemLuot } from '@/lib/gioi-han-toc-do';
 import { LOI_HEX_CHU, nhanTepHex } from '@/lib/nop-hex';
 
 import type { KetQuaNop } from '@/app/(hoc-sinh)/bai-hoc/[slug]/code-actions';
@@ -77,6 +78,27 @@ export async function POST(
 
   const { blockId } = await ctx.params;
   if (!blockId) return tuChoi('Không rõ bài nào để nộp.', 400);
+
+  // The same per-student slot the code and Micro:bit hand-ins take (see
+  // `lib/gioi-han-toc-do.ts`), checked before a 1.8 MB body is buffered.
+  const cho = thuChiemLuot('nop', actor.id, KHOANG_CHO_NOP_MS);
+  if (!cho.duocPhep) {
+    return Response.json(
+      {
+        trangThai: 'tu-choi',
+        submissionId: null,
+        attemptNo: null,
+        thongDiep: thongDiepChoLai(cho.conLaiMs),
+      },
+      {
+        status: 429,
+        headers: {
+          'Cache-Control': 'no-store',
+          'Retry-After': String(Math.ceil(cho.conLaiMs / 1000)),
+        },
+      },
+    );
+  }
 
   // Refuse an oversized body BEFORE buffering it — and before touching the
   // database, since a header is free. A client that lies about Content-Length

@@ -39,6 +39,8 @@ vi.mock('@/lib/nop-hex', async () => {
 });
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
+import { xoaGioiHanChoKiemThu } from '@/lib/gioi-han-toc-do';
+
 import { POST } from './route';
 
 import type * as Core from '@dye/core';
@@ -98,6 +100,8 @@ function yeuCau(init?: {
 }
 
 beforeEach(() => {
+  // One press per test; the cooldown has its own test.
+  xoaGioiHanChoKiemThu();
   actorStub.mockReset();
   actorStub.mockResolvedValue(HOC_SINH);
   moKhoiStub.mockReset();
@@ -114,6 +118,20 @@ beforeEach(() => {
 });
 
 describe('POST /api/khoi/[blockId]/hex', () => {
+  it('bấm nộp lần hai trong 5 giây → 429 kèm câu học sinh đọc được, không đọc tệp', async () => {
+    await POST(yeuCau(), ctx);
+    const res = await POST(yeuCau(), ctx);
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get('retry-after')).toMatch(/^[1-5]$/);
+    const kq = (await res.json()) as { trangThai: string; thongDiep: string };
+    expect(kq.trangThai).toBe('tu-choi');
+    expect(kq.thongDiep).toMatch(/Chờ \d+ giây/);
+    // Refused before the access check and before the body was read.
+    expect(moKhoiStub).toHaveBeenCalledTimes(1);
+    expect(nhanStub).toHaveBeenCalledTimes(1);
+  });
+
   it('học sinh nộp tệp cùng nguồn → 200, JSON đúng dạng KetQuaNop', async () => {
     const res = await POST(yeuCau(), ctx);
 

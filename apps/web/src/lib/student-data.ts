@@ -463,6 +463,12 @@ export interface KhoiHienThi {
   coBanNhap: boolean;
   luuLucBanDau: string | null;
   /**
+   * The student this page was rendered for. Keys the editor's browser-side
+   * backup, so a shared laptop never offers one child another child's code.
+   * Optional: a block rendered without it simply has no browser backup.
+   */
+  hocSinhId?: string;
+  /**
    * Hand-ins so far for this block's problem. One attempt per problem, so
    * anything ≥ 1 freezes the editor on load — not after a history panel is
    * opened — and the freeze survives a reload.
@@ -758,6 +764,7 @@ export async function duLieuBaiHoc(
       maBanDau: draft?.code ?? macDinh,
       coBanNhap: draft !== undefined,
       luuLucBanDau: draft?.updatedAt.toISOString() ?? null,
+      hocSinhId: studentId,
       soLanDaNop: b.problem ? (soNopTheoProblem.get(b.problem.id) ?? 0) : 0,
       baiNopCuoi: (() => {
         const s = b.problem ? nopCuoiTheoProblem.get(b.problem.id) : undefined;

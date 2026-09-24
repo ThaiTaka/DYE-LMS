@@ -158,6 +158,35 @@ describe('TroLyAo', () => {
     expect(screen.getByRole('textbox', { name: /Hỏi Bí/ })).toBeEnabled();
   });
 
+  it('bị khoá thì báo rõ ai mở được, và không còn ô để gõ tiếp', async () => {
+    const nguoiDung = userEvent.setup();
+    const cau =
+      'Quyền truy cập AI của em đã bị khóa do vi phạm. Vui lòng liên hệ giáo viên để mở lại.';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve({
+          ok: false,
+          status: 403,
+          json: () => Promise.resolve({ trangThai: 'bi-khoa', traLoi: cau, error: cau }),
+        } as Response),
+      ),
+    );
+
+    const { container } = render(<TroLyAo />);
+    await moTroChuyen(nguoiDung);
+
+    await nguoiDung.type(screen.getByRole('textbox', { name: /Hỏi Bí/ }), 'Alo?');
+    await nguoiDung.keyboard('{Enter}');
+
+    expect(await screen.findByRole('status')).toHaveTextContent(/liên hệ giáo viên để mở lại/);
+    expect(screen.queryByRole('textbox', { name: /Hỏi Bí/ })).not.toBeInTheDocument();
+    expect(screen.getByText('Đang tạm khoá')).toBeInTheDocument();
+
+    const kq = await axe.run(container);
+    expect(kq.violations.map((v) => v.id)).toEqual([]);
+  });
+
   it('câu rỗng thì không gửi gì cả', async () => {
     const nguoiDung = userEvent.setup();
     const gia = traLoiOk();

@@ -38,6 +38,7 @@ const {
   nop,
   tuDongLuu,
 } = await import('./code-actions');
+const { xoaGioiHanChoKiemThu } = await import('@/lib/gioi-han-toc-do');
 
 const prefix = `p7-${Math.random().toString(36).slice(2, 8)}`;
 const userIds: string[] = [];
@@ -119,6 +120,9 @@ beforeAll(async () => {
 
 beforeEach(() => {
   dienVien = hocSinh;
+  // Each test is a separate press of the button, not a double-click; the
+  // cooldown has its own test below.
+  xoaGioiHanChoKiemThu();
 });
 
 afterAll(async () => {
@@ -314,10 +318,33 @@ describe('Nộp bài', () => {
     const lan1 = await nop(khoiMo, 'print("lan 1")\n');
     expect(lan1.trangThai).toBe('da-nhan');
 
+    xoaGioiHanChoKiemThu(); // a second press minutes later, not a double-click
     const lan2 = await nop(khoiMo, 'print("lan 2")\n');
     expect(lan2.trangThai).toBe('tu-choi');
     expect(lan2.submissionId).toBeNull();
     expect(lan2.thongDiep).toBe('Em đã hết lượt nộp bài. Vui lòng nhờ Giáo viên mở khóa.');
+
+    expect(await db.submission.count({ where: { studentId: hocSinh.id } })).toBe(1);
+  });
+});
+
+describe('Bấm nộp liên tục', () => {
+  beforeEach(async () => {
+    await xoaBaiNopCua(hocSinh.id);
+  });
+
+  it('lần bấm thứ hai trong 5 giây bị từ chối trước khi chạm vào cơ sở dữ liệu', async () => {
+    const [a, b] = await Promise.all([
+      nop(khoiMo, 'print("bam 1")\n'),
+      nop(khoiMo, 'print("bam 2")\n'),
+    ]);
+
+    // Fired together — the race the one-attempt count alone could lose.
+    const nhan = [a, b].filter((k) => k.trangThai === 'da-nhan');
+    const cho = [a, b].filter((k) => k.trangThai === 'tu-choi');
+    expect(nhan).toHaveLength(1);
+    expect(cho).toHaveLength(1);
+    expect(cho[0]?.thongDiep).toMatch(/Chờ \d+ giây/);
 
     expect(await db.submission.count({ where: { studentId: hocSinh.id } })).toBe(1);
   });
