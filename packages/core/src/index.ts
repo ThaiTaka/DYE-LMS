@@ -266,8 +266,64 @@ export {
   type CanhBaoTroLyHienThi,
   type KetQuaKhoaTroLy,
   type KetQuaMoKhoaTroLy,
+  type KenhViPham,
   type NguonPhatHien,
 } from './tro-ly-vi-pham';
+
+// ── Review milestones: the boss fight and the presentation ───────────────────
+export {
+  batDauTran,
+  danhMotLuot,
+  MAU_HOC_SINH_TOI_DA,
+  phanTramMau,
+  SO_CAU_MOI_TRAN,
+  type KetQuaTran,
+  type TranBoss,
+} from './tran-boss';
+
+export {
+  chamCauOnTap,
+  deOnTap,
+  khoangOnTap,
+  SO_BUOI_MOI_CHANG_ON_TAP,
+  type CauHoiOnTap,
+  type DeOnTap,
+  type KetQuaDanhBoss,
+  type KhoangOnTap,
+} from './on-tap';
+
+export {
+  kiemTraThuyetTrinh,
+  moTaLoiThuyetTrinh,
+  NOI_DUNG_TRANG_TOI_DA,
+  SO_TRANG_THUYET_TRINH,
+  TIEU_DE_TRANG_TOI_DA,
+  type LoiThuyetTrinh,
+  type TrangThuyetTrinh,
+} from './trang-thuyet-trinh';
+
+export {
+  nopThuyetTrinh,
+  thuyetTrinhCuaHocSinh,
+  thuyetTrinhCuaKhoi,
+  type KetQuaNopThuyetTrinh,
+  type ThuyetTrinhDaNop,
+  type ThuyetTrinhHienThi,
+} from './thuyet-trinh';
+
+// ── Class chat ───────────────────────────────────────────────────────────────
+export {
+  GIOI_HAN_TIN_NHAN,
+  guiTinNhanLop,
+  lopThaoLuanCuaEm,
+  SO_TIN_NHAN_BAN_DAU,
+  tinNhanCuaLop,
+  trangThaiThaoLuan,
+  type KetQuaGuiTinNhan,
+  type LopThaoLuan,
+  type TinNhanLop,
+  type TrangThaiThaoLuan,
+} from './thao-luan';
 
 // ── Teaching analytics ───────────────────────────────────────────────────────
 export {

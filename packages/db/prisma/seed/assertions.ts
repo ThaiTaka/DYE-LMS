@@ -7,6 +7,8 @@
  *
  * Every rule here maps to a numbered row in docs/03-CURRICULUM-MAP.md.
  */
+import { CHANG_ON_TAP, CHANG_THUYET_TRINH } from './courses/moc-on-tap.ts';
+
 import type { BlockSpec, CourseSpec, LessonSpec, ProblemSpec } from './types.ts';
 
 export class CurriculumViolation extends Error {
@@ -195,6 +197,9 @@ function assertPedagogicalFlow(course: CourseSpec): void {
     // "no theory straight to assessment" covers them too.
     'MULTIPLE_CHOICE',
     'FILL_IN_BLANK',
+    // The review fight asks for answers too. Kept in step with ASSESSMENT in
+    // @dye/core's flow.ts, which the curriculum editor enforces at runtime.
+    'MINIGAME_BOSS',
   ]);
   const HANDS_ON: ReadonlySet<string> = new Set(['INTERACTIVE_EXAMPLE', 'PLAYGROUND', 'PROJECT']);
 
@@ -773,6 +778,74 @@ function assertMicrobitBasicNotes(course: CourseSpec): void {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Review milestones — apply to every course
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Rule 14: a boss fight closes every 5th session and a presentation every 15th,
+ * each reviewing exactly the stretch that ends there — and nowhere else.
+ *
+ * `apDungMocOnTap` places them; this proves the merged course still matches the
+ * rule, so a hand-authored boss in session 7, or a window that quietly reaches
+ * past its own session, fails the build rather than reaching a student.
+ */
+/** Slides per presentation. SO_TRANG_THUYET_TRINH in @dye/core, which the seed cannot import. */
+const SO_TRANG_THUYET_TRINH = 8;
+
+function assertReviewMilestones(course: CourseSpec): void {
+  for (const lesson of course.modules.flatMap((m) => m.lessons)) {
+    const bosses = lesson.blocks.filter((b) => b.type === 'MINIGAME_BOSS');
+    const talks = lesson.blocks.filter((b) => b.type === 'PRESENTATION');
+    const wantBoss = lesson.order % CHANG_ON_TAP === 0 ? 1 : 0;
+    const wantTalk = lesson.order % CHANG_THUYET_TRINH === 0 ? 1 : 0;
+
+    if (bosses.length !== wantBoss) {
+      throw new CurriculumViolation(
+        'review-boss-placement',
+        `${lesson.slug} (session ${lesson.order}) has ${bosses.length} boss fight(s); expected ${wantBoss}`,
+      );
+    }
+    if (talks.length !== wantTalk) {
+      throw new CurriculumViolation(
+        'review-presentation-placement',
+        `${lesson.slug} (session ${lesson.order}) has ${talks.length} presentation(s); expected ${wantTalk}`,
+      );
+    }
+
+    for (const [block, span] of [
+      ...bosses.map((b) => [b, CHANG_ON_TAP] as const),
+      ...talks.map((b) => [b, CHANG_THUYET_TRINH] as const),
+    ]) {
+      const c = block.content;
+      if (c.kind !== 'boss' && c.kind !== 'presentation') {
+        throw new CurriculumViolation('review-content-kind', `${lesson.slug}#${block.title}: ${c.kind}`);
+      }
+      if (c.denBuoi !== lesson.order || c.tuBuoi !== lesson.order - span + 1) {
+        throw new CurriculumViolation(
+          'review-window',
+          `${lesson.slug}#${block.title} reviews ${c.tuBuoi}–${c.denBuoi}; expected ${lesson.order - span + 1}–${lesson.order}`,
+        );
+      }
+      // The pool is derived from answered lesson questions. A boss with its own
+      // quiz or problem would be a second, unreviewed answer key.
+      if (block.quiz || block.problem) {
+        throw new CurriculumViolation('review-own-key', `${lesson.slug}#${block.title}`);
+      }
+    }
+
+    if (talks.length > 0) {
+      const c = talks[0]!.content;
+      if (c.kind === 'presentation' && c.goiY.length !== SO_TRANG_THUYET_TRINH) {
+        throw new CurriculumViolation(
+          'presentation-prompts',
+          `${lesson.slug}: ${c.goiY.length} suggested slide titles for an ${SO_TRANG_THUYET_TRINH}-slide presentation`,
+        );
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 
 /** Runs every rule. Throws CurriculumViolation on the first failure. */
 export function assertCurriculumCompliance(courses: CourseSpec[]): void {
@@ -784,6 +857,7 @@ export function assertCurriculumCompliance(courses: CourseSpec[]): void {
     assertProblemsAreTestable(course);
     assertNoDeficitLanguage(course);
     assertExams(course);
+    assertReviewMilestones(course);
 
     switch (course.slug) {
       case 'python-co-ban':

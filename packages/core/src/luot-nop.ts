@@ -229,6 +229,16 @@ export async function moLaiKhoi(
       await tx.submission.deleteMany({ where: { id: { in: idBaiNop } } });
     }
 
+    // A PRESENTATION block's hand-in. The slides go into the audit row first:
+    // a reset deletes a child's work, and the log is where it can be found.
+    const thuyetTrinh = await tx.presentationSubmission.findUnique({
+      where: { studentId_blockId: { studentId, blockId } },
+      select: { id: true, slides: true, createdAt: true },
+    });
+    if (thuyetTrinh) {
+      await tx.presentationSubmission.delete({ where: { id: thuyetTrinh.id } });
+    }
+
     await tx.blockProgress.deleteMany({ where: { studentId, blockId } });
 
     await tx.auditLog.create({
@@ -247,6 +257,14 @@ export async function moLaiKhoi(
             score: s.score,
           })),
           soCauTraLoiXoa: soCau,
+          ...(thuyetTrinh
+            ? {
+                daXoaThuyetTrinh: {
+                  slides: thuyetTrinh.slides,
+                  nopLuc: thuyetTrinh.createdAt.toISOString(),
+                },
+              }
+            : {}),
         },
       },
     });

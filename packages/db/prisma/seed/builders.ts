@@ -194,6 +194,77 @@ export function projectBlock(
   };
 }
 
+/**
+ * The review boss fight that closes a five-session stretch.
+ *
+ * No `quiz` on purpose: the fight draws from questions the student has already
+ * answered in `tuBuoi..denBuoi`, so it needs none — and a block with its own
+ * answer key would be one more thing to keep out of the browser.
+ */
+export function bossBlock(opts: {
+  tenBoss: string;
+  bieuTuong: string;
+  tuBuoi: number;
+  denBuoi: number;
+  title?: string;
+  markdown?: Markdown;
+  minutes?: number;
+}): BlockSpec {
+  return {
+    type: 'MINIGAME_BOSS',
+    title: opts.title ?? `Ôn tập: Hạ gục ${opts.tenBoss}`,
+    tier: 'CO_BAN',
+    estimatedMinutes: opts.minutes ?? 10,
+    content: {
+      kind: 'boss',
+      markdown: opts.markdown
+        ? md(opts.markdown)
+        : `Đến lúc ôn lại **Buổi ${opts.tuBuoi}–${opts.denBuoi}** rồi! Mỗi câu em trả lời đúng là một đòn đánh vào ${opts.tenBoss}. Trả lời sai thì em mất một tim — nhưng đấu lại lúc nào cũng được.`,
+      tenBoss: opts.tenBoss,
+      bieuTuong: opts.bieuTuong,
+      tuBuoi: opts.tuBuoi,
+      denBuoi: opts.denBuoi,
+    },
+  };
+}
+
+/** Suggested slide titles — a scaffold for a blank page, never checked. */
+export const GOI_Y_THUYET_TRINH: readonly string[] = [
+  'Giới thiệu: chặng đường em vừa đi',
+  'Kiến thức quan trọng nhất',
+  'Một ví dụ em thích',
+  'Lỗi em hay gặp và cách sửa',
+  'Bài làm em tự hào nhất',
+  'Phần khó nhất và cách em vượt qua',
+  'Em sẽ dùng điều này để làm gì',
+  'Tổng kết',
+];
+
+/** The eight-slide presentation that closes a fifteen-session stretch. */
+export function presentationBlock(opts: {
+  tuBuoi: number;
+  denBuoi: number;
+  title?: string;
+  markdown?: Markdown;
+  minutes?: number;
+}): BlockSpec {
+  return {
+    type: 'PRESENTATION',
+    title: opts.title ?? `Thuyết trình: Buổi ${opts.tuBuoi}–${opts.denBuoi}`,
+    tier: 'CO_BAN',
+    estimatedMinutes: opts.minutes ?? 40,
+    content: {
+      kind: 'presentation',
+      markdown: opts.markdown
+        ? md(opts.markdown)
+        : `Em đã đi được **${opts.denBuoi - opts.tuBuoi + 1} buổi học**! Hãy soạn một bài thuyết trình **8 trang** kể lại những gì em đã học để trình bày trước lớp. Mỗi trang có một tiêu đề và vài ý ngắn — dòng bắt đầu bằng \`- \` sẽ thành gạch đầu dòng.`,
+      tuBuoi: opts.tuBuoi,
+      denBuoi: opts.denBuoi,
+      goiY: [...GOI_Y_THUYET_TRINH],
+    },
+  };
+}
+
 /** Reference/resource list. Rendered as a link list, never as an iframe. */
 export function resources(title: string, links: Array<{ label: string; url: string }>): BlockSpec {
   return {

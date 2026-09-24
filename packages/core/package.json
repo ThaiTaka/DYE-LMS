@@ -9,6 +9,8 @@
     ".": "./src/index.ts",
     "./text": "./src/text.ts",
     "./dem-chu": "./src/dem-chu.ts",
+    "./tran-boss": "./src/tran-boss.ts",
+    "./trang-thuyet-trinh": "./src/trang-thuyet-trinh.ts",
     "./upload-guard": "./src/upload-guard.ts"
   },
   "scripts": {

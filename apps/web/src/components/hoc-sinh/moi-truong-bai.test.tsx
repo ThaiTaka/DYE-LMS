@@ -64,6 +64,8 @@ function khoi(over: Partial<KhoiHienThi> = {}): KhoiHienThi {
     luuLucBanDau: null,
     soLanDaNop: 0,
     baiNopCuoi: null,
+    onTap: null,
+    thuyetTrinh: null,
     ...over,
   };
 }

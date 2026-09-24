@@ -17,6 +17,7 @@ import {
   baiTapCuaHocSinh,
   courseProgress,
   danhSachKiemTra,
+  deOnTap,
   khoaHienTai,
   lessonView,
   moBaiTapChoHocSinh,
@@ -26,11 +27,13 @@ import {
   tuLuanHocTapCuaBai,
   traLoiCuaHocSinh,
   stageOf,
+  thuyetTrinhCuaKhoi,
   type Actor,
   type BaiHocGanBaiTap,
   type BaiTapCuaHocSinh,
   type BaiThiHienThi,
   type BlockAccess,
+  type CauHoiOnTap,
   type CourseProgress,
   type FlowStage,
   type LessonAccess,
@@ -535,6 +538,16 @@ export interface KhoiHienThi {
     /** Set when it was a .hex upload. */
     hex: { tenTep: string; kichThuocKb: number } | null;
   } | null;
+  /**
+   * MINIGAME_BOSS only: this fight's questions, freshly shuffled.
+   *
+   * Drawn by `deOnTap` from questions this student has ALREADY answered in the
+   * boss's window, with no answer key — every answer is marked by `danhBoss`
+   * on the server. Empty when there is nothing to review yet.
+   */
+  onTap: CauHoiOnTap[] | null;
+  /** PRESENTATION only: the slides on record, or null before hand-in. */
+  thuyetTrinh: { trang: Array<{ tieuDe: string; noiDung: string }>; nopLuc: string } | null;
 }
 
 export interface DuLieuBaiHoc {
@@ -764,11 +777,19 @@ export async function duLieuBaiHoc(
   const idProblem = blocks.map((b) => b.problem?.id).filter((x): x is string => x !== undefined);
 
   /*
+   * The review milestones. Only for blocks the view kept: a HIDDEN boss must
+   * not cost a query, let alone ship its questions.
+   */
+  const idBoss = blocksTheoView.filter((b) => b.type === 'MINIGAME_BOSS').map((b) => b.id);
+  const idThuyetTrinh = blocksTheoView.filter((b) => b.type === 'PRESENTATION').map((b) => b.id);
+
+  /*
    * One-attempt state for the whole lesson, in three queries rather than one
    * per block: the essays on record, the machine-marked answers on record,
-   * and the latest hand-in per problem.
+   * and the latest hand-in per problem. Plus the milestones, which are rare —
+   * at most one boss and one presentation in a session.
    */
-  const [tuLuanOf, traLoiOf, baiNopMoiNhat] = await Promise.all([
+  const [tuLuanOf, traLoiOf, baiNopMoiNhat, deOf, thuyetTrinhOf] = await Promise.all([
     tuLuanCuaHocSinh(db, studentId, idTuLuan),
     traLoiCuaHocSinh(db, studentId, idTracNghiem),
     idProblem.length === 0
@@ -786,6 +807,10 @@ export async function duLieuBaiHoc(
             runnerError: true,
           },
         }),
+    Promise.all(idBoss.map(async (id) => [id, await deOnTap(db, studentId, id)] as const)).then(
+      (ds) => new Map(ds),
+    ),
+    thuyetTrinhCuaKhoi(db, studentId, idThuyetTrinh),
   ]);
   const soNopTheoProblem = new Map<string, number>();
   const nopCuoiTheoProblem = new Map<string, (typeof baiNopMoiNhat)[number]>();
@@ -862,6 +887,11 @@ export async function duLieuBaiHoc(
             viDu: b.problem.testCases,
           }
         : null,
+      onTap: b.type === 'MINIGAME_BOSS' ? (deOf.get(b.id)?.cauHoi ?? []) : null,
+      thuyetTrinh: (() => {
+        const t = thuyetTrinhOf.get(b.id);
+        return t ? { trang: t.trang, nopLuc: t.nopLuc.toISOString() } : null;
+      })(),
     };
   });
 

@@ -16,6 +16,7 @@ import {
   duLieuLuotThiHocSinh,
   duLieuTapTrungHocSinh,
   duLieuTuLuanHocTapHocSinh,
+  duLieuThuyetTrinhHocSinh,
   type HocSinhChuaSanSang,
 } from '@/lib/teacher-data';
 import { hienThiLuc } from '@/lib/thoi-gian';
@@ -51,10 +52,11 @@ export default async function TrangHocSinh({
 
   // Loaded only after `duLieuHocSinh` has proved this actor may see this child,
   // and guarded again inside on the same permission.
-  const [tapTrung, luotThi, tuLuanHocTap] = await Promise.all([
+  const [tapTrung, luotThi, tuLuanHocTap, thuyetTrinh] = await Promise.all([
     duLieuTapTrungHocSinh(actor, id),
     duLieuLuotThiHocSinh(actor, id),
     duLieuTuLuanHocTapHocSinh(actor, id),
+    duLieuThuyetTrinhHocSinh(actor, id),
   ]);
 
   return (
@@ -232,6 +234,51 @@ export default async function TrangHocSinh({
                   <p className="m-0 border-t border-vien px-4 py-3 leading-relaxed whitespace-pre-wrap">
                     {t.noiDung}
                   </p>
+                </details>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {/*
+        Milestone presentations — eight slides every fifteen sessions. Folded
+        like the reflections; opened, each slide is a numbered title with its
+        text, plain and pre-wrapped. The student presents from their own
+        lesson page; this is the teacher's copy to read beforehand.
+      */}
+      {thuyetTrinh.length > 0 ? (
+        <section aria-labelledby="thuyet-trinh" className="mb-6">
+          <h2 id="thuyet-trinh" className="mt-0 mb-1 text-xl font-bold">
+            Bài thuyết trình ({thuyetTrinh.length})
+          </h2>
+          <p className="mt-0 mb-4 text-sm text-chu-phu">
+            Mỗi 15 buổi em soạn 8 trang tóm tắt những gì đã học để trình bày trước lớp.
+          </p>
+          <ul className="m-0 grid list-none gap-2 p-0">
+            {thuyetTrinh.map((t) => (
+              <li key={t.id}>
+                <details className="group rounded-the-nho border border-vien bg-the">
+                  <summary className="flex min-h-cham cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 p-4 text-sm">
+                    <span className="font-semibold">
+                      {t.tenKhoaHoc} · Buổi {t.buoi} · {t.tenBai}
+                    </span>
+                    <span className="text-chu-phu tabular-nums">
+                      {t.trang.length} trang · {hienThiLuc(t.nopLuc)}
+                    </span>
+                  </summary>
+                  <ol className="m-0 grid list-none gap-3 border-t border-vien p-4 sm:grid-cols-2">
+                    {t.trang.map((trang, i) => (
+                      <li key={i} className="rounded-nut border border-vien bg-the-mo p-3">
+                        <p className="m-0 mb-1 text-sm font-bold">
+                          <span className="text-chu-nhat">{i + 1}.</span> {trang.tieuDe}
+                        </p>
+                        <p className="m-0 text-sm leading-relaxed whitespace-pre-wrap text-chu-phu">
+                          {trang.noiDung}
+                        </p>
+                      </li>
+                    ))}
+                  </ol>
                 </details>
               </li>
             ))}

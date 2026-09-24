@@ -167,7 +167,7 @@ export function BaiTracNghiem({
  * so it reads as a gap to fill rather than as a typo — and so a screen reader
  * announces "chỗ trống" instead of spelling out punctuation.
  */
-function CauVoiChoTrong({ template }: { template: string }) {
+export function CauVoiChoTrong({ template }: { template: string }) {
   const phan = template.split(/_{2,}/g);
 
   return (

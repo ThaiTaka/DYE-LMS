@@ -33,6 +33,15 @@ export const KHOANG_CHO_NOP_MS = 5000;
 /** Between two questions to Bí. Each one is a paid model call. */
 export const KHOANG_CHO_TRO_LY_MS = 3000;
 
+/**
+ * Between two class-chat messages from the same student.
+ *
+ * Shorter than the tutor's — a chat line is a reply, and "ok" then "cảm ơn"
+ * two seconds apart is a normal conversation — but still there, because each
+ * message can be a paid classifier call and a held Enter key is thirty of them.
+ */
+export const KHOANG_CHO_THAO_LUAN_MS = 2000;
+
 /** Entries before expired ones are swept. Well above one school's users. */
 const NGUONG_DON_DEP = 5000;
 

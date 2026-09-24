@@ -3,6 +3,8 @@ import type { DuLieuBaiHoc, KhoiHienThi } from '@/lib/student-data';
 
 import { BaiTracNghiem } from './bai-trac-nghiem';
 import { BiKhoaViPham } from './bi-khoa-vi-pham';
+import { KhoiDanhBoss } from './khoi-danh-boss';
+import { KhoiThuyetTrinh } from './khoi-thuyet-trinh';
 import { NutDaDocXong } from './nut-da-doc-xong';
 import { KhuLamBai } from './khu-lam-bai';
 import { KhuMicrobit } from './khu-microbit';
@@ -146,9 +148,18 @@ export function KhoiNoiDung({
  * the explanation is doing the thing everyone wants, and taking the theory away
  * from them would be punishment for its own sake.
  */
-type LoaiLamBai = 'playground' | 'challenge' | 'microbit' | 'quiz';
+type LoaiLamBai = 'playground' | 'challenge' | 'microbit' | 'quiz' | 'boss' | 'presentation';
 
-const KHOI_LAM_BAI: readonly LoaiLamBai[] = ['playground', 'challenge', 'microbit', 'quiz'];
+// The boss and the presentation are in: both go through `moKhoiCode`, which
+// refuses under the lock, so offering them would be offering a dead button.
+const KHOI_LAM_BAI: readonly LoaiLamBai[] = [
+  'playground',
+  'challenge',
+  'microbit',
+  'quiz',
+  'boss',
+  'presentation',
+];
 
 function laKhoiLamBai(nd: KhoiHienThi['noiDung']): nd is Extract<
   KhoiHienThi['noiDung'],
@@ -494,6 +505,47 @@ function NoiDungTheoLoai({
             </a>
           ) : null}
           <NutDaDocXong blockId={khoi.blockId} daXong={khoi.completed} nhan="Em đã xem xong" />
+        </>
+      );
+
+    /*
+     * The review milestones. Both carry their framing in `markdown` and their
+     * working state in the view model — the fight's questions (`onTap`, no
+     * answer key) and the deck on record (`thuyetTrinh`) — read on the server
+     * with the rest of the lesson.
+     */
+    case 'boss':
+      return (
+        <>
+          <VanBan>{nd.markdown}</VanBan>
+          <div className="mt-4">
+            <KhoiDanhBoss
+              blockId={khoi.blockId}
+              tenBoss={nd.tenBoss}
+              bieuTuong={nd.bieuTuong}
+              tuBuoi={nd.tuBuoi}
+              denBuoi={nd.denBuoi}
+              cauHoi={khoi.onTap ?? []}
+              daXong={khoi.completed}
+            />
+          </div>
+        </>
+      );
+
+    case 'presentation':
+      return (
+        <>
+          <VanBan>{nd.markdown}</VanBan>
+          <div className="mt-4">
+            <KhoiThuyetTrinh
+              blockId={khoi.blockId}
+              tuBuoi={nd.tuBuoi}
+              denBuoi={nd.denBuoi}
+              goiY={nd.goiY}
+              hocSinhId={khoi.hocSinhId}
+              daNop={khoi.thuyetTrinh ?? null}
+            />
+          </div>
         </>
       );
 

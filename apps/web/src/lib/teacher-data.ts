@@ -47,6 +47,7 @@ import {
   tuLuanChoCham,
   tuLuanDaCham,
   tuLuanHocTapCuaHocSinh,
+  thuyetTrinhCuaHocSinh,
   soTuLuanChoCham,
   visibleStudentIds,
   type Actor,
@@ -1826,6 +1827,42 @@ export async function duLieuTuLuanHocTapHocSinh(
     tenKhoaHoc: t.tenKhoaHoc,
     noiDung: t.noiDung,
     soChu: t.soChu,
+    nopLuc: t.nopLuc.toISOString(),
+  }));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Milestone presentations
+// ═══════════════════════════════════════════════════════════════════════════
+
+export interface ThuyetTrinhGiaoVien {
+  id: string;
+  buoi: number;
+  tenBai: string;
+  tenKhoaHoc: string;
+  trang: Array<{ tieuDe: string; noiDung: string }>;
+  nopLuc: string;
+}
+
+/**
+ * This student's eight-slide presentations, for their page. Same contract as
+ * the reflections above: empty rather than thrown when the actor may not read
+ * them, and guarded again inside on `student: read`.
+ */
+export async function duLieuThuyetTrinhHocSinh(
+  actor: Actor,
+  studentId: string,
+): Promise<ThuyetTrinhGiaoVien[]> {
+  const duocXem = await can(db, actor, { resource: 'student', action: 'read', studentId });
+  if (!duocXem) return [];
+
+  const ds = await thuyetTrinhCuaHocSinh(db, actor, studentId);
+  return ds.map((t) => ({
+    id: t.id,
+    buoi: t.buoi,
+    tenBai: bocMarkdown(t.tenBai),
+    tenKhoaHoc: t.tenKhoaHoc,
+    trang: t.trang,
     nopLuc: t.nopLuc.toISOString(),
   }));
 }

@@ -3,8 +3,9 @@ import { biKhoaTroLy, khoaTroLyViPham, type NguonPhatHien } from '@dye/core';
 import { currentActor } from '@/auth';
 import { db } from '@/lib/db';
 import { KHOANG_CHO_TRO_LY_MS, thongDiepChoLai, thuChiemLuot } from '@/lib/gioi-han-toc-do';
-import { kiemDuyetTuKhoa, type LoaiViPham } from '@/lib/kiem-duyet';
-import { coMoHinh, hoiGiaSu, kiemDuyetBangMoHinh } from '@/lib/tro-ly-claude';
+import { type LoaiViPham } from '@/lib/kiem-duyet';
+import { kiemDuyetTinNhan } from '@/lib/kiem-duyet-tin-nhan';
+import { coMoHinh, hoiGiaSu } from '@/lib/tro-ly-claude';
 
 import type { Actor } from '@dye/core';
 
@@ -244,16 +245,17 @@ export async function POST(req: Request): Promise<Response> {
     );
   }
 
-  // ── 4. The word list ─────────────────────────────────────────────────────
-  const tuKhoa = kiemDuyetTuKhoa(yeuCau.prompt);
-  if (tuKhoa) return xuLyViPham(actor, yeuCau.prompt, tuKhoa, 'tu-khoa');
+  // ── 4–5. The word list, then the classifier ──────────────────────────────
+  // One function for every box a child types into; the class chat calls the
+  // same one (see lib/kiem-duyet-tin-nhan.ts). With no model configured it
+  // runs the word list alone and reports `sach` on a miss.
+  const kiemDuyet = await kiemDuyetTinNhan(yeuCau.prompt);
+  if (kiemDuyet.trangThai === 'vi-pham') {
+    return xuLyViPham(actor, yeuCau.prompt, kiemDuyet.loai, kiemDuyet.nguon);
+  }
+  if (kiemDuyet.trangThai === 'chua-ro') return khongTraLoi('loi', kiemDuyet.loi, 503);
 
   if (!coMoHinh()) return traLoi({ trangThai: 'tra-loi', traLoi: traLoiTam(yeuCau) }, 200);
-
-  // ── 5. The classifier ────────────────────────────────────────────────────
-  const kiemDuyet = await kiemDuyetBangMoHinh(yeuCau.prompt);
-  if (!kiemDuyet.ok) return khongTraLoi('loi', kiemDuyet.loi, 503);
-  if (kiemDuyet.viPham) return xuLyViPham(actor, yeuCau.prompt, kiemDuyet.viPham, 'mo-hinh');
 
   // ── 6. The tutor ─────────────────────────────────────────────────────────
   const giaSu = await hoiGiaSu({

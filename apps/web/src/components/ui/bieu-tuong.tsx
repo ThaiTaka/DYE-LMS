@@ -90,6 +90,13 @@ const DUONG = {
       <path d="m10 11-2 2 2 2M14 11l2 2-2 2" />
     </>
   ),
+  /** Two speech bubbles — the class chat. */
+  troChuyen: (
+    <>
+      <path d="M4.5 5.5h10a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H9l-3.5 3v-3h-1a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2Z" />
+      <path d="M16.5 9.5h3a2 2 0 0 1 2 2v4.5a2 2 0 0 1-2 2h-1v2.5l-3-2.5h-2.5a2 2 0 0 1-1.6-.8" />
+    </>
+  ),
   /** Clock — a deadline. */
   dongHo: (
     <>

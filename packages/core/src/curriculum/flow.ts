@@ -22,6 +22,10 @@ const ASSESSMENT: ReadonlySet<BlockType> = new Set<BlockType>([
   // assessment" rule covers them exactly as it covers a coding challenge.
   'MULTIPLE_CHOICE',
   'FILL_IN_BLANK',
+  // The review fight asks for answers too. It is authored at the END of a
+  // session, so in practice the rule never bites — but a boss dropped straight
+  // after a theory block is exactly the shape this set exists to refuse.
+  'MINIGAME_BOSS',
 ]);
 
 /** Blocks where a student does something rather than reads something. */
@@ -132,7 +136,8 @@ export function stageOf(type: BlockType): FlowStage {
       return 'SAN_CHOI';
     // MICROBIT_WORKSPACE belongs here rather than with PLAYGROUND: it is a
     // graded task the student hands in and a teacher reads, not a place to
-    // experiment freely.
+    // experiment freely. So do the two review milestones, the boss fight and
+    // the presentation: work the student produces, not material to read.
     case 'MINI_CHALLENGE':
     case 'CODING':
     case 'QUIZ':
@@ -140,6 +145,8 @@ export function stageOf(type: BlockType): FlowStage {
     case 'FILL_IN_BLANK':
     case 'PROJECT':
     case 'MICROBIT_WORKSPACE':
+    case 'MINIGAME_BOSS':
+    case 'PRESENTATION':
       return 'THU_THACH';
     case 'REFLECTION':
     case 'RESOURCE':

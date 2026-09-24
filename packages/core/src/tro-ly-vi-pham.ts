@@ -5,8 +5,9 @@
  * ── What it is, and what it is not ───────────────────────────────────────────
  * The route (`api/tro-ly/route.ts`) decides WHETHER a message is a violation.
  * This module decides what that costs and how it is undone: the student loses
- * the tutor — nothing else, not a score, not a lesson — until a teacher who
- * teaches them lifts it.
+ * the tutor and the class chat's send button — nothing else, not a score, not
+ * a lesson, not the right to read the chat — until a teacher who teaches them
+ * lifts it. The class chat (`thao-luan.ts`) trips the same trap.
  *
  * The same three properties as the focus lock (`khoa-vi-pham.ts`), for the same
  * reasons:
@@ -24,11 +25,21 @@
 import { authorize } from './authz';
 import { ForbiddenError } from './errors';
 
-import type { AiViolationType, PrismaClient } from '@prisma/client';
+import type { AiViolationChannel, AiViolationType, PrismaClient } from '@prisma/client';
 import type { Actor } from './session';
 
 /** Which check caught it. Stored verbatim in `AiViolationAlert.detectedBy`. */
 export type NguonPhatHien = 'tu-khoa' | 'mo-hinh';
+
+/**
+ * Where the message was typed — the tutor, or the class chat.
+ *
+ * The class chat (`guiTinNhanLop`, `POST /api/chat`) runs the tutor's filter
+ * and lands here on a hit, so the SAME lock and the SAME alert cover both. The
+ * channel is recorded so the teacher knows whether the child said it to a bot
+ * or in front of their classmates.
+ */
+export type KenhViPham = AiViolationChannel;
 
 /** Chars of the offending message kept on the alert — the route's own prompt cap. */
 const GIOI_HAN_NOI_DUNG = 2000;
@@ -54,11 +65,13 @@ export interface KetQuaKhoaTroLy {
  * One transaction: the flag and the alert land together or not at all. The
  * role is re-read INSIDE it rather than taken from the caller, so a change of
  * role between the route's check and this write cannot lock a staff account.
+ *
+ * `kenh` defaults to TUTOR, which is every caller that predates the chat.
  */
 export async function khoaTroLyViPham(
   db: PrismaClient,
   studentId: string,
-  input: { noiDung: string; loai: AiViolationType; nguon: NguonPhatHien },
+  input: { noiDung: string; loai: AiViolationType; nguon: NguonPhatHien; kenh?: KenhViPham },
 ): Promise<KetQuaKhoaTroLy> {
   return db.$transaction(async (tx) => {
     const hs = await tx.user.findUnique({ where: { id: studentId }, select: { role: true } });
@@ -72,6 +85,7 @@ export async function khoaTroLyViPham(
         promptText: input.noiDung.slice(0, GIOI_HAN_NOI_DUNG),
         violationType: input.loai,
         detectedBy: input.nguon,
+        channel: input.kenh ?? 'TUTOR',
       },
       select: { id: true },
     });
@@ -93,6 +107,7 @@ export interface CanhBaoTroLyHienThi {
   noiDung: string;
   loai: AiViolationType;
   nguon: NguonPhatHien;
+  kenh: KenhViPham;
   daXuLy: boolean;
   /** Whether the student is locked RIGHT NOW, whatever this row says. */
   conKhoa: boolean;
@@ -134,6 +149,7 @@ export async function canhBaoTroLy(
       promptText: true,
       violationType: true,
       detectedBy: true,
+      channel: true,
       resolved: true,
       resolvedAt: true,
       createdAt: true,
@@ -152,6 +168,7 @@ export async function canhBaoTroLy(
     noiDung: r.promptText,
     loai: r.violationType,
     nguon: r.detectedBy === 'mo-hinh' ? 'mo-hinh' : 'tu-khoa',
+    kenh: r.channel,
     daXuLy: r.resolved,
     conKhoa: r.student.isAiLocked,
     luc: r.createdAt,

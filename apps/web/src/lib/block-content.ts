@@ -97,6 +97,32 @@ export interface NoiDungDuAn {
   milestones: string[];
 }
 
+/**
+ * Ôn tập — the review boss fight.
+ *
+ * Framing only, like `mcq`: the questions come from `deOnTap` in @dye/core,
+ * assembled on the server from what this student has already answered, with
+ * the answer key stripped.
+ */
+export interface NoiDungOnTap {
+  kind: 'boss';
+  markdown: string;
+  tenBoss: string;
+  bieuTuong: string;
+  tuBuoi: number;
+  denBuoi: number;
+}
+
+/** Thuyết trình — the eight-slide summary. */
+export interface NoiDungThuyetTrinh {
+  kind: 'presentation';
+  markdown: string;
+  tuBuoi: number;
+  denBuoi: number;
+  /** A suggested title per slide; may be shorter than eight, or empty. */
+  goiY: string[];
+}
+
 export interface NoiDungKhongDocDuoc {
   kind: 'khong-doc-duoc';
 }
@@ -114,6 +140,8 @@ export type NoiDungKhoi =
   | NoiDungSuyNgam
   | NoiDungTaiNguyen
   | NoiDungDuAn
+  | NoiDungOnTap
+  | NoiDungThuyetTrinh
   | NoiDungKhongDocDuoc;
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -123,6 +151,9 @@ const str = (v: unknown, fallback = ''): string => (typeof v === 'string' ? v : 
 
 const strList = (v: unknown): string[] =>
   Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+
+const int = (v: unknown, fallback = 0): number =>
+  typeof v === 'number' && Number.isInteger(v) ? v : fallback;
 
 /** Only these schemes are allowed through to an href. */
 const SAFE_SCHEME = /^(https?:\/\/|\/|#)/i;
@@ -216,6 +247,28 @@ export function parseNoiDung(raw: unknown): NoiDungKhoi {
         markdown: str(raw['markdown']),
         template: str(raw['template'], 'CUSTOM'),
         milestones: strList(raw['milestones']),
+      };
+
+    case 'boss':
+      return {
+        kind: 'boss',
+        markdown: str(raw['markdown']),
+        tenBoss: str(raw['tenBoss'], 'Trùm Bug'),
+        // Two code points at most — an emoji and its variation selector. This
+        // is drawn at 5rem, and a block authored with a sentence here would
+        // push the HP bars off the card.
+        bieuTuong: [...str(raw['bieuTuong'], '👾')].slice(0, 2).join('') || '👾',
+        tuBuoi: int(raw['tuBuoi']),
+        denBuoi: int(raw['denBuoi']),
+      };
+
+    case 'presentation':
+      return {
+        kind: 'presentation',
+        markdown: str(raw['markdown']),
+        tuBuoi: int(raw['tuBuoi']),
+        denBuoi: int(raw['denBuoi']),
+        goiY: strList(raw['goiY']),
       };
 
     default:

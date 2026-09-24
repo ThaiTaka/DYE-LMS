@@ -134,6 +134,11 @@ const UY_QUYEN_CHO_CORE: Record<string, string> = {
   'taoBaiTapVeNha(': 'authorize(',
   'nopBaiTapVeNha(': 'authorize(',
   'chamBaiTapVeNha(': 'authorize(',
+  // Review milestones. Both take a block id from the browser and open it
+  // through `moKhoiCode` — gating plus the integrity lock — before anything
+  // else; the boss then refuses any question outside the student's own pool.
+  'chamCauOnTap(': 'moKhoiCode(',
+  'nopThuyetTrinh(': 'moKhoiCode(',
 };
 
 const CACH_KIEM_QUYEN = [...KIEM_QUYEN_TRUC_TIEP, ...Object.keys(UY_QUYEN_CHO_CORE)];
@@ -387,8 +392,10 @@ describe('Không ghi được tiến độ vào bài đang khoá', () => {
   });
 
   it('danhDauKhoiXong dùng moKhoiCode, không tra cứu trần', async () => {
+    // Inside the `(hoc-sinh)` route group since the student shell was added;
+    // the old path made this check throw ENOENT instead of checking anything.
     const src = readFileSync(
-      join(GOC, 'app', 'bai-hoc', '[slug]', 'actions.ts'),
+      join(GOC, 'app', '(hoc-sinh)', 'bai-hoc', '[slug]', 'actions.ts'),
       'utf8',
     );
     const than = src.slice(src.indexOf('export async function danhDauKhoiXong'));

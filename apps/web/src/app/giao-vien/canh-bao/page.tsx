@@ -68,6 +68,7 @@ export default async function TrangCanhBao({
     noiDung: c.noiDung,
     loai: c.loai,
     nguon: c.nguon,
+    kenh: c.kenh,
     daXuLy: c.daXuLy,
     conKhoa: c.conKhoa,
     luc: dinhDangGio.format(c.luc),
@@ -104,10 +105,11 @@ export default async function TrangCanhBao({
             {xemTatCa ? 'Trợ lý Bí — mọi lần khoá' : 'Trợ lý Bí đang bị khoá'} ({danhSachTroLy.length})
           </h2>
           <p className="mt-0 mb-4 text-chu-phu">
-            Khi một em gửi cho Bí lời chửi thề, xúc phạm hoặc nội dung người lớn, Bí không trả lời
-            và tự khoá trợ lý của em cho tới khi thầy cô mở lại. Tin nhắn gốc ở ngay bên dưới —{' '}
+            Khi một em gửi lời chửi thề, xúc phạm hoặc nội dung người lớn — cho Bí hoặc vào thảo luận
+            lớp — tin nhắn bị chặn (các bạn không nhìn thấy) và em bị khoá trợ lý cùng quyền gửi tin
+            nhắn cho tới khi thầy cô mở lại. Tin nhắn gốc ở ngay bên dưới —{' '}
             <strong className="text-chu">máy có thể nhầm</strong>, nên thầy cô đọc rồi quyết định.
-            Khoá chỉ tắt trợ lý; bài làm và điểm của em không bị ảnh hưởng.
+            Khoá không ảnh hưởng tới bài làm và điểm của em.
           </p>
           <CanhBaoTroLy canhBao={danhSachTroLy} />
         </section>

@@ -139,6 +139,30 @@ export type BlockContent =
       markdown: string;
       template: ProjectTemplate;
       milestones: string[];
+    }
+  | {
+      /**
+       * Ôn tập — the review boss fight. Carries NO questions: its pool is the
+       * questions the student has already answered in sessions
+       * `tuBuoi..denBuoi` (see `deOnTap` in @dye/core), so there is no answer
+       * key to keep out of this JSON in the first place.
+       */
+      kind: 'boss';
+      markdown: string;
+      tenBoss: string;
+      /** One emoji, drawn large as the boss's portrait. */
+      bieuTuong: string;
+      tuBuoi: number;
+      denBuoi: number;
+    }
+  | {
+      /** Thuyết trình — the eight-slide summary of sessions `tuBuoi..denBuoi`. */
+      kind: 'presentation';
+      markdown: string;
+      tuBuoi: number;
+      denBuoi: number;
+      /** A suggested title per slide. Somewhere to start, never a requirement. */
+      goiY: string[];
     };
 
 export interface ProblemSpec {

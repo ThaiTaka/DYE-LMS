@@ -4,11 +4,13 @@ import { notFound, redirect } from 'next/navigation';
 import { GanKhoaHoc } from '@/components/giao-vien/gan-khoa-hoc';
 import { VoGiaoVien } from '@/components/giao-vien/vo';
 import { DuongDan } from '@/components/hoc-sinh/duong-dan';
+import { KhuThaoLuan } from '@/components/hoc-sinh/khu-thao-luan';
 import { Avatar } from '@/components/ui/avatar';
 import { KIEU_NHANH } from '@/components/ui/nhanh';
 import { ThanhTienDo } from '@/components/ui/thanh-tien-do';
 import { requireRole, xemDuoc } from '@/lib/guard';
 import { duLieuGanKhoaHoc, duLieuLop } from '@/lib/teacher-data';
+import { docThaoLuan } from '@/lib/thao-luan-data';
 
 export default async function TrangLop({
   params,
@@ -35,6 +37,12 @@ export default async function TrangLop({
   // the permission the server action will demand, so the panel is never offered
   // where it would be refused.
   const gan = await duLieuGanKhoaHoc(actor, lop.classId);
+
+  // `class: read` again, inside `docThaoLuan` — the same permission the roster
+  // needed, so this should not refuse where the page did not. If it ever does,
+  // the page renders without the chat rather than as a crash.
+  const thaoLuanKq = await xemDuoc(docThaoLuan(actor, lop.classId));
+  const thaoLuan = thaoLuanKq.ok ? thaoLuanKq.du : null;
 
   return (
     <VoGiaoVien tenHienThi={actor.displayName} vaiTro={actor.role === 'ADMIN' ? 'ADMIN' : 'TEACHER'}>
@@ -189,6 +197,28 @@ export default async function TrangLop({
           </div>
         </section>
       )}
+
+      {/*
+        The class chat, read-only. Last on the page because the roster is what
+        a teacher opens this page for; present because a children's chat that
+        no adult can read is not something to ship. Blocked messages are not
+        here — they never reach the table — they are in "Cảnh báo".
+      */}
+      {thaoLuan ? (
+        <section aria-labelledby="thao-luan-lop" className="mt-10">
+          <h2 id="thao-luan-lop" className="mt-0 mb-1 text-xl font-bold">
+            Thảo luận của lớp
+          </h2>
+          <p className="mt-0 mb-4 text-sm text-chu-phu">
+            Các em trò chuyện ở mục “Thảo luận lớp”. Tin nhắn vi phạm bị chặn tự động và hiện ở{' '}
+            <Link href="/giao-vien/canh-bao" className="text-chinh-sang underline underline-offset-2">
+              Cảnh báo
+            </Link>
+            .
+          </p>
+          <KhuThaoLuan lop={{ id: lop.classId, ten: lop.name }} banDau={thaoLuan} cheDo="giao-vien" />
+        </section>
+      ) : null}
     </VoGiaoVien>
   );
 }

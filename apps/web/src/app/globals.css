@@ -200,6 +200,15 @@
      (0% / 100%) is where it sits when still, so reduced motion loses nothing. */
   --animate-troi: troi 6s ease-in-out infinite;
 
+  /* The review boss fight (khoi-danh-boss.tsx). One-shot, replayed by
+     remounting the element with a new key. `rung` is a hit landing — on the
+     boss for a right answer, on the student's shield for a wrong one — and
+     rests at no offset. `bay-so` is the "−1" that floats off a hit and rests
+     invisible, so under reduced motion the number simply never appears; the
+     live region beside it still says what happened. */
+  --animate-rung: rung 420ms ease-in-out;
+  --animate-bay-so: bay-so 900ms ease-out forwards;
+
   /* The track holds the file three times; moving it up by one copy lands on a
      frame identical to the first, so the loop has no seam. */
   @keyframes cuon-ma {
@@ -276,6 +285,36 @@
   @keyframes troi {
     50% {
       transform: translate3d(0, -6px, 0);
+    }
+  }
+
+  @keyframes rung {
+    20% {
+      transform: translate3d(-6px, 0, 0) rotate(-3deg);
+    }
+    40% {
+      transform: translate3d(5px, 0, 0) rotate(2deg);
+    }
+    60% {
+      transform: translate3d(-4px, 0, 0) rotate(-1deg);
+    }
+    80% {
+      transform: translate3d(3px, 0, 0);
+    }
+  }
+
+  @keyframes bay-so {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 6px, 0) scale(0.8);
+    }
+    20% {
+      opacity: 1;
+      transform: translate3d(0, 0, 0) scale(1.15);
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(0, -32px, 0) scale(1);
     }
   }
 }
@@ -550,6 +589,19 @@ body::before {
 /* The hero overlay as a class, for any full-bleed picture with text on it. */
 @utility phu-hero {
   background-image: var(--gradient-hero);
+}
+
+/*
+ * The arena floor — a faint violet grid, for the two "game" surfaces (the
+ * boss fight and a presentation slide). An image, not a colour, so it layers
+ * over whatever `bg-*` surface token the element already has. 7% violet: it
+ * reads as texture on `be-mat` and `nen-sau` and never competes with text.
+ */
+@utility nen-luoi {
+  background-image:
+    linear-gradient(rgba(167, 139, 250, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(167, 139, 250, 0.07) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 
 /* ── Markdown rendered from lesson content ──────────────────────────────── */

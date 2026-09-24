@@ -36,7 +36,7 @@ export type KetQuaTraLoi =
   | { trangThai: 'khong-tu-cham-duoc' };
 
 /** The correct answer as a student would read it, for a closed question. */
-function dapAnCua(question: {
+export function dapAnCua(question: {
   type: string;
   acceptedAnswers: string[];
   choices: Array<{ text: string; isCorrect: boolean }>;

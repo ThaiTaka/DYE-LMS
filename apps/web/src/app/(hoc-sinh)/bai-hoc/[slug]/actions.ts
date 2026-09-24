@@ -3,9 +3,12 @@
 import {
   authorize,
   biKhoaViPham,
+  chamCauOnTap,
   ForbiddenError,
   ghiNhanNoLuc,
   moKhoiCode,
+  moTaLoiThuyetTrinh,
+  nopThuyetTrinh,
   nopTuLuan,
   nopTuLuanHocTap,
   traLoiCauHoi,
@@ -246,6 +249,99 @@ export async function nopBaiTuLuanHocTap(
     }
     console.error('[tu-luan-hoc-tap] nop that bai', error);
     return { trangThai: 'loi', thongDiep: 'Có lỗi kỹ thuật. Em thử lại giúp nhé — bài vẫn còn trong ô.' };
+  }
+}
+
+export type KetQuaDanhBossUI =
+  | { trangThai: 'da-cham'; dung: boolean; dapAnDung: string | null; giaiThich: string | null }
+  | { trangThai: 'tu-choi'; thongDiep: string };
+
+/**
+ * One answer in the review boss fight.
+ *
+ * Marked on the server by `chamCauOnTap`, which re-derives everything the
+ * browser sent: the lesson must be open (`moKhoiCode`), the block must be a
+ * boss, and the question must be one this student has ALREADY answered in the
+ * boss's window. So the fight — replayable as often as a child likes — can
+ * never be used to find out the answer to a question that is still open.
+ *
+ * Nothing is recorded per answer; the block completes through
+ * `danhDauKhoiXong` when a fight ends, win or lose.
+ */
+export async function danhBoss(
+  blockId: string,
+  questionId: string,
+  traLoi: string,
+): Promise<KetQuaDanhBossUI> {
+  const actor = await currentActor();
+  if (!actor || actor.role !== 'STUDENT') {
+    return { trangThai: 'tu-choi', thongDiep: 'Chỉ học sinh mới đấu boss được nhé.' };
+  }
+
+  try {
+    const kq = await chamCauOnTap(db, actor.id, blockId, questionId, traLoi.slice(0, 500));
+    return { trangThai: 'da-cham', ...kq };
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      // A question outside the pool means a stale page (a teacher reset the
+      // lesson's quiz since it loaded); everything else — a locked lesson, the
+      // integrity lock — already carries a sentence written for the child.
+      const thongDiep =
+        error.reason === 'question-not-in-review'
+          ? 'Câu này không còn trong trận ôn tập. Em tải lại trang rồi đấu tiếp nhé.'
+          : error.message;
+      return { trangThai: 'tu-choi', thongDiep };
+    }
+    console.error('[on-tap] cham that bai', error);
+    return { trangThai: 'tu-choi', thongDiep: 'Có lỗi kỹ thuật. Em thử lại giúp nhé.' };
+  }
+}
+
+export interface KetQuaThuyetTrinhUI {
+  trangThai: 'da-nhan' | 'khong-hop-le' | 'da-nop-roi' | 'tu-choi' | 'loi';
+  thongDiep: string;
+}
+
+/**
+ * Hand in the eight-slide presentation.
+ *
+ * The slide count, the empty-slide check, the gating check, the integrity lock
+ * and the once-only rule all live in `nopThuyetTrinh`. Returned, never thrown:
+ * a crash page here would sit on top of eight slides of a child's writing.
+ */
+export async function nopBaiThuyetTrinh(
+  blockId: string,
+  slides: Array<{ tieuDe: string; noiDung: string }>,
+): Promise<KetQuaThuyetTrinhUI> {
+  try {
+    const actor = await currentActor();
+    if (!actor || actor.role !== 'STUDENT') {
+      return { trangThai: 'tu-choi', thongDiep: 'Chỉ học sinh mới nộp được bài thuyết trình.' };
+    }
+
+    const kq = await nopThuyetTrinh(db, actor, blockId, slides);
+
+    switch (kq.trangThai) {
+      case 'khong-hop-le':
+        return { trangThai: 'khong-hop-le', thongDiep: moTaLoiThuyetTrinh(kq.loi) };
+      case 'da-nop-roi':
+        revalidatePath('/bai-hoc/[slug]', 'page');
+        return { trangThai: 'da-nop-roi', thongDiep: 'Em đã nộp bài thuyết trình này rồi.' };
+      case 'da-nhan':
+        revalidatePath('/bai-hoc/[slug]', 'page');
+        revalidatePath('/khoa-hoc/[slug]', 'page');
+        revalidatePath('/bang-dieu-khien');
+        return {
+          trangThai: 'da-nhan',
+          thongDiep: 'Đã nộp bài thuyết trình! Thầy cô sẽ xem và hẹn em trình bày trước lớp.',
+        };
+    }
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return { trangThai: 'tu-choi', thongDiep: error.message };
+    }
+    console.error('[thuyet-trinh] nop that bai', error);
+    return { trangThai: 'loi', thongDiep: 'Có lỗi kỹ thuật. Em thử lại giúp nhé — bài vẫn còn nguyên.' };
   }
 }
 

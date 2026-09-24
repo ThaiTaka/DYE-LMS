@@ -17,6 +17,8 @@ export interface CanhBaoTroLyHang {
   noiDung: string;
   loai: 'PROFANITY' | 'INSULT' | 'NSFW';
   nguon: 'tu-khoa' | 'mo-hinh';
+  /** Where it was typed. A message to classmates is a different conversation. */
+  kenh: 'TUTOR' | 'CLASS_CHAT';
   daXuLy: boolean;
   conKhoa: boolean;
   luc: string;
@@ -39,6 +41,12 @@ const NHAN_NGUON: Record<CanhBaoTroLyHang['nguon'], string> = {
   'mo-hinh': 'AI kiểm duyệt đánh giá',
 };
 
+/** Where the message was typed, as a pill beside the category. */
+const NHAN_KENH: Record<CanhBaoTroLyHang['kenh'], string> = {
+  TUTOR: '🤖 Hỏi trợ lý Bí',
+  CLASS_CHAT: '💬 Thảo luận lớp',
+};
+
 function NutMoKhoa() {
   const { pending } = useFormStatus();
   return (
@@ -47,7 +55,8 @@ function NutMoKhoa() {
       disabled={pending}
       className="min-h-cham rounded-nut bg-chinh px-4 py-2 text-sm font-semibold text-white hover:bg-chinh-dam disabled:opacity-60"
     >
-      {pending ? 'Đang mở…' : 'Mở lại trợ lý cho em'}
+      {/* One lock covers both surfaces, so one unlock gives both back. */}
+      {pending ? 'Đang mở…' : 'Mở lại trợ lý và thảo luận cho em'}
     </button>
   );
 }
@@ -82,6 +91,9 @@ function HangCanhBaoTroLy({ canhBao }: { canhBao: CanhBaoTroLyHang }) {
         </Link>
         <span className="rounded-full bg-the px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
           {NHAN_LOAI[canhBao.loai]}
+        </span>
+        <span className="rounded-full bg-the px-2.5 py-0.5 text-xs font-semibold text-chu-phu">
+          {NHAN_KENH[canhBao.kenh]}
         </span>
         {canhBao.daXuLy ? (
           <span className="rounded-full bg-dung-nen px-2.5 py-0.5 text-xs font-semibold text-dung">

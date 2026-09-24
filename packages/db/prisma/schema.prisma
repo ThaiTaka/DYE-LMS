@@ -83,6 +83,18 @@ enum BlockType {
   /// with the gap marked and whose `acceptedAnswers` carry every spelling a
   /// student could reasonably type.
   FILL_IN_BLANK
+  /// Ôn tập — the review "boss fight" that closes every fifth session.
+  ///
+  /// Has no quiz of its own. Its questions are drawn at read time from the
+  /// quizzes of the sessions in its window (`content.tuBuoi..denBuoi`), and
+  /// ONLY from questions the student has already answered in their home lesson.
+  /// That restriction is the whole security story: the fight can be replayed
+  /// as often as a child likes, and a replayable surface must not become a way
+  /// to probe a one-attempt question that is still open.
+  MINIGAME_BOSS
+  /// Thuyết trình — the eight-slide summary at every fifteenth session.
+  /// Stored as a `PresentationSubmission`, read by the teacher.
+  PRESENTATION
 }
 
 enum JudgeMode {
@@ -205,12 +217,17 @@ model User {
   locale             String    @default("vi")
   isActive           Boolean   @default(true)
   mustChangePassword Boolean   @default(false)
-  /// Bí (the tutor) refuses this user until a teacher lifts it.
+  /// The moderation lock: Bí (the tutor) refuses this user, and so does the
+  /// class chat's send button, until a teacher lifts it.
   ///
-  /// Set only by the tutor's moderation trap, and only on a STUDENT, in the same
-  /// transaction as the `AiViolationAlert` that explains it — a flag with no row
-  /// behind it would be a punishment nobody can account for. Lifted by
-  /// `moKhoaTroLy`, which resolves the alerts and writes the audit row.
+  /// Set only by the moderation trap — a message to the tutor OR to the class
+  /// chat — and only on a STUDENT, in the same transaction as the
+  /// `AiViolationAlert` that explains it; a flag with no row behind it would be
+  /// a punishment nobody can account for. One flag for both surfaces because
+  /// it is one judgement about one child: a student locked out of the tutor
+  /// for swearing must not carry on swearing at classmates. Reading the chat
+  /// stays open. Lifted by `moKhoaTroLy`, which resolves the alerts and writes
+  /// the audit row.
   isAiLocked         Boolean   @default(false)
   lastLoginAt        DateTime?
   createdAt          DateTime  @default(now())
@@ -218,7 +235,7 @@ model User {
 
   accounts             Account[]
   sessions             Session[]
-  taughtClasses        Class[]              @relation("ClassTeacher")
+  taughtClasses        Class[]                  @relation("ClassTeacher")
   enrollments          Enrollment[]
   lessonProgress       LessonProgress[]
   blockProgress        BlockProgress[]
@@ -226,31 +243,33 @@ model User {
   codeDrafts           CodeDraft[]
   codeSnapshots        CodeSnapshot[]
   quizAttempts         QuizAttempt[]
-  trackAssignments     TrackAssignment[]    @relation("TrackStudent")
-  tracksAssigned       TrackAssignment[]    @relation("TrackAssigner")
-  overridesCreated     LessonOverride[]     @relation("OverrideAuthor")
-  overridesReceived    LessonOverride[]     @relation("OverrideStudent")
+  trackAssignments     TrackAssignment[]        @relation("TrackStudent")
+  tracksAssigned       TrackAssignment[]        @relation("TrackAssigner")
+  overridesCreated     LessonOverride[]         @relation("OverrideAuthor")
+  overridesReceived    LessonOverride[]         @relation("OverrideStudent")
   xpEvents             XpEvent[]
   earnedBadges         StudentBadge[]
   streak               Streak?
   gameProjects         GameProject[]
-  feedbackAuthored     Feedback[]           @relation("FeedbackAuthor")
+  feedbackAuthored     Feedback[]               @relation("FeedbackAuthor")
   auditLogs            AuditLog[]
   notifications        Notification[]
-  announcements        Announcement[]       @relation("AnnouncementAuthor")
-  problemsAuthored     Problem[]            @relation("ProblemAuthor")
+  announcements        Announcement[]           @relation("AnnouncementAuthor")
+  problemsAuthored     Problem[]                @relation("ProblemAuthor")
   focusEvents          FocusEvent[]
-  focusAlerts          FocusAlert[]         @relation("FocusAlertStudent")
-  focusAlertsSeen      FocusAlert[]         @relation("FocusAlertReviewer")
-  focusLocks           FocusLock[]          @relation("FocusLockStudent")
-  focusLocksCleared    FocusLock[]          @relation("FocusLockClearer")
-  examAttempts         ExamAttempt[]        @relation("ExamAttemptStudent")
-  examAttemptsVoided   ExamAttempt[]        @relation("ExamAttemptVoider")
-  aiViolations         AiViolationAlert[]   @relation("AiViolationStudent")
-  aiViolationsResolved AiViolationAlert[]   @relation("AiViolationResolver")
+  focusAlerts          FocusAlert[]             @relation("FocusAlertStudent")
+  focusAlertsSeen      FocusAlert[]             @relation("FocusAlertReviewer")
+  focusLocks           FocusLock[]              @relation("FocusLockStudent")
+  focusLocksCleared    FocusLock[]              @relation("FocusLockClearer")
+  examAttempts         ExamAttempt[]            @relation("ExamAttemptStudent")
+  examAttemptsVoided   ExamAttempt[]            @relation("ExamAttemptVoider")
+  aiViolations         AiViolationAlert[]       @relation("AiViolationStudent")
+  aiViolationsResolved AiViolationAlert[]       @relation("AiViolationResolver")
   lessonReflections    LessonReflection[]
-  homeworkAuthored     Homework[]           @relation("HomeworkAuthor")
+  homeworkAuthored     Homework[]               @relation("HomeworkAuthor")
   homeworkSubmissions  HomeworkSubmission[]
+  classMessages        ClassMessage[]
+  presentations        PresentationSubmission[]
 
   @@index([role, isActive])
 }
@@ -320,6 +339,7 @@ model Class {
   focusAlerts   FocusAlert[]
   focusLocks    FocusLock[]
   homework      Homework[]
+  messages      ClassMessage[]
 
   @@index([teacherId, isArchived])
 }
@@ -491,12 +511,13 @@ model LessonBlock {
   problemId        String?
   quizId           String?
 
-  lesson    Lesson          @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  problem   Problem?        @relation(fields: [problemId], references: [id])
-  quiz      Quiz?           @relation(fields: [quizId], references: [id])
-  progress  BlockProgress[]
-  drafts    CodeDraft[]
-  snapshots CodeSnapshot[]
+  lesson        Lesson                   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  problem       Problem?                 @relation(fields: [problemId], references: [id])
+  quiz          Quiz?                    @relation(fields: [quizId], references: [id])
+  progress      BlockProgress[]
+  drafts        CodeDraft[]
+  snapshots     CodeSnapshot[]
+  presentations PresentationSubmission[]
 
   @@unique([lessonId, order])
   @@index([lessonId, tier])
@@ -1427,6 +1448,18 @@ enum AiViolationType {
   NSFW
 }
 
+/// Where the offending message was typed.
+///
+/// The teacher reading an alert is deciding whether the machine was right, and
+/// "what did the child say to a bot" and "what did the child say in front of
+/// their classmates" are different conversations to have with them.
+enum AiViolationChannel {
+  /// A question to Bí.
+  TUTOR
+  /// A message to the class chat. Never saved: the alert is the only copy.
+  CLASS_CHAT
+}
+
 /// One message that tripped the tutor's moderation, and the lock it caused.
 ///
 /// ── Why a row and not just `User.isAiLocked` ─────────────────────────────────
@@ -1440,7 +1473,7 @@ enum AiViolationType {
 /// when. Nothing is deleted: an alert about a child that was silently cleared is
 /// worse than one nobody looked at.
 model AiViolationAlert {
-  id            String          @id @default(cuid())
+  id            String             @id @default(cuid())
   studentId     String
   /// The student's message, verbatim, capped at the route's prompt limit.
   promptText    String
@@ -1449,10 +1482,12 @@ model AiViolationAlert {
   /// teacher, because a word-list hit and a judgement call deserve different
   /// amounts of benefit of the doubt.
   detectedBy    String
-  resolved      Boolean         @default(false)
+  /// TUTOR for every alert raised before the class chat existed.
+  channel       AiViolationChannel @default(TUTOR)
+  resolved      Boolean            @default(false)
   resolvedById  String?
   resolvedAt    DateTime?
-  createdAt     DateTime        @default(now())
+  createdAt     DateTime           @default(now())
 
   student    User  @relation("AiViolationStudent", fields: [studentId], references: [id], onDelete: Cascade)
   resolvedBy User? @relation("AiViolationResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
@@ -1582,5 +1617,79 @@ model HomeworkSubmission {
   @@unique([homeworkId, studentId])
   /// The teacher's queue: ungraded hand-ins, per homework.
   @@index([homeworkId, isGraded])
+  @@index([studentId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// REVIEW MILESTONES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// A student's eight-slide summary for one PRESENTATION block.
+///
+/// ── Per block, not per lesson ───────────────────────────────────────────────
+/// Unlike `LessonReflection`, this IS a lesson block: handing it in completes
+/// the block through `ghiNhanNoLuc`, the same effort rule every other hand-in
+/// uses. So it is keyed on the block, and a teacher's "Mở lại" on that block
+/// (`moLaiKhoi`) deletes it along with the block's progress.
+///
+/// ── Exactly eight slides, checked by the only writer ────────────────────────
+/// `slides` is a JSON array of `{ tieuDe, noiDung }`. The count, the per-field
+/// caps and "no empty slide" are enforced by `nopThuyetTrinh` in @dye/core —
+/// JSON because a slide may later grow a field (a picture, speaker notes)
+/// without a migration, the reason `Problem.acceptedAnswers` is JSON too.
+///
+/// ── Once ────────────────────────────────────────────────────────────────────
+/// One per (student, block). A second submit fails on the unique key rather
+/// than overwriting what the teacher may already be reading.
+model PresentationSubmission {
+  id        String   @id @default(cuid())
+  studentId String
+  blockId   String
+  slides    Json
+  createdAt DateTime @default(now())
+
+  student User        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  block   LessonBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, blockId])
+  /// The teacher's page about one child: newest first.
+  @@index([studentId, createdAt])
+  @@index([blockId])
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLASS CHAT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// One message in a class's group chat.
+///
+/// ── Every row here has already passed moderation ────────────────────────────
+/// `POST /api/chat` runs the tutor's own filter — the word list, then the model
+/// classifier — BEFORE the insert, and a message that trips it is never
+/// written: the child is locked (`User.isAiLocked`) and the text survives only
+/// as the `AiViolationAlert` their teacher reads. Classmates never see it.
+///
+/// ── Students write, the class's teacher reads ──────────────────────────────
+/// `studentId` is the author and is always a STUDENT with an active enrolment
+/// in `classId` at send time. The class's teacher (and an admin) can read the
+/// feed through the same `class: read` permission as the roster — a group
+/// chat between children that no adult can see is not something to ship.
+///
+/// ── Plain text ──────────────────────────────────────────────────────────────
+/// Rendered as text, never as markdown: no links for a child to be tricked
+/// into, no images to smuggle past the filter.
+model ClassMessage {
+  id        String   @id @default(cuid())
+  classId   String
+  studentId String
+  /// Capped at GIOI_HAN_TIN_NHAN by the only writer, `guiTinNhanLop`.
+  content   String
+  createdAt DateTime @default(now())
+
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  /// The feed: one class, oldest to newest, and "newer than what I have".
+  @@index([classId, createdAt])
   @@index([studentId])
 }
